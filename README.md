@@ -217,19 +217,35 @@ hooks:
 ```
 knight-agent/
 ├── docs/
-│   ├── 00-priority-overview.md
-│   ├── 01-requirements-analysis.md
-│   ├── 02-system-design.md
-│   ├── 03-module-design/
-│   │   ├── README.md
-│   │   ├── core/           # 核心引擎模块
-│   │   ├── agent/          # Agent 运行模块
-│   │   ├── services/       # 基础服务模块
-│   │   ├── tools/          # 工具系统
-│   │   └── security/       # 安全模块
-│   └── SRS.md
-├── CLAUDE.md                # Claude Code 配置
-└── README.md
+│   ├── 00-priority-overview.md    # 优先级总览
+│   ├── 01-requirements-analysis.md # 需求分析
+│   ├── 02-system-design.md         # 系统架构设计
+│   ├── 03-module-design/          # 模块详细设计 (16个模块)
+│   │   ├── README.md              # 模块设计索引
+│   │   ├── core/                  # 核心引擎模块 (4个)
+│   │   │   ├── session-manager.md
+│   │   │   ├── orchestrator.md
+│   │   │   ├── event-loop.md
+│   │   │   └── hook-engine.md
+│   │   ├── agent/                 # Agent 运行模块 (4个)
+│   │   │   ├── agent-runtime.md
+│   │   │   ├── agent-variants.md
+│   │   │   ├── skill-engine.md
+│   │   │   └── task-manager.md
+│   │   ├── services/              # 基础服务模块 (4个)
+│   │   │   ├── llm-provider.md
+│   │   │   ├── mcp-client.md
+│   │   │   ├── storage-service.md
+│   │   │   └── context-compressor.md
+│   │   ├── tools/                 # 工具系统 (1个)
+│   │   │   └── tool-system.md
+│   │   └── security/              # 安全模块 (2个)
+│   │       ├── security-manager.md
+│   │       └── sandbox.md
+│   ├── 04-testing-design.md       # L0/L1 测试设计
+│   └── SRS.md                     # 软件需求规格说明书
+├── CLAUDE.md                       # Claude Code 配置
+└── README.md                       # 项目说明
 ```
 
 ## 设计亮点
