@@ -74,34 +74,35 @@
 ## 实现优先级
 
 ### P0 - 核心模块 (已完成)
-- [x] `core/session-manager.md` - 会话管理器
-- [x] `agent/agent-runtime.md` - Agent 运行时
-- [x] `services/llm-provider.md` - LLM 提供者抽象
-- [x] `tools/tool-system.md` - 工具框架
+- [x] [session-manager](core/session-manager.md) - 会话管理器
+- [x] [agent-runtime](agent/agent-runtime.md) - Agent 运行时
+- [x] [llm-provider](services/llm-provider.md) - LLM 提供者抽象
+- [x] [tool-system](tools/tool-system.md) - 工具框架
 
 ### P1 - 扩展模块 (已完成)
-- [x] `core/orchestrator.md` - 编排器
-- [x] `agent/skill-engine.md` - 技能引擎
-- [x] `core/event-loop.md` - 事件循环
-- [x] `core/hook-engine.md` - Hook 引擎
-- [x] `agent/task-manager.md` - 任务管理器
-- [x] `services/mcp-client.md` - MCP 客户端
-- [x] `services/context-compressor.md` - 上下文压缩
-- [x] `services/storage-service.md` - 存储服务
+- [x] [orchestrator](core/orchestrator.md) - 编排器
+- [x] [skill-engine](agent/skill-engine.md) - 技能引擎
+- [x] [event-loop](core/event-loop.md) - 事件循环
+- [x] [hook-engine](core/hook-engine.md) - Hook 引擎
+- [x] [task-manager](agent/task-manager.md) - 任务管理器
+- [x] [mcp-client](services/mcp-client.md) - MCP 客户端
+- [x] [context-compressor](services/context-compressor.md) - 上下文压缩
+- [x] [storage-service](services/storage-service.md) - 存储服务
+- [x] [agent-variants](agent/agent-variants.md) - Agent 变体系统
 
 ### P2 - 安全和运维 (已完成)
-- [x] `security/security-manager.md` - 安全管理器
-- [x] `security/sandbox.md` - 沙箱机制
+- [x] [security-manager](security/security-manager.md) - 安全管理器
+- [x] [sandbox](security/sandbox.md) - 沙箱机制
 
 ## 相关文档
 
 | 文档 | 内容 |
 |------|------|
-| `../02-system-design.md` | 系统架构高层次设计 |
-| `../01-requirements-analysis.md` | 需求分析 |
-| `../00-priority-overview.md` | 功能优先级总览 |
-| `../04-testing-design.md` | L0/L1 测试设计文档 |
-| `../SRS.md` | 软件需求规格说明书 |
+| [02-system-design.md](../02-system-design.md) | 系统架构高层次设计 |
+| [01-requirements-analysis.md](../01-requirements-analysis.md) | 需求分析 |
+| [00-priority-overview.md](../00-priority-overview.md) | 功能优先级总览 |
+| [04-testing-design.md](../04-testing-design.md) | L0/L1 测试设计文档 |
+| [SRS.md](../SRS.md) | 软件需求规格说明书 |
 
 ## 版本历史
 
