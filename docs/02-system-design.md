@@ -665,7 +665,207 @@ listener:
 
 ---
 
-## 7. 任务管理系统
+## 7. Hook 系统
+
+### 7.1 Hook 架构
+
+Hook 系统允许插件在关键事件点注入自定义逻辑。
+
+```
+请求流程 with Hooks:
+┌─────────────────────────────────────────────────────────────┐
+│  before hooks (priority: 1 → N)                              │
+│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐              │
+│  │ Hook 1 │→│ Hook 2 │→│ Hook N │→│ 检查阻断│              │
+│  └────────┘ └────────┘ └────────┘ │        │              │
+│                                  └───┬────┘              │
+│                                      │                     │
+│                           ┌──────────┴──────────┐          │
+│                           │ no block          │          │
+│                           ▼                   │          │
+│                    ┌────────────────┐         │          │
+│                    │  执行原始操作   │         │          │
+│                    └────────────────┘         │          │
+│                           │                   │          │
+│                           ▼                   │          │
+│  ┌────────────────────────────────────────────────────────┤
+│  │ after hooks (priority: 1 → N)                            │
+│  │ ┌────────┐ ┌────────┐ ┌────────┐                         │
+│  │ │ Hook 1 │→│ Hook 2 │→│ Hook N │                         │
+│  │ └────────┘ └────────┘ └────────┘                         │
+│  └────────────────────────────────────────────────────────┘
+│                           │
+│                           ▼
+│                    返回结果
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 7.2 Hook 定义
+
+```yaml
+hook:
+  name: string
+  priority: int               # 执行优先级 (越小越先)
+  phase: string               # before/after/replace
+
+  # 触发条件
+  trigger:
+    event: string
+    filter:
+      agent: string | null
+      session: string | null
+      tool: string | null
+
+  # 处理器
+  handler:
+    type: string              # command/skill/rpc
+    target: string
+
+  # 控制能力
+  control:
+    can_block: boolean
+    can_modify: boolean
+    continue_on_error: boolean
+```
+
+### 7.3 Hook 事件点
+
+```yaml
+hook_events:
+  # Agent 生命周期
+  agent:
+    - agent_create
+    - agent_created
+    - agent_execute
+    - agent_executed
+    - agent_error
+
+  # 会话生命周期
+  session:
+    - session_create
+    - session_created
+    - session_switch
+    - session_close
+    - context_compress
+
+  # 工具调用
+  tool:
+    - tool_call               # 调用前 (可阻断)
+    - tool_result             # 返回后
+    - file_access             # 文件访问 (可阻断)
+    - command_execute         # 命令执行 (可阻断)
+
+  # LLM 调用
+  llm:
+    - llm_request
+    - llm_response
+    - prompt_build            # 可修改 prompt
+
+  # 消息处理
+  message:
+    - message_send
+    - message_received
+    - message_modify
+```
+
+### 7.4 Hook 配置
+
+```yaml
+# config/hooks.yaml
+hooks:
+  # 敏感操作确认
+  - name: confirm_sensitive
+    event: tool_call
+    phase: before
+    priority: 100
+    filter:
+      tool: "delete|rm|format"
+    handler:
+      type: command
+      target: "./hooks/confirm.sh"
+    control:
+      can_block: true
+
+  # 审计日志
+  - name: audit_log
+    event: tool_call
+    phase: after
+    priority: 999
+    handler:
+      type: command
+      target: "./hooks/audit.sh"
+    control:
+      continue_on_error: true
+
+  # 自定义响应处理
+  - name: custom_handler
+    event: message_received
+    phase: replace
+    priority: 0
+    handler:
+      type: rpc
+      target: "localhost:8080/handle"
+```
+
+### 7.5 Hook 目录结构
+
+```
+~/.knight-agent/
+├── hooks/
+│   ├── agent/
+│   │   ├── before_execute.*
+│   │   └── after_execute.*
+│   ├── tool/
+│   │   ├── file_access.*
+│   │   └── command_guard.*
+│   ├── llm/
+│   │   └── prompt_modifier.*
+│   └── session/
+│       └── on_close.*
+└── config/
+    └── hooks.yaml
+```
+
+### 7.6 Hook 上下文
+
+Hook 执行时接收的上下文：
+
+```yaml
+hook_context:
+  event:
+    name: string
+    phase: string
+    timestamp: datetime
+
+  session:
+    id: string
+    workspace: string
+    variables: map
+
+  agent:
+    id: string
+    name: string
+    state: string
+
+  request:
+    method: string
+    params: map
+    headers: map
+
+  response:                 # after phase
+    data: any
+    error: string | null
+    duration_ms: int
+
+  control:
+    block: func(reason)
+    modify: func(data)
+    skip: func()
+```
+
+---
+
+## 8. 任务管理系统
 
 ### 7.1 任务模型
 
@@ -817,7 +1017,7 @@ task_scheduler:
 
 ---
 
-## 8. 7×24 守护进程
+## 9. 7×24 守护进程
 
 ### 8.1 守护进程架构
 
@@ -937,7 +1137,7 @@ event_loop:
 
 ---
 
-## 9. 监控与可观测性
+## 10. 监控与可观测性
 
 ### 9.1 核心指标
 
@@ -1090,7 +1290,7 @@ tracing:
 
 ---
 
-## 10. LLM Provider 抽象层
+## 11. LLM Provider 抽象层
 
 ### 10.1 Provider 接口
 
@@ -1195,7 +1395,7 @@ model_router:
 
 ---
 
-## 11. MCP 工具集成
+## 12. MCP 工具集成
 
 ### 11.1 MCP 配置
 
@@ -1298,7 +1498,7 @@ mcp_adapter:
 
 ---
 
-## 12. 存储设计
+## 13. 存储设计
 
 ### 12.1 目录结构
 
@@ -1375,9 +1575,9 @@ session:
 
 ---
 
-## 13. CLI 接口
+## 14. CLI 接口
 
-### 13.1 命令结构
+### 14.1 命令结构
 
 ```bash
 # Agent 管理
@@ -1406,7 +1606,7 @@ knight monitor
 knight logs <session>
 ```
 
-### 13.2 交互模式
+### 14.2 交互模式
 
 ```
 $ knight chat code-reviewer:quick
@@ -1436,9 +1636,9 @@ $ knight chat code-reviewer:quick
 
 ---
 
-## 14. 安全设计
+## 15. 安全设计
 
-### 14.1 权限模型
+### 15.1 权限模型
 
 ```yaml
 permission:
@@ -1450,7 +1650,7 @@ permission:
     - read | write | execute | delete
 ```
 
-### 14.2 沙箱机制
+### 15.2 沙箱机制
 
 ```yaml
 sandbox:
@@ -1478,7 +1678,7 @@ sandbox:
     max_file_size: 10MB
 ```
 
-### 14.3 审计日志
+### 15.3 审计日志
 
 ```yaml
 audit_log:
@@ -1495,9 +1695,9 @@ audit_log:
 
 ---
 
-## 15. 技术选型
+## 16. 技术选型
 
-### 15.1 混合架构
+### 16.1 混合架构
 
 | 模块 | 技术 | 理由 |
 |------|------|------|
@@ -1512,7 +1712,7 @@ audit_log:
 | **LLM** | 多云 HTTP API | Anthropic、OpenAI 等 |
 | **工具扩展** | MCP 协议 | 标准化工具接口 |
 
-### 15.2 模块边界
+### 16.2 模块边界
 
 ```
 Rust Core (knight-core)
@@ -1530,7 +1730,7 @@ TypeScript Extensions (knight-ext)
 └── Admin Panel
 ```
 
-### 15.3 通信协议
+### 16.3 通信协议
 
 ```yaml
 # Rust Core 对外接口
@@ -1543,9 +1743,9 @@ grpc_services:
 
 ---
 
-## 16. 部署架构
+## 17. 部署架构
 
-### 16.1 开发环境
+### 17.1 开发环境
 
 ```
 开发者机器
@@ -1560,7 +1760,7 @@ grpc_services:
         └── project.yaml
 ```
 
-### 16.2 生产环境
+### 17.2 生产环境
 
 ```
 服务器
@@ -1575,9 +1775,9 @@ grpc_services:
 
 ---
 
-## 17. 状态机设计
+## 18. 状态机设计
 
-### 17.1 Agent 生命周期
+### 18.1 Agent 生命周期
 
 ```mermaid
 stateDiagram-v2
@@ -1595,7 +1795,7 @@ stateDiagram-v2
     Failed --> [*]: cleanup
 ```
 
-### 17.2 会话状态
+### 18.2 会话状态
 
 ```mermaid
 stateDiagram-v2
@@ -1611,16 +1811,16 @@ stateDiagram-v2
 
 ---
 
-## 18. 设计原则
+## 19. 设计原则
 
-### 18.1 核心原则
+### 19.1 核心原则
 
 1. **会话隔离优先**: 每个 Session 独立运行，互不干扰
 2. **上下文自动管理**: 自动压缩长对话，保留关键信息
 3. **渐进式复杂**: MVP 支持基础功能，逐步增强
 4. **可扩展性**: 通过 MCP 协议扩展工具能力
 
-### 18.2 权衡
+### 19.2 权衡
 
 | 方面 | 选择 | 理由 |
 |------|------|------|

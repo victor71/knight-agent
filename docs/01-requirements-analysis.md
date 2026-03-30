@@ -405,6 +405,62 @@ triggers:
 
 ---
 
+### 2.9 Hook 系统
+
+| 需求项 | 描述 | 优先级 |
+|--------|------|--------|
+| Hook 事件点 | 在关键事件点注入逻辑 | P2 |
+| Hook 阶段 | before/after/replace 三种阶段 | P2 |
+| 优先级执行 | 按优先级顺序执行 Hook | P2 |
+| 阻断能力 | Hook 可中断原始操作 | P2 |
+| 修改能力 | Hook 可修改请求数据 | P2 |
+| Hook 处理器 | 支持 command/skill/rpc | P2 |
+
+**Hook 事件点**:
+```yaml
+agent_events:
+  - agent_create
+  - agent_execute
+  - agent_error
+
+session_events:
+  - session_create
+  - session_switch
+  - context_compress
+
+tool_events:
+  - tool_call
+  - file_access           # 可阻断
+  - command_execute       # 可阻断
+
+llm_events:
+  - llm_request
+  - prompt_build          # 可修改
+
+message_events:
+  - message_send
+  - message_received
+```
+
+**Hook 配置示例**:
+```yaml
+# config/hooks.yaml
+hooks:
+  - name: confirm_sensitive
+    event: tool_call
+    phase: before
+    priority: 100
+    filter:
+      tool: "delete|rm|format"
+    handler:
+      type: command
+      target: "./hooks/confirm.sh"
+    control:
+      can_block: true
+```
+
+---
+
 ## 3. 非功能需求
 
 ### 3.1 性能要求
@@ -556,6 +612,7 @@ triggers:
 │  ✓ 7×24 守护进程           - 自动重启、监控                    │
 │  ✓ 配置热更新              - 运行时重载                        │
 │  ✓ 插件系统                - 第三方扩展                        │
+│  ✓ **Hook 系统**           - 事件钩子、插件扩展                │
 │  ✓ 模板库                  - 内置 Agent/Skill 模板             │
 │  ✓ 成本监控                - Token 使用统计、预算控制          │
 └─────────────────────────────────────────────────────────────────┘
@@ -863,6 +920,7 @@ triggers:
 | **REQ-013** | **会话持久化** | **SessionStorage** | **TC-013** | **待实现** |
 | **REQ-014** | **上下文压缩** | **CompressionEngine** | **TC-014** | **待实现** |
 | **REQ-015** | **历史搜索** | **HistorySearch** | **TC-015** | **待实现** |
+| **REQ-016** | **Hook 系统** | **HookEngine** | **TC-016** | **待实现** |
 
 ---
 
