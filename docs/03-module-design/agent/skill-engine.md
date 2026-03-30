@@ -9,6 +9,7 @@ Skill Engine 负责管理和执行技能（Skills），包括：
 - 技能注册和发现
 - 触发条件匹配
 - 技能执行编排
+- 技能管道（Pipeline）组合与执行
 - 参数传递和结果处理
 - 技能间依赖管理
 
@@ -152,23 +153,23 @@ SkillEngine:
         type: boolean
 
   # ========== 技能编排 ==========
-  create_workflow:
-    description: 创建工作流（技能组合）
+  create_pipeline:
+    description: 创建技能管道（技能组合）
     inputs:
       name:
         type: string
         required: true
       skills:
-        type: array<WorkflowStep>
+        type: array<PipelineStep>
         required: true
     outputs:
-      workflow_id:
+      pipeline_id:
         type: string
 
-  execute_workflow:
-    description: 执行工作流
+  execute_pipeline:
+    description: 执行技能管道
     inputs:
-      workflow_id:
+      pipeline_id:
         type: string
         required: true
       context:
@@ -176,7 +177,7 @@ SkillEngine:
         required: true
     outputs:
       result:
-        type: WorkflowResult
+        type: PipelineResult
 ```
 
 ### 2.2 数据结构
@@ -410,8 +411,8 @@ SkillInfo:
   last_executed:
     type: datetime | null
 
-# 工作流步骤
-WorkflowStep:
+# 管道步骤
+PipelineStep:
   skill_id:
     type: string
   name:
@@ -425,8 +426,8 @@ WorkflowStep:
     type: string | null
     description: 执行条件
 
-# 工作流结果
-WorkflowResult:
+# 管道结果
+PipelineResult:
   success:
     type: boolean
   completed_steps:
@@ -881,7 +882,7 @@ error_codes:
 
 | 技能 | 类别 | 描述 |
 |------|------|------|
-| tdd-workflow | development | TDD 开发流程 |
+| tdd-pipeline | development | TDD 开发流程 |
 | code-review | quality | 代码审查 |
 | security-review | security | 安全检查 |
 | ci-pipeline | automation | CI/CD 流水线 |
