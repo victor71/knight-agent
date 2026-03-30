@@ -100,6 +100,8 @@
 | `../02-system-design.md` | 系统架构高层次设计 |
 | `../01-requirements-analysis.md` | 需求分析 |
 | `../00-priority-overview.md` | 功能优先级总览 |
+| `../04-testing-design.md` | L0/L1 测试设计文档 |
+| `../SRS.md` | 软件需求规格说明书 |
 
 ## 版本历史
 
