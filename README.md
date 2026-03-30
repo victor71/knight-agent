@@ -67,6 +67,7 @@ Knight-Agent 是一个受 Claude Code 和 OpenClaw 启发的 Agentic 框架，�
 | [00-priority-overview](./docs/00-priority-overview.md) | 优先级总览 |
 | [01-requirements-analysis](./docs/01-requirements-analysis.md) | 需求分析 |
 | [02-system-design](./docs/02-system-design.md) | 系统架构设计 |
+| [03-module-design/README](./docs/03-module-design/README.md) | 模块设计索引（16个模块） |
 | [04-testing-design](./docs/04-testing-design.md) | L0/L1 测试设计 |
 | [SRS](./SRS.md) | 软件需求规格说明书 |
 
