@@ -203,9 +203,9 @@ Agent 系统 (P0)
 |------|------|
 | `01-requirements-analysis.md` | 完整需求分析 |
 | `02-system-design.md` | 系统架构设计 |
-| `04-agent-variants.md` | Agent 变体设计 |
-| `05-session-system.md` | 会话系统设计 |
-| `architecture.md` | 架构图 |
+| `03-module-design/` | 模块详细设计文档 |
+| `03-module-design/core/session-manager.md` | 会话系统详细设计 |
+| `03-module-design/agent/agent-variants.md` | Agent 变体系统设计 |
 
 ---
 

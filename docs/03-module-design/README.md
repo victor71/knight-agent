@@ -1,0 +1,108 @@
+# Knight-Agent 模块设计文档
+
+本目录包含 Knight-Agent 各核心模块的详细设计文档。每个模块文档包含接口定义、数据结构、算法流程、配置选项等实现细节。
+
+## 文档结构
+
+```
+03-module-design/
+├── README.md                    # 本文件 - 模块设计索引
+├── core/                        # 核心引擎模块
+│   ├── session-manager.md       # 会话管理器
+│   ├── orchestrator.md          # 编排器
+│   ├── event-loop.md            # 事件循环
+│   └── hook-engine.md           # Hook 引擎
+├── agent/                       # Agent 运行模块
+│   ├── agent-runtime.md         # Agent 运行时
+│   ├── agent-variants.md        # Agent 变体系统
+│   ├── skill-engine.md          # 技能引擎
+│   └── task-manager.md          # 任务管理器
+├── services/                    # 基础服务模块
+│   ├── llm-provider.md          # LLM 提供者抽象
+│   ├── mcp-client.md            # MCP 客户端
+│   ├── storage-service.md       # 存储服务
+│   └── context-compressor.md    # 上下文压缩
+├── tools/                       # 工具系统
+│   └── tool-system.md           # 工具框架
+└── security/                    # 安全模块
+    ├── security-manager.md      # 安全管理器
+    └── sandbox.md               # 沙箱机制
+```
+
+## 模块设计规范
+
+每个模块设计文档遵循以下统一结构：
+
+```markdown
+# [模块名称]
+
+## 1. 概述
+- 职责描述
+- 设计目标
+- 依赖模块
+
+## 2. 接口定义
+- 对外接口 (YAML/伪代码)
+- 数据结构
+- 配置选项
+
+## 3. 核心流程
+- 主要算法流程图
+- 状态机设计
+- 关键决策点
+
+## 4. 模块交互
+- 与其他模块的交互方式
+- 依赖关系图
+- 消息流
+
+## 5. 配置与部署
+- 配置文件格式
+- 环境变量
+- 部署考虑
+
+## 6. 示例
+- 使用场景
+- 配置示例
+
+## 7. 附录
+- 性能指标
+- 错误处理
+- 测试策略
+```
+
+## 实现优先级
+
+### P0 - 核心模块 (已完成)
+- [x] `core/session-manager.md` - 会话管理器
+- [x] `agent/agent-runtime.md` - Agent 运行时
+- [x] `services/llm-provider.md` - LLM 提供者抽象
+- [x] `tools/tool-system.md` - 工具框架
+
+### P1 - 扩展模块 (已完成)
+- [x] `core/orchestrator.md` - 编排器
+- [x] `agent/skill-engine.md` - 技能引擎
+- [x] `core/event-loop.md` - 事件循环
+- [x] `core/hook-engine.md` - Hook 引擎
+- [x] `agent/task-manager.md` - 任务管理器
+- [x] `services/mcp-client.md` - MCP 客户端
+- [x] `services/context-compressor.md` - 上下文压缩
+- [x] `services/storage-service.md` - 存储服务
+
+### P2 - 安全和运维 (已完成)
+- [x] `security/security-manager.md` - 安全管理器
+- [x] `security/sandbox.md` - 沙箱机制
+
+## 相关文档
+
+| 文档 | 内容 |
+|------|------|
+| `../02-system-design.md` | 系统架构高层次设计 |
+| `../01-requirements-analysis.md` | 需求分析 |
+| `../00-priority-overview.md` | 功能优先级总览 |
+
+## 版本历史
+
+| 版本 | 日期 | 变更 |
+|------|------|------|
+| 1.0.0 | 2026-03-30 | 初始版本，创建目录结构 |

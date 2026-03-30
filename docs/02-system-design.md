@@ -406,7 +406,7 @@ compression:
   # 触发条件
   trigger:
     message_count: 50
-    token_count: 100000
+    token_count: 200000
 
   # 压缩策略
   method: summary          # summary/semantic/hybrid
@@ -1835,6 +1835,7 @@ stateDiagram-v2
 | 文档 | 内容 |
 |------|------|
 | `01-requirements-analysis.md` | 需求分析 |
-| `04-agent-variants.md` | Agent 变体设计 |
-| `05-session-system.md` | 会话系统详细设计 |
+| `03-module-design/` | 模块详细设计文档 |
+| `03-module-design/core/session-manager.md` | 会话系统详细设计 |
+| `03-module-design/agent/agent-variants.md` | Agent 变体系统设计 |
 | `00-priority-overview.md` | 优先级总览 |
