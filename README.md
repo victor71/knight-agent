@@ -217,7 +217,7 @@ knight schedule cancel <task-id>
 - [ ] Phase 4: 事件驱动
   - [ ] Event Loop
   - [ ] Hook Engine
-  - [ ] 触发器系统
+  - [ ] 定时调度器 (自然语言定时任务)
 
 - [ ] Phase 5: 集成能力
   - [ ] MCP Client
