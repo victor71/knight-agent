@@ -1865,6 +1865,478 @@ test_cases:
 
 ---
 
+### Security Manager 测试
+
+#### 单元测试
+
+```yaml
+test_suite: SecurityManager Unit Tests
+file: tests/unit/security_manager_test.rs
+
+test_cases:
+  # 权限检查
+  - name: 用户拥有最高权限
+    input:
+      principal: "user:test-user"
+      resource: "system:*"
+      action: "*"
+    expect:
+      allowed: true
+
+  - name: Agent 默认拒绝策略
+    input:
+      principal: "agent:untrusted"
+      resource: "file:/etc/passwd"
+      action: "read"
+    expect:
+      allowed: false
+      reason: "默认拒绝策略"
+
+  - name: Agent 显式授权允许访问
+    setup:
+      - grant_permission:
+          principal: "agent:test-agent"
+          resource: "file:/project/**"
+          actions: ["read"]
+    input:
+      principal: "agent:test-agent"
+      resource: "file:/project/src/main.rs"
+      action: "read"
+    expect:
+      allowed: true
+
+  - name: 权限条件检查 - 工作空间限制
+    setup:
+      - grant_permission:
+          principal: "agent:test-agent"
+          resource: "file:/project/**"
+          actions: ["read"]
+          conditions:
+            - type: workspace
+              operator: equals
+              value: "/project"
+    input:
+      principal: "agent:test-agent"
+      resource: "file:/project/test.txt"
+      action: "read"
+      context:
+        workspace: "/project"
+    expect:
+      allowed: true
+
+  - name: 权限条件不满足 - 拒绝访问
+    setup:
+      - grant_permission:
+          principal: "agent:test-agent"
+          resource: "file:/project/**"
+          actions: ["read"]
+          conditions:
+            - type: workspace
+              operator: equals
+              value: "/project"
+    input:
+      principal: "agent:test-agent"
+      resource: "file:/other/test.txt"
+      action: "read"
+      context:
+        workspace: "/other"
+    expect:
+      allowed: false
+
+  # 策略评估
+  - name: 拒绝策略优先级高于允许
+    setup:
+      - create_policy:
+          name: "deny-sensitive"
+          priority: 100
+          rules:
+            - effect: deny
+              resource: "file:**/.env"
+              actions: ["read"]
+      - grant_permission:
+          principal: "agent:*"
+          resource: "file:**/**"
+          actions: ["*"]
+    input:
+      principal: "agent:any"
+      resource: "file:/project/.env"
+      action: "read"
+    expect:
+      allowed: false
+      reason: "拒绝策略优先"
+
+  # 审计日志
+  - name: 记录所有安全事件
+    input:
+      event:
+        type: "access_request"
+        principal: "agent:test"
+        resource: "file:/test.txt"
+        action: "read"
+        result: "allowed"
+    expect:
+      logged: true
+      event_id: type(string)
+
+  - name: 查询审计日志
+    setup:
+      - log_events:
+          - type: "access_denied"
+          - type: "access_denied"
+          - type: "access_allowed"
+    input:
+      query:
+        event_types: ["access_denied"]
+    expect:
+      events.length: 2
+
+  # 密钥管理
+  - name: 存储和获取密钥
+    input:
+      key: "test-secret"
+      value: "secret-value"
+    expect:
+      stored: true
+    input:
+      key: "test-secret"
+    expect:
+      value: "secret-value"
+
+  - name: 密钥加密存储
+    setup:
+      - enable_encryption: true
+    input:
+      key: "api-key"
+      value: "sk-1234567890"
+    expect:
+      stored: true
+      encrypted: true
+
+  - name: 获取不存在的密钥
+    input:
+      key: "non-existent"
+    expect:
+      value: null
+
+  # 威胁检测
+  - name: 检测异常访问模式
+    setup:
+      - log_multiple_denied:
+          count: 10
+          principal: "agent:suspicious"
+          interval: "1s"
+    input:
+      activity:
+        principal: "agent:suspicious"
+        action: "file_read"
+    expect:
+      suspicious: true
+      confidence: "> 0.8"
+```
+
+#### 集成测试
+
+```yaml
+test_suite: SecurityManager Integration Tests
+file: tests/integration/security_manager_test.rs
+
+test_cases:
+  # 与 Session Manager 集成
+  - name: 会话创建时检查权限
+    setup:
+      - configure_security:
+          default_policy: "deny"
+    input:
+      principal: "agent:test"
+      workspace: "/test"
+    expect:
+      check_called: true
+      session_created: true
+
+  # 与 Tool System 集成
+  - name: 工具执行前检查权限
+    setup:
+      - revoke_tool_permission:
+          agent: "test-agent"
+          tool: "bash"
+    input:
+      agent: "test-agent"
+      tool: "bash"
+      command: "rm -rf /"
+    expect:
+      check_called: true
+      allowed: false
+
+  # 与 Agent Runtime 集成
+  - name: Agent 调用 LLM 前检查密钥权限
+    setup:
+      - store_secret:
+          key: "anthropic-api-key"
+          value: "sk-ant-xxx"
+    input:
+      agent: "test-agent"
+      model: "claude-opus-4"
+    expect:
+      check_called: true
+      allowed: false (未授权)
+```
+
+---
+
+### Sandbox 测试
+
+#### 单元测试
+
+```yaml
+test_suite: Sandbox Unit Tests
+file: tests/unit/sandbox_test.rs
+
+test_cases:
+  # 沙箱创建
+  - name: 创建基础级别沙箱
+    input:
+      config:
+        level: "basic"
+        workspace: "/tmp/test"
+    expect:
+      sandbox_id: type(string)
+      level: "basic"
+      status: "active"
+
+  # 文件访问检查
+  - name: 允许访问工作区路径
+    setup:
+      - create_sandbox:
+          workspace: "/tmp/test"
+    input:
+      path: "/tmp/test/src/main.rs"
+      action: "read"
+    expect:
+      allowed: true
+
+  - name: 拒绝访问工作区外路径
+    setup:
+      - create_sandbox:
+          workspace: "/tmp/test"
+    input:
+      path: "/etc/passwd"
+      action: "read"
+    expect:
+      allowed: false
+      reason: "路径不在允许范围内"
+
+  - name: 拒绝敏感文件模式
+    setup:
+      - create_sandbox:
+          level: "basic"
+    input:
+      path: "/tmp/test/.env"
+      action: "read"
+    expect:
+      allowed: false
+      reason: "匹配拒绝模式"
+
+  - name: 只读路径写入检查
+    setup:
+      - create_sandbox:
+          level: "strict"
+          read_only: ["/tmp/test/.git"]
+    input:
+      path: "/tmp/test/.git/config"
+      action: "write"
+    expect:
+      allowed: false
+      reason: "只读路径"
+
+  # 命令执行检查
+  - name: 拒绝危险命令
+    setup:
+      - create_sandbox:
+          level: "basic"
+    input:
+      command: "rm"
+      args: ["-rf", "/"]
+    expect:
+      allowed: false
+      reason: "危险命令"
+
+  - name: 白名单命令允许
+    setup:
+      - create_sandbox:
+          level: "strict"
+          allowed_commands: ["git", "npm"]
+    input:
+      command: "git"
+      args: ["status"]
+    expect:
+      allowed: true
+
+  - name: 命令参数注入检测
+    setup:
+      - create_sandbox:
+          level: "basic"
+    input:
+      command: "npm"
+      args: ["install", "; rm -rf /"]
+    expect:
+      allowed: false
+      reason: "检测到命令注入"
+
+  # 网络访问检查
+  - name: 允许白名单主机
+    setup:
+      - create_sandbox:
+          level: "strict"
+          allowed_hosts: ["api.anthropic.com"]
+    input:
+      host: "api.anthropic.com"
+      port: 443
+    expect:
+      allowed: true
+
+  - name: 拒绝非白名单主机
+    setup:
+      - create_sandbox:
+          level: "strict"
+          allowed_hosts: ["api.anthropic.com"]
+    input:
+      host: "unknown.com"
+      port: 443
+    expect:
+      allowed: false
+
+  - name: 网络禁用时拒绝所有
+    setup:
+      - create_sandbox:
+          level: "full"
+          network_enabled: false
+    input:
+      host: "any.com"
+      port: 443
+    expect:
+      allowed: false
+
+  # 资源限制检查
+  - name: 内存超限检测
+    setup:
+      - create_sandbox:
+          max_memory_mb: 100
+    input:
+      current_memory_mb: 150
+    expect:
+      exceeded: true
+      resource: "memory"
+
+  - name: CPU 超限检测
+    setup:
+      - create_sandbox:
+          max_cpu_percent: 80
+    input:
+      current_cpu_percent: 95
+    expect:
+      exceeded: true
+      resource: "cpu"
+
+  # 违规处理
+  - name: 记录违规行为
+    setup:
+      - create_sandbox:
+          violation_action: "log"
+    input:
+      violation:
+        type: "file_access_denied"
+        severity: "medium"
+    expect:
+      violation_id: type(string)
+      logged: true
+
+  - name: 违规时阻止操作
+    setup:
+      - create_sandbox:
+          violation_action: "block"
+    input:
+      violation:
+        type: "malicious_behavior"
+        severity: "high"
+    expect:
+      blocked: true
+      logged: true
+```
+
+#### 集成测试
+
+```yaml
+test_suite: Sandbox Integration Tests
+file: tests/integration/sandbox_test.rs
+
+test_cases:
+  # 与 Session Manager 集成
+  - name: 会话创建时自动创建沙箱
+    setup:
+      - configure_sandbox:
+          default_level: "basic"
+    input:
+      workspace: "/tmp/test"
+    expect:
+      sandbox_created: true
+      sandbox.workspace: "/tmp/test"
+
+  # 与 Tool System 集成
+  - name: Bash 工具执行前检查命令
+    setup:
+      - create_session_with_sandbox
+    input:
+      tool: "bash"
+      command: "rm -rf /tmp/test"
+    expect:
+      sandbox_checked: true
+      command_blocked: true
+
+  - name: Read 工具执行前检查路径
+    setup:
+      - create_session_with_sandbox
+    input:
+      tool: "read"
+      path: "/tmp/test/.env"
+    expect:
+      sandbox_checked: true
+      access_denied: true
+
+  # 与 Agent Runtime 集成
+  - name: Agent 操作前检查资源使用
+    setup:
+      - create_session_with_sandbox
+          max_memory_mb: 100
+    steps:
+      - agent_consume_memory: 150
+    expect:
+      resource_check_called: true
+      operation_blocked: true
+
+  # 与 Security Manager 协作
+  - name: 违规行为记录到审计日志
+    setup:
+      - create_sandbox
+      - trigger_violation:
+          type: "command_denied"
+    expect:
+      sandbox.logged: true
+      security_manager.audit_log_contains: "violation"
+
+  # 沙箱级别切换
+  - name: 动态升级沙箱级别
+    setup:
+      - create_sandbox:
+          level: "basic"
+    input:
+      new_level: "strict"
+    expect:
+      level_updated: true
+      new_rules_applied: true
+```
+
+---
+
 ## 测试基础设施
 
 ### 测试框架
@@ -1960,6 +2432,8 @@ mock_services:
 | Storage Service | 12 | 80% | ⏳ |
 | Timer System | 10 | 75% | ⏳ |
 | Logging System | 10 | 75% | ⏳ |
+| Security Manager | 15 | 75% | ⏳ |
+| Sandbox | 12 | 75% | ⏳ |
 
 ### 集成测试计划
 

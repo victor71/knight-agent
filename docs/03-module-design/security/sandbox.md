@@ -831,3 +831,360 @@ error_codes:
 3. **限制命令**: 使用白名单而非黑名单
 4. **监控资源**: 及时发现资源滥用
 5. **审计日志**: 记录所有违规行为
+
+---
+
+## 沙箱检查点
+
+### 检查点调用总览
+
+以下列出了所有模块调用 Sandbox 的检查点：
+
+| 模块 | 检查点 | 触发时机 | 检查内容 |
+|------|--------|----------|----------|
+| **Session Manager** | `session:create_sandbox` | 创建会话 | 创建会话沙箱 |
+| | `session:workspace_access` | 访问 Workspace | 验证工作区访问 |
+| **Tool System** | `tool:bash_execute` | 执行 Bash 命令 | 命令白名单/参数检查 |
+| | `tool:file_read` | 读取文件 | 文件路径访问检查 |
+| | `tool:file_write` | 写入文件 | 文件路径写入检查 |
+| | `tool:file_delete` | 删除文件 | 文件删除检查 |
+| | `tool:glob` | 文件搜索 | 路径模式检查 |
+| **Agent Runtime** | `agent:resource_check` | Agent 操作前 | 资源使用检查 |
+| | `agent:network_access` | 网络请求 | 网络访问白名单 |
+| **Skill Engine** | `skill:file_access` | 技能访问文件 | 技能文件权限检查 |
+| **LLM Provider** | `llm:network_call` | LLM API 调用 | API 端点网络检查 |
+| **MCP Client** | `mcp:server_connect` | MCP 连接 | MCP 服务器网络检查 |
+| **Orchestrator** | `orchestrate:resource_alloc` | 资源分配 | 资源限制检查 |
+
+### 详细检查点说明
+
+#### Session Manager 检查点
+
+```yaml
+session:create_sandbox:
+  description: 创建会话时创建关联沙箱
+  caller: Session Manager
+  sandbox_operation: create_sandbox
+  config:
+    level: basic  # 从配置读取
+    workspace: "{{ session.workspace }}"
+  default:
+    user: 可配置级别
+    agent: 继承会话级别
+
+session:workspace_access:
+  description: 访问工作区时验证路径
+  caller: Session Manager
+  sandbox_operation: check_file_access
+  check:
+    path: "{{ workspace_path }}"
+    action: "read"
+  default:
+    allowed_paths: ["{{ workspace }}/**"]
+    denied_patterns: ["**/.git/**", "**/.env"]
+```
+
+#### Tool System 检查点
+
+```yaml
+tool:bash_execute:
+  description: 执行 Bash 命令前检查
+  caller: Tool System
+  sandbox_operation: check_command_access
+  check:
+    command: "{{ command_name }}"
+    args: "{{ command_args }}"
+  validation:
+    - 黑名单检查 (rm -rf, mkfs, dd 等)
+    - 白名单检查 (如果配置)
+    - 参数安全检查 (命令注入)
+  default:
+    user: allow (除危险命令)
+    agent: deny (危险命令)
+    agent: allow (白名单命令)
+
+tool:file_read:
+  description: 读取文件前检查
+  caller: Tool System
+  sandbox_operation: check_file_access
+  check:
+    path: "{{ file_path }}"
+    action: "read"
+  validation:
+    - 路径规范化
+    - 拒绝模式匹配
+    - 允许路径检查
+  default:
+    user: allow (工作区内)
+    agent: allow (工作区内，排除敏感)
+
+tool:file_write:
+  description: 写入文件前检查
+  caller: Tool System
+  sandbox_operation: check_file_access
+  check:
+    path: "{{ file_path }}"
+    action: "write"
+  validation:
+    - 路径规范化
+    - 拒绝模式匹配
+    - 只读路径检查
+    - 文件大小限制
+  default:
+    user: allow (工作区内)
+    agent: allow (工作区内，排除敏感和只读)
+
+tool:file_delete:
+  description: 删除文件前检查
+  caller: Tool System
+  sandbox_operation: check_file_access
+  check:
+    path: "{{ file_path }}"
+    action: "delete"
+  validation:
+    - 路径规范化
+    - 保护文件检查
+  default:
+    user: allow (工作区内)
+    agent: deny (敏感路径)
+
+tool:glob:
+  description: 文件搜索前检查
+  caller: Tool System
+  sandbox_operation: check_file_access
+  check:
+    pattern: "{{ glob_pattern }}"
+    action: "read"
+  default:
+    user: allow (工作区内)
+    agent: allow (工作区内)
+```
+
+#### Agent Runtime 检查点
+
+```yaml
+agent:resource_check:
+  description: Agent 操作前检查资源使用
+  caller: Agent Runtime
+  sandbox_operation: get_resource_usage
+  check:
+    memory: "{{ current_memory }}"
+    cpu: "{{ current_cpu }}"
+    time: "{{ execution_time }}"
+  validation:
+    - 内存超限检查
+    - CPU 使用率检查
+    - 执行时间检查
+  default:
+    max_memory_mb: 1024
+    max_cpu_percent: 80
+    max_execution_time: 600
+
+agent:network_access:
+  description: Agent 网络请求前检查
+  caller: Agent Runtime
+  sandbox_operation: check_network_access
+  check:
+    host: "{{ request_host }}"
+    port: "{{ request_port }}"
+  validation:
+    - 主机白名单
+    - 端口范围
+    - 并发连接数
+  default:
+    user: allow
+    agent: deny (未配置白名单)
+```
+
+#### Skill Engine 检查点
+
+```yaml
+skill:file_access:
+  description: 技能访问文件时检查
+  caller: Skill Engine → Tool System
+  sandbox_operation: check_file_access
+  check:
+    path: "{{ file_path }}"
+    action: "{{ access_action }}"
+  default:
+    user: allow (工作区内)
+    agent: allow (技能指定路径)
+```
+
+#### LLM Provider 检查点
+
+```yaml
+llm:network_call:
+  description: LLM API 调用时网络检查
+  caller: LLM Provider
+  sandbox_operation: check_network_access
+  check:
+    host: "{{ api_endpoint }}"
+    port: 443
+  validation:
+    - API 端点白名单
+  default:
+    user: allow
+    agent: allow (配置的 API)
+```
+
+#### MCP Client 检查点
+
+```yaml
+mcp:server_connect:
+  description: 连接 MCP 服务器时检查
+  caller: MCP Client
+  sandbox_operation: check_network_access
+  check:
+    host: "{{ mcp_server_host }}"
+    port: "{{ mcp_server_port }}"
+  validation:
+    - MCP 服务器白名单
+  default:
+    user: allow
+    agent: allow (配置的服务器)
+```
+
+### 沙箱级别与权限对应
+
+```yaml
+# 无隔离 (none)
+none:
+  user: 本地开发，完全信任
+  agent: 不推荐用于 Agent
+
+# 基础隔离 (basic)
+basic:
+  user: 一般使用
+  agent: 默认级别
+  filesystem:
+    allowed: ["{{ workspace }}/**"]
+    denied: ["**/.git/**", "**/.env"]
+  command:
+    denied: ["rm -rf /", "mkfs", "dd"]
+  network:
+    enabled: true
+
+# 严格隔离 (strict)
+strict:
+  user: 敏感操作
+  agent: 处理敏感数据时
+  filesystem:
+    allowed: ["{{ workspace }}/**"]
+    denied: ["**/.git/**", "**/node_modules/**", "**/.env*"]
+    read_only: ["{{ workspace }}/.git"]
+  command:
+    allowed: ["git", "npm", "node", "python", "cargo"]
+  network:
+    allowed_hosts: ["api.anthropic.com", "api.openai.com"]
+    max_connections: 5
+
+# 完全隔离 (full)
+full:
+  user: 不可信代码测试
+  agent: 不推荐（功能受限）
+  filesystem:
+    allowed: ["{{ workspace }}/sandbox/**"]
+  command:
+    allowed: []
+  network:
+    enabled: false
+```
+
+### 沙箱检查流程
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      模块调用 Sandbox                       │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 1. 确定操作类型                                             │
+│    - 文件访问: check_file_access                            │
+│    - 命令执行: check_command_access                         │
+│    - 网络访问: check_network_access                         │
+│    - 资源检查: get_resource_usage                           │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 2. 获取会话沙箱配置                                         │
+│    - 沙箱级别: none/basic/strict/full                       │
+│    - 工作区路径                                             │
+│    - 允许/拒绝规则                                          │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 3. 执行具体检查                                             │
+│    - 文件: 路径匹配 + 操作类型检查                          │
+│    - 命令: 白名单/黑名单 + 参数检查                         │
+│    - 网络: 主机/端口 + 并发检查                             │
+│    - 资源: 当前使用 vs 限制                                 │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+                    ┌─────┴─────┐
+                    │ 允许？     │
+                    └─────┬─────┘
+                          │ 否              │ 是
+                          ▼                 ▼
+┌──────────────────────────────┐   ┌──────────────────────┐
+│ 记录违规                     │   │ 允许操作             │
+│ 执行违规动作 (log/warn/block)│   │ 监控资源使用         │
+└──────────────────────────────┘   └──────────────────────┘
+```
+
+### 违规处理策略
+
+```yaml
+违规级别与响应:
+
+  low (低):
+    action: log
+    description: 记录违规日志，允许操作继续
+    适用于: 非关键资源轻微超限
+
+  medium (中):
+    action: warn
+    description: 记录并警告用户/Agent
+    适用于: 资源使用接近上限
+
+  high (高):
+    action: block
+    description: 阻止操作并记录
+    适用于: 访问敏感路径、危险命令
+
+  critical (严重):
+    action: terminate
+    description: 终止会话/Agent
+    适用于: 恶意行为检测、严重违规
+```
+
+### 沙箱与 Security Manager 协作
+
+```yaml
+# 权限检查 → 沙箱执行 流程
+
+1. Security Manager 检查权限
+   ├─ 用户 → 允许
+   └─ Agent → 检查授权
+
+2. Sandbox 执行隔离
+   ├─ 路径检查
+   ├─ 命令检查
+   └─ 资源限制
+
+3. 违规处理
+   ├─ 记录到 Security Manager
+   ├─ 触发威胁检测
+   └─ 执行响应动作
+```
+
+### 版本历史
+
+| 版本 | 日期 | 变更 |
+|------|------|------|
+| 1.0.0 | 2026-03-30 | 初始版本 |
+| 1.1.0 | 2026-04-01 | 添加沙箱检查点文档，完善沙箱级别说明 |
