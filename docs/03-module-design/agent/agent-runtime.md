@@ -105,10 +105,21 @@ AgentRuntime:
       message:
         type: Message
         required: true
+      stream:
+        type: boolean
+        description: 是否使用流式响应
+        required: false
+        default: true
     outputs:
-      response:
-        type: async_stream<MessageChunk>
-        description: 流式响应
+      response_stream:
+        type: stream<MessageChunk>
+        description: 流式响应(当 stream=true 时)
+      response_complete:
+        type: Message
+        description: 完整响应(当 stream=false 时)
+      request_id:
+        type: string
+        description: 请求唯一标识
 
   # ========== 上下文管理 ==========
   get_context:

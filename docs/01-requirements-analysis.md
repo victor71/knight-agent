@@ -392,7 +392,7 @@ triggers:
     cron: "0 */4 * * *"
 ```
 
-### 定时系统
+### 定时器系统
 
 | 需求项 | 描述 | 优先级 |
 |--------|------|--------|
@@ -1395,6 +1395,265 @@ allowed_commands:
 - [ ] 配置热更新
 - [ ] 模板库
 - [ ] 文档完善
+
+---
+
+## 附录 A: CLI 命令完整规范
+
+### 命令结构
+
+```bash
+knight [全局选项] <命令> [子命令] [参数] [选项]
+```
+
+### 全局选项
+
+| 选项 | 简写 | 描述 | 默认值 |
+|------|------|------|--------|
+| --config | -c | 指定配置文件路径 | ~/.knight-agent/config.yaml |
+| --workspace | -w | 指定工作目录 | 当前目录 |
+| --verbose | -v | 详细输出 | false |
+| --quiet | -q | 静默模式 | false |
+| --help | -h | 显示帮助 | - |
+| --version | -V | 显示版本 | - |
+
+### 核心命令
+
+#### 1. 会话管理 (session)
+
+```bash
+# 创建新会话
+knight session create [--name <名称>] [--workspace <路径>]
+
+# 列出所有会话
+knight session list [--active]
+
+# 切换会话
+knight session switch <会话ID>
+
+# 删除会话
+knight session delete <会话ID>
+
+# 导出会话
+knight session export <会话ID> [--format json|markdown] [--output <路径>]
+
+# 查看会话详情
+knight session info <会话ID>
+```
+
+#### 2. Agent 管理 (agent)
+
+```bash
+# 列出所有 Agent
+knight agent list
+
+# 查看 Agent 详情
+knight agent info <Agent名称>
+
+# 运行 Agent
+knight agent run <Agent名称>[:<变体>] [--prompt <提示>]
+
+# 创建 Agent
+knight agent create <名称> [--template <模板>]
+
+# 编辑 Agent
+knight agent edit <Agent名称>
+
+# 删除 Agent
+knight agent delete <Agent名称>
+```
+
+#### 3. Skill 管理 (skill)
+
+```bash
+# 列出所有 Skill
+knight skill list
+
+# 查看 Skill 详情
+knight skill info <Skill名称>
+
+# 运行 Skill
+knight skill run <Skill名称> [--args <参数>]
+
+# 创建 Skill
+knight skill create <名称> [--template <模板>]
+
+# 编辑 Skill
+knight skill edit <Skill名称>
+
+# 删除 Skill
+knight skill delete <Skill名称>
+
+# 创建 Pipeline
+knight skill pipeline create <名称> --skills <技能列表>
+
+# 运行 Pipeline
+knight skill pipeline run <Pipeline名称>
+```
+
+#### 4. 定时器管理 (schedule/timer)
+
+```bash
+# 列出定时任务
+knight schedule list [--active]
+
+# 创建定时任务
+knight schedule create \
+  --type <oneshot|interval|cron> \
+  --schedule <时间表达式> \
+  --callback <回调配置>
+
+# 取消定时任务
+knight schedule cancel <任务ID>
+
+# 暂停定时任务
+knight schedule pause <任务ID>
+
+# 恢复定时任务
+knight schedule resume <任务ID>
+
+# 查看任务详情
+knight schedule info <任务ID>
+
+# 查看执行历史
+knight schedule history <任务ID> [--limit <数量>]
+```
+
+#### 5. 工具管理 (tool)
+
+```bash
+# 列出所有工具
+knight tool list
+
+# 查看工具详情
+knight tool info <工具名称>
+
+# 运行工具
+knight tool run <工具名称> [--args <参数>]
+
+# 安装 MCP 工具
+knight tool install mcp <工具名称>
+
+# 卸载工具
+knight tool uninstall <工具名称>
+```
+
+#### 6. Hook 管理 (hook)
+
+```bash
+# 列出所有 Hook
+knight hook list
+
+# 查看 Hook 详情
+knight hook info <Hook名称>
+
+# 启用 Hook
+knight hook enable <Hook名称>
+
+# 禁用 Hook
+knight hook disable <Hook名称>
+
+# 测试 Hook
+knight hook test <Hook名称> [--event <事件>]
+```
+
+#### 7. 配置管理 (config)
+
+```bash
+# 查看配置
+knight config get <键>
+
+# 设置配置
+knight config set <键> <值>
+
+# 删除配置
+knight config unset <键>
+
+# 列出所有配置
+knight config list
+
+# 重置配置
+knight config reset
+```
+
+#### 8. 日志管理 (log)
+
+```bash
+# 查看日志
+knight log [--tail] [--follow] [--level <级别>]
+
+# 搜索日志
+knight log search <关键词> [--start <时间>] [--end <时间>]
+
+# 导出日志
+knight log export [--format json|csv] [--output <路径>]
+
+# 清空日志
+knight log clear
+```
+
+#### 9. 协作管理 (orchestrate)
+
+```bash
+# 创建协作任务
+knight orchestrate create \
+  --agents <Agent列表> \
+  --mode <pipeline|parallel|voting> \
+  --prompt <提示>
+
+# 查看协作状态
+knight orchestrate status <任务ID>
+
+# 取消协作任务
+knight orchestrate cancel <任务ID>
+```
+
+#### 10. 系统命令
+
+```bash
+# 健康检查
+knight health
+
+# 版本信息
+knight version
+
+# 诊断信息
+knight diagnose
+
+# 清理缓存
+knight cache clear
+
+# 初始化配置
+knight init [--template <模板>]
+```
+
+### 交互式模式
+
+```bash
+# 进入交互式 Shell
+knight shell
+
+# 或直接运行
+knight
+```
+
+在交互式 Shell 中:
+```bash
+knight> agent run code-reviewer
+knight> skill run test-unit
+knight> schedule list
+knight> exit
+```
+
+### 自然语言命令
+
+```bash
+# 直接输入自然语言命令
+knight "每天早上8点发送AI新闻简报"
+
+# LLM 解析并执行对应命令
+# 等价于: knight schedule create --type cron --schedule "0 8 * * *" ...
+```
 
 ---
 

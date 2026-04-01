@@ -904,6 +904,80 @@ fn is_hidden(path: &Path) -> bool {
 
 ---
 
+## 模块职责划分
+
+### Session Manager 与 Context Compressor 的边界
+
+| 职责 | Session Manager | Context Compressor |
+|------|-----------------|-------------------|
+| **压缩触发** | ✅ 负责检测何时需要压缩<br/>- 检查消息数量<br/>- 检查 Token 数量<br/>- 检查上下文阈值 | ❌ 不负责触发逻辑 |
+| **压缩执行** | ❌ 不执行具体压缩算法 | ✅ 负责执行压缩<br/>- 摘要压缩算法<br/>- 语义压缩算法<br/>- 混合压缩算法 |
+| **压缩点管理** | ✅ 负责压缩点生命周期<br/>- 创建压缩点<br/>- 存储压缩点<br/>- 查询压缩点<br/>- 应用压缩点到上下文 | ❌ 不管理压缩点 |
+| **压缩结果** | ✅ 决定压缩结果如何使用<br/>- 替换旧消息<br/>- 更新上下文<br/>- 触发持久化 | ✅ 返回压缩结果<br/>- 压缩摘要<br/>- 关键信息提取 |
+
+### 协作流程
+
+```
+Session Manager                    Context Compressor
+      │                                     │
+      │ 1. 检查消息数量和 Token 数量          │
+      │ 2. 判断是否需要压缩                  │
+      │                                     │
+      │ 3. 调用 compress_context() ────────→│
+      │    - messages: 待压缩消息            │
+      │    - method: 压缩方法                │
+      │                                     │
+      │                                     │ 4. 执行压缩算法
+      │                                     │    - 调用 LLM 生成摘要
+      │                                     │    - 提取关键信息
+      │                                     │
+      │  ←───────── 返回 CompressionResult   │
+      │    - summary: 压缩摘要               │
+      │    - compressed_messages: 压缩后消息  │
+      │                                     │
+      │ 5. 创建压缩点                        │
+      │ 6. 更新会话上下文                    │
+      │ 7. 触发持久化                        │
+```
+
+### 接口调用关系
+
+```yaml
+# Session Manager 调用 Context Compressor
+session_manager:
+  compress_context:
+    target: context_compressor
+    method: compress
+    inputs:
+      messages:
+        type: array<Message>
+      method:
+        type: enum
+        values: [summary, semantic, hybrid]
+      options:
+        type: CompressionOptions
+    outputs:
+      result:
+        type: CompressionResult
+
+# Context Compressor 接口
+context_compressor:
+  compress:
+    description: 执行上下文压缩
+    inputs:
+      messages:
+        type: array<Message>
+      method:
+        type: CompressionMethod
+      options:
+        type: CompressionOptions
+    outputs:
+      result:
+        type: CompressionResult
+```
+
+---
+
 ## 压缩引擎实现
 
 ### 压缩引擎接口

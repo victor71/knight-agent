@@ -323,7 +323,7 @@ TimerStatus:
 TimerCallback:
   type:
     type: enum
-    values: [callback, hook, skill, webhook]
+    values: [callback, hook, skill, webhook, message_queue]
     description: 回调类型
 
   # 回调函数
@@ -370,6 +370,42 @@ TimerCallback:
       body:
         type: object
         description: 请求体
+
+  # 消息队列
+  message_queue:
+    type: object
+    properties:
+      provider:
+        type: string
+        enum: [redis, rabbitmq, kafka, sqs]
+        description: 消息队列提供商
+      connection:
+        type: object
+        description: 连接配置
+        properties:
+          host:
+            type: string
+          port:
+            type: integer
+          username:
+            type: string
+          password:
+            type: string
+      topic:
+        type: string
+        description: 主题/队列名称
+      message:
+        type: object
+        description: 消息内容
+        properties:
+          timer_id:
+            type: string
+          timer_name:
+            type: string
+          executed_at:
+            type: datetime
+          metadata:
+            type: object
 
 # 定时器
 Timer:

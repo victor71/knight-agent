@@ -830,6 +830,163 @@ control:
   can_modify: true
 ```
 
+### Prompt 修改流程
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Agent Runtime                             │
+│                                                             │
+│  1. 准备发送消息到 LLM                                      │
+│  2. 构建 Prompt 初始版本                                    │
+│     - system_prompt                                        │
+│     - user_messages                                        │
+│     - context                                             │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          │ 触发 prompt_build Hook
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Hook Engine                               │
+│                                                             │
+│  1. 匹配 prompt_build 事件的 Hooks                          │
+│  2. 按 priority 顺序执行 before 阶段                        │
+│  3. 每个 Hook 可以修改 prompt 内容                          │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          │ 传递 Hook 上下文
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Hook Handler (prompt_modifier)              │
+│                                                             │
+│  输入上下文:                                                │
+│  - event: "prompt_build"                                   │
+│  - phase: "before"                                         │
+│  - context.prompt: {原始 prompt}                           │
+│  - control: {modify, block, skip} 函数                      │
+│                                                             │
+│  Hook 处理:                                                 │
+│  1. 读取原始 prompt                                         │
+│  2. 应用修改逻辑                                            │
+│     - 添加系统提示                                          │
+│     - 修改用户消息                                          │
+│     - 注入额外上下文                                        │
+│  3. 调用 control.modify(modified_prompt)                   │
+│                                                             │
+│  输出结果:                                                   │
+│  - modified: true                                          │
+│  - modified_data: {修改后的 prompt}                        │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          │ 返回修改结果
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Hook Engine                               │
+│                                                             │
+│  1. 收集所有 Hook 的修改结果                                │
+│  2. 检查是否有 Hook 阻断操作                               │
+│  3. 合并所有修改(按优先级顺序应用)                          │
+│  4. 返回最终 prompt                                        │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          │ 返回最终 prompt
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Agent Runtime                             │
+│                                                             │
+│  1. 检查 Hook 执行结果                                      │
+│  2. 如果被阻断: 取消 LLM 调用                               │
+│  3. 如果被修改: 使用修改后的 prompt                         │
+│  4. 调用 LLM Provider                                       │
+│                                                             │
+│  LLM Provider 调用:                                         │
+│  llm_provider.send_message(final_prompt)                   │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          │ 发送到 LLM
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    LLM Provider                              │
+│                                                             │
+│  1. 接收最终 prompt                                         │
+│  2. 发送到 LLM API                                          │
+│  3. 返回响应                                               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Prompt 修改数据流
+
+```yaml
+# Hook 接收的上下文
+PromptBuildHookContext:
+  event:
+    type: string
+    value: "prompt_build"
+  phase:
+    type: string
+    value: "before"
+  prompt:
+    type: object
+    properties:
+      system:
+        type: string
+        description: "系统提示词"
+      messages:
+        type: array
+        description: "用户消息列表"
+      context:
+        type: object
+        description: "额外上下文"
+  control:
+    type: object
+    properties:
+      modify:
+        type: function
+        description: "修改 prompt"
+      block:
+        type: function
+        description: "阻断操作"
+
+# Hook 返回的修改结果
+PromptBuildHookResult:
+  modified:
+    type: boolean
+    description: "是否修改了 prompt"
+  modified_data:
+    type: object
+    properties:
+      system:
+        type: string
+        description: "修改后的系统提示词"
+      messages:
+        type: array
+        description: "修改后的消息列表"
+      context:
+        type: object
+        description: "修改后的上下文"
+  blocked:
+    type: boolean
+    description: "是否阻断操作"
+  block_reason:
+    type: string
+    description: "阻断原因"
+
+# Prompt 修改示例
+prompt_modification_example:
+  original:
+    system: "You are a code reviewer."
+    messages:
+      - role: "user"
+        content: "Review this code."
+
+  modified_by_hook:
+    system: "You are a senior code reviewer with 10 years of experience. Focus on security, performance, and maintainability."
+    messages:
+      - role: "user"
+        content: "Review this code for security issues, performance bottlenecks, and code quality."
+      - role: "system"
+        content: "Additional context: This is a production API endpoint that handles user authentication."
+```
+
 ---
 
 ## 附录
