@@ -11,7 +11,7 @@
 │  核心           │ Agent 定义系统          │ Markdown 定义 Agent           │
 │  核心           │ Skill 定义系统          │ Markdown 定义 Skill           │
 │  核心           │ 基础工具集              │ Read/Write/Edit/Grep/Bash    │
-│  核心           │ LLM 抽象层              │ 多云模型支持                  │
+│  核心           │ LLM 抽象层              │ Anthropic + OpenAI 双协议     │
 │  ★ 会话         │ 多会话并行              │ 同时运行多个独立会话          │
 │  ★ 会话         │ Workspace 隔离          │ 不同项目完全隔离              │
 │  核心           │ 简单上下文              │ 单会话对话历史                │

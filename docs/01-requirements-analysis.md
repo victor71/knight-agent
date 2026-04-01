@@ -16,7 +16,7 @@
 | 需求项 | 描述 | 优先级 |
 |--------|------|--------|
 | Agent 定义 | 通过 Markdown 文件定义 Agent 的角色、能力、指令 | P0 |
-| LLM 选择 | 为 Agent 选择合适的在线 LLM（支持多云模型） | P0 |
+| LLM 选择 | 为 Agent 选择合适的在线 LLM（支持 Anthropic/OpenAI 协议，含 tool calling） | P0 |
 | 模型配置 | 支持 temperature、max_tokens 等参数配置 | P0 |
 | **Agent 变体支持** | **同一 Agent 支持多个变体（快速/完整/专项）** | **P1** |
 | 上下文管理 | 对话历史、变量、临时文件管理 | P0 |
@@ -526,7 +526,7 @@ hooks:
 | **Rust 版本** | 1.70+ |
 | **Node.js 版本** | 18+ (MCP 客户端) |
 | **Python 版本** | 3.10+ (插件开发) |
-| **LLM 提供商** | 兼容 Anthropic API 协议的任意提供商 |
+| **LLM 提供商** | Anthropic API、OpenAI Chat Completions API 及其兼容实现 |
 
 ### 3.7 数据保留策略
 
@@ -586,7 +586,8 @@ hooks:
 
 ### 5.1 技术约束
 
-- 必须支持主流 LLM 提供商 (Anthropic, OpenAI, etc.)
+- 必须支持 Anthropic API 协议（含 tool calling）
+- 必须支持 OpenAI Chat Completions API（含 tool calling）
 - 必须兼容 MCP 协议
 - 核心引擎使用 Rust/TypeScript 实现
 
@@ -624,7 +625,7 @@ hooks:
 │  ○ Agent 定义系统          - Markdown 定义 Agent               │
 │  ○ Skill 定义系统          - Markdown 定义 Skill               │
 │  ○ 基础工具集              - Read, Write, Edit, Grep, Bash    │
-│  ○ LLM 抽象层              - 多云模型支持 (Anthropic/OpenAI)   │
+│  ○ LLM 抽象层              - Anthropic + OpenAI 协议支持      │
 │  ○ **会话管理**            - 多会话并行、Workspace 隔离         │
 │  ○ 简单上下文              - 单会话对话历史                    │
 │  ○ CLI 交互界面            - REPL 模式                         │
@@ -759,11 +760,11 @@ hooks:
 
 ### 8.1 通用 Agentic 框架
 
-| 特性 | 通用框架 | Knight-Agent |
+| 特性 | 通用 Agentic 框架 | Knight-Agent |
 |------|----------|--------------|
 | Agent 定义 | YAML/代码 | Markdown (更可读) |
 | Skill 系统 | 部分 | 完善的触发机制 |
-| LLM 支持 | 单一或有限 | 多云支持 (Anthropic 协议) |
+| LLM 支持 | 单一或有限 | Anthropic + OpenAI 双协议 |
 | 会话管理 | 单会话 | 多会话并行 (6+ 会话) |
 | 开源 | 混合 | 完全开源 |
 | 扩展性 | 中等 | 高 (插件系统 + MCP) |
@@ -843,7 +844,9 @@ hooks:
 
 | 指标 | 最小值 | 目标值 | 最大值 |
 |------|--------|--------|--------|
-| 单 Agent 内存 | 150MB | 300MB | 500MB |
+| 单 Agent 空闲内存 | 50MB | 80MB | 100MB |
+| 单 Agent 运行时内存 | 150MB | 300MB | 500MB |
+| 会话进程内存 | 500MB | 1GB | 2GB |
 | 并发 Agent 数 | 1 | 10 | 20 |
 | 响应延迟 (不含 LLM) | <100ms | <500ms | <2s |
 | 消息吞吐 | 1 msg/s | 10 msg/s | 100 msg/s |
@@ -902,7 +905,7 @@ hooks:
 - [ ] Agent 定义必须包含 `id`, `name`, `model`, `description` 四个字段
 - [ ] Agent 响应自然语言指令时，本地处理时间 < 500ms（不含 LLM）
 - [ ] Agent 可以调用至少 5 个基础工具
-- [ ] Agent 支持兼容 **Anthropic API 协议** 的任意 LLM 提供商
+- [ ] Agent 支持 **Anthropic API** 和 **OpenAI Chat Completions** 两种协议（含 tool calling）
 
 #### Skill 系统
 - [ ] Skill 定义必须包含 `name`, `description`, `triggers` 三个字段

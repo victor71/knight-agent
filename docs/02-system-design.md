@@ -452,15 +452,13 @@ storage/sessions/
 
 ```markdown
 ---
-id: "code-reviewer"
-name: "Code Reviewer"
-version: "1.0.0"
+id: code-reviewer
+name: Code Reviewer
+description: 专注于代码审查的 AI 助手，擅长检测安全问题、性能问题和代码异味
+model: claude-sonnet-4-6
 ---
 
 # Agent: Code Reviewer
-
-## Role
-专业的代码审查助手
 
 ## Model
 - provider: anthropic
@@ -475,15 +473,21 @@ version: "1.0.0"
 3. 可读性
 4. 最佳实践
 
+## Tools
+- Read
+- Grep
+- Bash (lint)
+
 ## Capabilities
-- read
-- grep
-- bash (lint)
+- file_analysis
+- pattern_matching
+- command_execution
 
 ## Permissions
 **允许**:
 - **/*.ts
 - **/*.tsx
+- **/*.rs
 
 **拒绝**:
 - **/node_modules/**
@@ -518,7 +522,7 @@ variant: quick
 ```markdown
 ---
 name: security-review
-category: security
+description: 自动执行安全审查，检测代码中的安全漏洞和潜在风险
 triggers:
   - type: keyword
     patterns: ["security", "安全"]
@@ -1389,7 +1393,7 @@ model_router:
   # 降级策略
   fallback:
     enabled: true
-    max_attempts: 3
+    max_attempts: 10            # LLM 失败重试次数
     retry_delay: 1s
 ```
 
@@ -1540,8 +1544,8 @@ knight-agent/                   # 项目根目录 (代码仓库)
 # config/settings.yaml
 core:
   log_level: info
-  max_concurrent_agents: 10
-  max_sessions: 5
+  max_concurrent_agents: 20      # 单会话最大 Agent 数
+  max_sessions: 6                 # 最大并发会话数
 
 llm:
   providers:
@@ -1709,7 +1713,7 @@ audit_log:
 | **进程通信** | gRPC / IPC | 高性能、类型安全 |
 | **存储** | SQLite + 文件系统 | 轻量、零配置 |
 | **配置** | YAML | 人类可读 |
-| **LLM** | 多云 HTTP API | Anthropic、OpenAI 等 |
+| **LLM** | 多云 HTTP API | Anthropic API + OpenAI Chat Completions |
 | **工具扩展** | MCP 协议 | 标准化工具接口 |
 
 ### 16.2 模块边界
