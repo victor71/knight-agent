@@ -105,7 +105,6 @@ version: "1.0.0"
 - provider: anthropic
 - model: claude-sonnet-4-6
 - temperature: 0.3
-- max_tokens: 8192
 
 ## Instructions
 - 检查代码安全性
@@ -148,12 +147,10 @@ version: "1.0.0"
 ```markdown
 ---
 name: code-review
-triggers:
-  - type: file_change
-    patterns: ["*.ts", "*.tsx"]
-  - type: git_status
-    patterns: ["staged"]
 description: Review code changes
+# triggers:                           # 可选，结构化定义（优先级高于 Trigger Conditions）
+#   - type: file_change
+#     patterns: ["*.ts", "*.tsx"]
 ---
 
 ## Trigger Conditions
@@ -166,6 +163,8 @@ description: Review code changes
 3. Review security
 4. Generate report
 ```
+
+> **说明**: `triggers` 字段为可选。当配置 `triggers` 时，以结构化的 triggers 配置为准；当未配置 `triggers` 时，系统使用 `## Trigger Conditions` 作为人类可读的描述。
 
 ### 2.3 MCP 工具集成
 
@@ -902,13 +901,13 @@ hooks:
 ### 11.1 MVP 验收标准
 
 #### Agent 系统
-- [ ] Agent 定义必须包含 `id`, `name`, `model`, `description` 四个字段
+- [ ] Agent 定义必须包含 `id`, `name`, `description` 三个字段
 - [ ] Agent 响应自然语言指令时，本地处理时间 < 500ms（不含 LLM）
 - [ ] Agent 可以调用至少 5 个基础工具
 - [ ] Agent 支持 **Anthropic API** 和 **OpenAI Chat Completions** 两种协议（含 tool calling）
 
 #### Skill 系统
-- [ ] Skill 定义必须包含 `name`, `description`, `triggers` 三个字段
+- [ ] Skill 定义必须包含 `name`, `description` 两个字段；`triggers` 为可选
 - [ ] Skill 触发匹配成功率 100%
 - [ ] Skill 支持的参数类型：string/number/array/object
 - [ ] 内置 3 个示例 Skill：code-review, tdd-workflow, security-review

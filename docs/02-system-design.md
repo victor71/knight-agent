@@ -455,7 +455,7 @@ storage/sessions/
 id: code-reviewer
 name: Code Reviewer
 description: 专注于代码审查的 AI 助手，擅长检测安全问题、性能问题和代码异味
-model: claude-sonnet-4-6
+version: "1.0.0"                  # 可选，语义化版本
 ---
 
 # Agent: Code Reviewer
@@ -464,7 +464,6 @@ model: claude-sonnet-4-6
 - provider: anthropic
 - model: claude-sonnet-4-6
 - temperature: 0.3
-- max_tokens: 8192
 
 ## Instructions
 检查代码的：
@@ -508,7 +507,6 @@ variant: quick
 ## Model
 - model: claude-haiku
 - temperature: 0.1
-- max_tokens: 4096
 
 ## Instructions
 只检查：
@@ -523,12 +521,16 @@ variant: quick
 ---
 name: security-review
 description: 自动执行安全审查，检测代码中的安全漏洞和潜在风险
-triggers:
-  - type: keyword
-    patterns: ["security", "安全"]
-  - type: file_change
-    patterns: ["**/*.ts"]
+# triggers:                           # 可选，结构化定义（优先级高于 Trigger Conditions）
+#   - type: keyword
+#     patterns: ["security", "安全"]
+#   - type: file_change
+#     patterns: ["**/*.ts"]
 ---
+
+## Trigger Conditions
+- Keyword: "security", "安全"
+- File changes: **/*.ts
 
 ## Steps
 

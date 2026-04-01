@@ -522,7 +522,6 @@ version: "1.0.0"
 - provider: anthropic
 - model: claude-sonnet-4-6
 - temperature: 0.3
-- max_tokens: 8192
 
 ## Instructions
 检查代码的：
@@ -551,7 +550,6 @@ variant: quick            # 声明变体名称
 ## Model
 - model: claude-haiku      # 覆盖：使用更快模型
 - temperature: 0.1         # 覆盖：更确定性
-- max_tokens: 4096         # 覆盖：更短输出
 
 ## Instructions
 仅检查明显问题：
@@ -787,7 +785,6 @@ variant: quick
 
 ## Model
 - model: claude-haiku
-- max_tokens: 4096
 
 ## Instructions
 只检查：
@@ -809,7 +806,6 @@ variant: security
 
 ## Model
 - temperature: 0.1
-- max_tokens: 16384
 
 ## Instructions
 专注于安全检查：

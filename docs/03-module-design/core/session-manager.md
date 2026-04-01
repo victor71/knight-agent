@@ -588,7 +588,7 @@ pub struct CompressionContext {
 session:
   # 会话限制
   limits:
-    max_sessions: 10
+    max_sessions: 6
     max_message_count: 1000
     max_session_age: 30d
 
@@ -597,7 +597,7 @@ session:
     enabled: true
     trigger:
       message_count: 50
-      token_count: 100000
+      token_threshold: 0.8          # LLM 上下文上限的 80%
     method: summary
     keep_recent: 20
     llm_model: claude-haiku
@@ -1611,7 +1611,7 @@ knight session create --from-git-branch
 session:
   # 会话限制
   limits:
-    max_sessions: 10              # 最大并发会话数
+    max_sessions: 6               # 最大并发会话数
     max_message_count: 1000       # 单会话最大消息数
     max_session_age: 30d          # 会话最大保留时间
 
@@ -1620,7 +1620,7 @@ session:
     enabled: true
     trigger:
       message_count: 50           # 消息数阈值
-      token_count: 100000         # Token 数阈值
+      token_threshold: 0.8        # LLM 上下文上限的 80%
     method: summary               # summary/semantic/hybrid
     keep_recent: 20               # 保留最近消息数
     llm_model: claude-haiku       # 压缩使用的模型
@@ -1810,7 +1810,7 @@ results = session_manager.search_history(
 # 开发环境配置
 session:
   limits:
-    max_sessions: 5
+    max_sessions: 6
   compression:
     trigger:
       message_count: 30  # 较低阈值便于测试
@@ -1819,11 +1819,11 @@ session:
 # 生产环境配置
 session:
   limits:
-    max_sessions: 20
+    max_sessions: 6
   compression:
     trigger:
       message_count: 50
-      token_count: 100000
+      token_threshold: 0.8        # LLM 上下文上限的 80%
     method: hybrid       # 混合压缩更准确
 ```
 
