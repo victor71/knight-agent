@@ -1,12 +1,12 @@
 # Knight-Agent 测试设计文档
 
-## 1. 概述
+## 概述
 
-### 1.1 测试范围
+### 测试范围
 
 本文档定义 Knight-Agent 项目的测试策略，覆盖 **L0 (P0 核心模块)** 和 **L1 (P1 扩展模块)** 的测试方案。
 
-### 1.2 测试层级
+### 测试层级
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -28,7 +28,7 @@
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 1.3 测试类型定义
+### 测试类型定义
 
 | 测试类型 | 覆盖范围 | 目标 | 自动化 |
 |---------|---------|------|--------|
@@ -40,9 +40,9 @@
 
 ---
 
-## 2. L0 (P0) 核心模块测试
+## L0 (P0) 核心模块测试
 
-### 2.1 模块列表
+### 模块列表
 
 | 模块 | 文档 | 优先级 |
 |------|------|--------|
@@ -51,7 +51,7 @@
 | LLM Provider | `services/llm-provider.md` | P0 |
 | Tool System | `tools/tool-system.md` | P0 |
 
-### 2.2 Session Manager 测试
+### Session Manager 测试
 
 #### 单元测试
 
@@ -218,7 +218,7 @@ test_cases:
       - detected_type == param.type
 ```
 
-### 2.3 Agent Runtime 测试
+### Agent Runtime 测试
 
 #### 单元测试
 
@@ -358,7 +358,7 @@ test_cases:
       - worker.executed: true
 ```
 
-### 2.4 LLM Provider 测试
+### LLM Provider 测试
 
 #### 单元测试
 
@@ -477,7 +477,7 @@ test_cases:
       chunks.length > 1
 ```
 
-### 2.5 Tool System 测试
+### Tool System 测试
 
 #### 单元测试
 
@@ -605,9 +605,9 @@ test_cases:
 
 ---
 
-## 3. L1 (P1) 扩展模块测试
+## L1 (P1) 扩展模块测试
 
-### 3.1 模块列表
+### 模块列表
 
 | 模块 | 文档 | 优先级 |
 |------|------|--------|
@@ -621,7 +621,7 @@ test_cases:
 | Storage Service | `services/storage-service.md` | P1 |
 | Agent Variants | `agent/agent-variants.md` | P1 |
 
-### 3.2 Orchestrator 测试
+### Orchestrator 测试
 
 #### 单元测试
 
@@ -742,7 +742,7 @@ test_cases:
       - task.completed: true
 ```
 
-### 3.3 Skill Engine 测试
+### Skill Engine 测试
 
 #### 单元测试
 
@@ -948,7 +948,7 @@ test_cases:
       - execution_order: ["lint", "test-unit", "test-integration", "build", "deploy"]
 ```
 
-### 3.4 Event Loop 测试
+### Event Loop 测试
 
 #### 单元测试
 
@@ -1058,7 +1058,7 @@ test_cases:
       - skill.triggered: true
 ```
 
-### 3.5 Hook Engine 测试
+### Hook Engine 测试
 
 #### 单元测试
 
@@ -1146,7 +1146,7 @@ test_cases:
       log_contains: "done"
 ```
 
-### 3.6 Task Manager 测试
+### Task Manager 测试
 
 #### 单元测试
 
@@ -1262,7 +1262,7 @@ test_cases:
       workflow.status: "failed"
 ```
 
-### 3.7 MCP Client 测试
+### MCP Client 测试
 
 #### 单元测试
 
@@ -1336,7 +1336,7 @@ test_cases:
       error: "TIMEOUT"
 ```
 
-### 3.8 Context Compressor 测试
+### Context Compressor 测试
 
 #### 单元测试
 
@@ -1423,7 +1423,7 @@ test_cases:
           content: "原始消息"
 ```
 
-### 3.9 Storage Service 测试
+### Storage Service 测试
 
 #### 单元测试
 
@@ -1529,9 +1529,9 @@ test_cases:
 
 ---
 
-## 4. 测试基础设施
+## 测试基础设施
 
-### 4.1 测试框架
+### 测试框架
 
 ```yaml
 testing_stack:
@@ -1551,7 +1551,7 @@ testing_stack:
     coverage_target: 40%
 ```
 
-### 4.2 测试工具
+### 测试工具
 
 ```yaml
 test_tools:
@@ -1582,7 +1582,7 @@ test_tools:
     description: "Rust 性能测试框架"
 ```
 
-### 4.3 Mock 服务
+### Mock 服务
 
 ```yaml
 mock_services:
@@ -1604,9 +1604,9 @@ mock_services:
 
 ---
 
-## 5. 测试执行计划
+## 测试执行计划
 
-### 5.1 单元测试计划
+### 单元测试计划
 
 | 模块 | 测试用例数 | 目标覆盖率 | 状态 |
 |------|-----------|-----------|------|
@@ -1623,7 +1623,7 @@ mock_services:
 | Context Compressor | 8 | 70% | ⏳ |
 | Storage Service | 12 | 80% | ⏳ |
 
-### 5.2 集成测试计划
+### 集成测试计划
 
 | 场景 | 测试用例数 | 涉及模块 | 状态 |
 |------|-----------|---------|------|
@@ -1635,7 +1635,7 @@ mock_services:
 | 会话持久化 | 4 | Session Manager, Storage | ⏳ |
 | 完整 CI 流程 | 1 | 全部模块 | ⏳ |
 
-### 5.3 E2E 测试计划
+### E2E 测试计划
 
 | 场景 | 描述 | 状态 |
 |------|------|------|
@@ -1645,9 +1645,9 @@ mock_services:
 
 ---
 
-## 6. 测试覆盖率目标
+## 测试覆盖率目标
 
-### 6.1 整体目标
+### 整体目标
 
 ```
 整体覆盖率目标
@@ -1661,7 +1661,7 @@ mock_services:
 └── P2 增强模块: ≥ 60%
 ```
 
-### 6.2 关键路径覆盖
+### 关键路径覆盖
 
 ```
 关键用户路径
@@ -1674,9 +1674,9 @@ mock_services:
 
 ---
 
-## 7. 持续集成配置
+## 持续集成配置
 
-### 7.1 CI Pipeline
+### CI Pipeline
 
 ```yaml
 # .github/workflows/test.yml
@@ -1729,9 +1729,9 @@ jobs:
 
 ---
 
-## 8. 测试数据管理
+## 测试数据管理
 
-### 8.1 测试夹具
+### 测试夹具
 
 ```
 tests/fixtures/
@@ -1746,7 +1746,7 @@ tests/fixtures/
     └── sample_code.rs
 ```
 
-### 8.2 测试数据生成
+### 测试数据生成
 
 ```rust
 // tests/helpers/mod.rs
@@ -1789,9 +1789,9 @@ pub mod generators {
 
 ---
 
-## 9. 测试最佳实践
+## 测试最佳实践
 
-### 9.1 命名规范
+### 命名规范
 
 ```rust
 // 测试文件命名
@@ -1809,7 +1809,7 @@ fn test_session_manager_create_session_with_invalid_workspace_fails() {
 }
 ```
 
-### 9.2 AAA 模式
+### AAA 模式
 
 ```rust
 #[test]
@@ -1831,7 +1831,7 @@ fn test_scenario() {
 }
 ```
 
-### 9.3 参数化测试
+### 参数化测试
 
 ```rust
 #[rstest]
@@ -1848,9 +1848,9 @@ fn test_project_type_detection(
 
 ---
 
-## 10. 附录
+## 附录
 
-### 10.1 测试环境配置
+### 测试环境配置
 
 ```toml
 # .cargo/config.toml
@@ -1864,7 +1864,7 @@ target-dir = "target"
 linker = "x86_64-linux-gnu-gcc"
 ```
 
-### 10.2 Docker 测试环境
+### Docker 测试环境
 
 ```yaml
 # docker-compose.test.yml
@@ -1880,7 +1880,7 @@ services:
       - TEST_LOG=trace
 ```
 
-### 10.3 性能基准
+### 性能基准
 
 ```
 性能基准目标
