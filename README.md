@@ -198,41 +198,15 @@ knight schedule cancel <task-id>
 
 ### 实现阶段 (规划中)
 
-- [ ] Phase 1: 核心 Agent 框架 (Week 1-4)
-  - [ ] Session Manager
-  - [ ] Agent Runtime
-  - [ ] LLM Provider
-  - [ ] Tool System
-  - [ ] Workspace 隔离
+详细周度规划见 [需求分析文档](./docs/01-requirements-analysis.md#里程碑规划)
 
-- [ ] Phase 2: Skill 系统 + 会话增强 (Week 5-7)
-  - [ ] Skill Engine
-  - [ ] Skill Pipeline
-  - [ ] 内置 Skills
-  - [ ] Context Compressor (P1)
-  - [ ] Storage Service (P1)
-  - [ ] 会话持久化 (P1)
-  - [ ] 历史搜索 (P1)
-
-- [ ] Phase 3: 协作能力 (Week 8-10)
-  - [ ] Orchestrator
-  - [ ] Task Manager (DAG)
-  - [ ] Agent Variants
-  - [ ] 日志系统 (P1)
-  - [ ] 权限控制 (P1)
-
-- [ ] Phase 4: 自动化 (Week 11-12)
-  - [ ] Event Loop
-  - [ ] 文件监控
-  - [ ] 定时任务
-  - [ ] 守护进程 (P2)
-  - [ ] Hook Engine (P2)
-
-- [ ] Phase 5: 生态 (Week 13-14)
-  - [ ] MCP 集成
-  - [ ] 插件系统 (P2)
-  - [ ] 配置热更新 (P2)
-  - [ ] 模板库 (P2)
+| 阶段 | 目标 | 周期 |
+|------|------|------|
+| Phase 1 | 核心 Agent 框架 | Week 1-4 |
+| Phase 2 | Skill 系统 + 会话增强 | Week 5-7 |
+| Phase 3 | 协作能力 | Week 8-10 |
+| Phase 4 | 自动化 | Week 11-12 |
+| Phase 5 | 生态 | Week 13-14 |
 
 ## 项目结构
 
