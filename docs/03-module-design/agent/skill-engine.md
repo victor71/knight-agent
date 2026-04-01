@@ -888,3 +888,11 @@ error_codes:
 | ci-pipeline | automation | CI/CD 流水线 |
 | deploy | operations | 部署技能 |
 | notify | communication | 通知技能 |
+
+### 版本历史
+
+| 版本 | 日期 | 变更 |
+|------|------|------|
+| 1.0.0 | 2026-03-30 | 初始版本 |
+| 1.1.0 | 2026-04-01 | 重命名"工作流"为"管道"(Pipeline) |
+

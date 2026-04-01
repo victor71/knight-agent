@@ -769,3 +769,11 @@ error_codes:
 | scheduler | 定时器 | Cron 定时任务 |
 | http_source | HTTP 轮询 | HTTP 端点轮询 |
 | webhook_source | Webhook | 接收 Webhook |
+
+### 版本历史
+
+| 版本 | 日期 | 变更 |
+|------|------|------|
+| 1.0.0 | 2026-03-30 | 初始版本 |
+| 1.1.0 | 2026-04-01 | 添加与 Timer System 的集成说明 |
+

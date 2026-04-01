@@ -1034,3 +1034,11 @@ error_codes:
 | prompt_modifier | prompt_build | 修改 Prompt |
 | context_logger | message_send | 记录消息上下文 |
 | error_notifier | agent_error | Agent 错误通知 |
+
+### 版本历史
+
+| 版本 | 日期 | 变更 |
+|------|------|------|
+| 1.0.0 | 2026-03-30 | 初始版本 |
+| 1.1.0 | 2026-04-01 | 添加 prompt_build 事件详细流程和数据结构说明 |
+
