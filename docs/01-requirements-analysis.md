@@ -1,6 +1,6 @@
 # Knight-Agent 需求分析文档
 
-## 1. 项目概述
+## 项目概述
 
 **项目名称**: Knight-Agent
 **项目定位**: 可扩展的 Agentic 工具开发框架
@@ -9,9 +9,9 @@
 
 ---
 
-## 2. 功能需求分析
+## 功能需求分析
 
-### 2.1 自定义 Agent 系统
+### 自定义 Agent 系统
 
 | 需求项 | 描述 | 优先级 |
 |--------|------|--------|
@@ -133,7 +133,7 @@ version: "1.0.0"
 - **/.git/**
 ```
 
-### 2.2 自定义 Skill 系统
+### 自定义 Skill 系统
 
 | 需求项 | 描述 | 优先级 |
 |--------|------|--------|
@@ -166,7 +166,7 @@ description: Review code changes
 
 > **说明**: `triggers` 字段为可选。当配置 `triggers` 时，以结构化的 triggers 配置为准；当未配置 `triggers` 时，系统使用 `## Trigger Conditions` 作为人类可读的描述。
 
-### 2.3 MCP 工具集成
+### MCP 工具集成
 
 | 需求项 | 描述 | 优先级 |
 |--------|------|--------|
@@ -186,7 +186,7 @@ mcp_servers:
     args: ["-y", "@modelcontextprotocol/server-brave-search"]
 ```
 
-### 2.4 基础工具集
+### 基础工具集
 
 | 工具类型 | 具体功能 | 优先级 |
 |----------|----------|--------|
@@ -196,7 +196,7 @@ mcp_servers:
 | 代码操作 | AST 解析、语法检查 | P1 |
 | Git 操作 | status, diff, commit, push | P1 |
 
-### 2.5 多 Agent 协作
+### 多 Agent 协作
 
 | 需求项 | 描述 | 优先级 |
 |--------|------|--------|
@@ -214,7 +214,7 @@ ProductManager Agent → (spec) → Architect Agent → (design) → Developer A
                                                      Tester Agent ← (test)
 ```
 
-### 2.6 任务管理系统
+### 任务管理系统
 
 | 需求项 | 描述 | 优先级 |
 |--------|------|--------|
@@ -241,9 +241,9 @@ tasks:
     depends_on: [implement]
 ```
 
-### 2.7 会话管理系统
+### 会话管理系统
 
-#### 2.7.1 核心需求
+#### 核心需求
 
 | 需求项 | 描述 | 优先级 | 验收标准 |
 |--------|------|--------|----------|
@@ -255,7 +255,7 @@ tasks:
 | **历史搜索** | 跨会话搜索 | P1 | 可以搜索历史消息 |
 | **会话模板** | 预定义配置 | P2 | 快速启动预设会话 |
 
-#### 2.7.2 使用场景
+#### 使用场景
 
 **场景 1: 多项目并行开发**
 ```bash
@@ -290,7 +290,7 @@ Day 7:  回顾之前的讨论
 # 所有 Agent 共享会话上下文
 ```
 
-#### 2.7.3 CLI 命令
+#### CLI 命令
 
 ```bash
 # 创建会话
@@ -317,7 +317,7 @@ knight session info
 knight session archive abc123
 ```
 
-#### 2.7.4 上下文压缩策略
+#### 上下文压缩策略
 
 ```yaml
 # config/session.yaml
@@ -346,7 +346,7 @@ llm_context_limit:
   gpt-3.5-turbo: 163000
 ```
 
-#### 2.7.5 目录结构
+#### 目录结构
 
 ```
 ~/.knight-agent/
@@ -368,7 +368,7 @@ llm_context_limit:
     └── session.yaml
 ```
 
-### 2.8 7×24 运行支持
+### 7×24 运行支持
 
 | 需求项 | 描述 | 优先级 |
 |--------|------|--------|
@@ -392,7 +392,7 @@ triggers:
     cron: "0 */4 * * *"
 ```
 
-### 2.9 定时系统
+### 定时系统
 
 | 需求项 | 描述 | 优先级 |
 |--------|------|--------|
@@ -539,7 +539,7 @@ schedule:
 
 ---
 
-### 2.11 Hook 系统
+### Hook 系统
 
 | 需求项 | 描述 | 优先级 |
 |--------|------|--------|
@@ -595,9 +595,9 @@ hooks:
 
 ---
 
-## 3. 非功能需求
+## 非功能需求
 
-### 3.1 性能要求
+### 性能要求
 
 #### 响应时间
 
@@ -625,7 +625,7 @@ hooks:
 | 会话进程内存 | 500MB | 1GB | 2GB |
 | Agent 冷启动时间 | 1s | 2s | 3s |
 
-### 3.2 可靠性要求
+### 可靠性要求
 
 | 指标 | 要求 |
 |------|------|
@@ -635,7 +635,7 @@ hooks:
 | 日志完整 | 所有操作可追溯 |
 | 优雅关闭 | 信号处理和资源清理 |
 
-### 3.3 可扩展性要求
+### 可扩展性要求
 
 | 指标 | 要求 |
 |------|------|
@@ -643,7 +643,7 @@ hooks:
 | 配置热更新 | 运行时更新配置 |
 | 多语言支持 | 核心 Rust/TS，插件 Python/Go |
 
-### 3.4 安全性要求
+### 安全性要求
 
 | 指标 | 要求 |
 |------|------|
@@ -652,7 +652,7 @@ hooks:
 | 沙箱执行 | Bash 命令执行沙箱 |
 | 审计日志 | 所有工具调用记录 |
 
-### 3.5 可用性要求
+### 可用性要求
 
 | 指标 | 要求 |
 |------|------|
@@ -661,7 +661,7 @@ hooks:
 | 数据备份频率 | 每日自动备份 |
 | 降级策略 | LLM 不可用时保留历史查询功能 |
 
-### 3.6 兼容性要求
+### 兼容性要求
 
 | 类别 | 要求 |
 |------|------|
@@ -672,7 +672,7 @@ hooks:
 | **Python 版本** | 3.10+ (插件开发) |
 | **LLM 提供商** | Anthropic API、OpenAI Chat Completions API 及其兼容实现 |
 
-### 3.7 数据保留策略
+### 数据保留策略
 
 | 数据类型 | 保留期限 | 清理策略 |
 |----------|----------|----------|
@@ -684,9 +684,9 @@ hooks:
 
 ---
 
-## 4. 用户角色与用例
+## 用户角色与用例
 
-### 4.1 用户角色
+### 用户角色
 
 | 角色 | 描述 | 主要需求 |
 |------|------|----------|
@@ -694,7 +694,7 @@ hooks:
 | AI 工程师 | 集成和调优 | MCP 配置、性能调优 |
 | 终端用户 | 使用 Agent 完成任务 | CLI、Web UI |
 
-### 4.2 核心用例
+### 核心用例
 
 #### UC-01: 创建自定义 Agent
 1. 用户创建 Agent 定义文件
@@ -726,22 +726,22 @@ hooks:
 
 ---
 
-## 5. 约束与假设
+## 约束与假设
 
-### 5.1 技术约束
+### 技术约束
 
 - 必须支持 Anthropic API 协议（含 tool calling）
 - 必须支持 OpenAI Chat Completions API（含 tool calling）
 - 必须兼容 MCP 协议
 - 核心引擎使用 Rust/TypeScript 实现
 
-### 5.2 业务约束
+### 业务约束
 
 - 项目初期专注开发场景
 - 单机部署，暂不涉及分布式
 - 配置文件优先，UI 次要
 
-### 5.3 假设
+### 假设
 
 - 用户有基础编程能力
 - 网络连接稳定 (访问在线 LLM)
@@ -749,9 +749,9 @@ hooks:
 
 ---
 
-## 6. 需求优先级矩阵
+## 需求优先级矩阵
 
-### 6.1 优先级定义
+### 优先级定义
 
 | 优先级 | 含义 | 目标版本 |
 |--------|------|----------|
@@ -760,7 +760,7 @@ hooks:
 | P2 | 增强功能，后续版本 | V1.x (1.x.0) |
 | P3 | 未来考虑，长期规划 | V2.0+ |
 
-### 6.2 功能优先级矩阵
+### 功能优先级矩阵
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -817,7 +817,7 @@ hooks:
 
 > **图例**: ○ = 待开发/规划中 | ✓ = 已完成
 
-### 6.3 优先级调整说明
+### 优先级调整说明
 
 | 原优先级 | 原功能 | 调整原因 | 新优先级 |
 |----------|--------|----------|----------|
@@ -830,7 +830,7 @@ hooks:
 | - | 权限控制 | **新增**，安全必需 | P1 |
 | - | 日志系统 | **新增**，调试必需 | P1 |
 
-### 6.4 MVP 范围重新定义
+### MVP 范围重新定义
 
 **MVP (0.1.0) 目标**: 一个能对话、能调用工具的单 Agent 系统
 
@@ -858,9 +858,9 @@ hooks:
 
 ---
 
-## 7. 用户故事 (User Stories)
+## 用户故事 (User Stories)
 
-### 7.1 作为软件设计师，我希望...
+### 作为软件设计师，我希望...
 
 | ID | 故事 | 验收标准 | 优先级 |
 |----|------|----------|--------|
@@ -870,7 +870,7 @@ hooks:
 | US-004 | 让 Agent 7×24 监控代码质量 | Git push 后 30 秒内触发审查；审查结果通过 webhook 通知；失败时阻止合并 | P1 |
 | US-005 | 集成搜索工具增强 Agent 能力 | Agent 可发起搜索请求；搜索结果 < 5 秒返回；可引用搜索内容 | P1 |
 
-### 7.2 作为 AI 工程师，我希望...
+### 作为 AI 工程师，我希望...
 
 | ID | 故事 | 验收标准 | 优先级 |
 |----|------|----------|--------|
@@ -879,7 +879,7 @@ hooks:
 | US-103 | 调试 Skill 执行过程 | 显示每个步骤的输入/输出；执行失败时显示错误堆栈；支持断点暂停 | P2 |
 | US-104 | 扩展自定义工具 | 通过 MCP 配置添加工具；工具自动被发现；权限控制生效 | P1 |
 
-### 7.3 作为终端用户，我希望...
+### 作为终端用户，我希望...
 
 | ID | 故事 | 验收标准 | 优先级 |
 |----|------|----------|--------|
@@ -891,7 +891,7 @@ hooks:
 | US-206 | 撤销 Agent 的操作 | 支持回滚最近的 10 次文件修改；回滚操作 < 1 秒完成 | P2 |
 | US-207 | **定时自动执行任务** | **自然语言创建定时任务；支持一次性/周期性任务；任务持久化并可恢复** | **P1** |
 
-### 7.4 关于会话的用户故事
+### 关于会话的用户故事
 
 | ID | 故事 | 验收标准 | 优先级 |
 |----|------|----------|--------|
@@ -902,9 +902,9 @@ hooks:
 
 ---
 
-## 8. 竞品分析
+## 竞品分析
 
-### 8.1 通用 Agentic 框架
+### 通用 Agentic 框架
 
 | 特性 | 通用 Agentic 框架 | Knight-Agent |
 |------|----------|--------------|
@@ -926,7 +926,7 @@ hooks:
 - 更灵活的 Skill 触发
 - 进程级隔离机制
 
-### 8.2 Claude Code
+### Claude Code
 
 | 特性 | Claude Code | Knight-Agent |
 |------|-------------|--------------|
@@ -946,7 +946,7 @@ hooks:
 - 事件驱动自动化
 - 可视化监控
 
-### 8.3 AutoGen
+### AutoGen
 
 | 特性 | AutoGen | Knight-Agent |
 |------|---------|--------------|
@@ -966,9 +966,9 @@ hooks:
 
 ---
 
-## 9. 边界条件分析
+## 边界条件分析
 
-### 9.1 功能边界
+### 功能边界
 
 **包含**:
 - Agent 定义和管理
@@ -986,7 +986,7 @@ hooks:
 - Agent 训练/微调
 - 图形化流程编辑器
 
-### 9.2 性能边界
+### 性能边界
 
 | 指标 | 最小值 | 目标值 | 最大值 |
 |------|--------|--------|--------|
@@ -997,7 +997,7 @@ hooks:
 | 响应延迟 (不含 LLM) | <100ms | <500ms | <2s |
 | 消息吞吐 | 1 msg/s | 10 msg/s | 100 msg/s |
 
-### 9.3 使用边界
+### 使用边界
 
 **适用场景**:
 - 本地开发辅助
@@ -1014,9 +1014,9 @@ hooks:
 
 ---
 
-## 10. 风险分析
+## 风险分析
 
-### 10.1 技术风险
+### 技术风险
 
 | 风险 | 影响 | 概率 | 缓解措施 |
 |------|------|------|----------|
@@ -1025,7 +1025,7 @@ hooks:
 | Rust 学习曲线 | 中 | 低 | 文档完善、示例代码 |
 | MCP 协议变更 | 中 | 低 | 版本隔离、适配层 |
 
-### 10.2 业务风险
+### 业务风险
 
 | 风险 | 影响 | 概率 | 缓解措施 |
 |------|------|------|----------|
@@ -1033,7 +1033,7 @@ hooks:
 | 竞品压力 | 中 | 中 | 差异化特性 |
 | 维护成本 | 低 | 中 | 自动化测试、文档 |
 
-### 10.3 安全风险
+### 安全风险
 
 | 风险 | 影响 | 概率 | 缓解措施 |
 |------|------|------|----------|
@@ -1043,9 +1043,9 @@ hooks:
 
 ---
 
-## 11. 验收标准 (Acceptance Criteria)
+## 验收标准 (Acceptance Criteria)
 
-### 11.1 MVP 验收标准
+### MVP 验收标准
 
 #### Agent 系统
 - [ ] Agent 定义必须包含 `id`, `name`, `description` 三个字段
@@ -1076,7 +1076,7 @@ hooks:
 - [ ] 会话内至少保留 100 条消息历史
 - [ ] 会话切换响应时间 < 100ms
 
-### 11.2 V1.0 验收标准
+### V1.0 验收标准
 
 在 MVP 基础上增加:
 
@@ -1099,9 +1099,9 @@ hooks:
 - [ ] 提供完整的 CLI 界面
 - [ ] 核心功能测试覆盖率 > 80%
 
-### 11.3 验证方法
+### 验证方法
 
-#### 11.3.1 跨会话隔离验证（方案A：进程级隔离测试）
+#### 跨会话隔离验证（方案A：进程级隔离测试）
 
 **测试步骤**：
 ```bash
@@ -1122,7 +1122,7 @@ knight ask agent "读取 ~/project-a/config.json"
 
 **验收标准**：跨会话文件访问拒绝率 = 100%
 
-#### 11.3.2 Bash 白名单配置验证
+#### Bash 白名单配置验证
 
 **配置文件路径**（支持两种）：
 - 全局：`~/.knight-agent/config/bash-whitelist.yaml`
@@ -1144,7 +1144,7 @@ allowed_commands:
 2. 白名单外命令：拒绝执行或强制用户确认
 3. Skill 中定义的命令：免确认执行
 
-#### 11.3.3 响应时间验证
+#### 响应时间验证
 
 | 指标 | 测量方法 |
 |------|----------|
@@ -1152,7 +1152,7 @@ allowed_commands:
 | Agent 本地处理 | 记录从用户输入到 LLM 请求发出的时间差 |
 | 工具调用 | 记录工具执行时间，不含 LLM 等待 |
 
-#### 11.3.4 资源占用验证
+#### 资源占用验证
 
 | 指标 | 测量方法 |
 |------|----------|
@@ -1161,9 +1161,9 @@ allowed_commands:
 
 ---
 
-## 12. 需求追溯矩阵
+## 需求追溯矩阵
 
-### 12.1 矩阵说明
+### 矩阵说明
 
 | 列名 | 说明 |
 |------|------|
@@ -1176,28 +1176,28 @@ allowed_commands:
 | 测试用例 | 测试用例标识 |
 | 当前状态 | 设计中/开发中/测试中/已完成 |
 
-### 12.2 完整追溯矩阵
+### 完整追溯矩阵
 
 | 需求ID | 需求描述 | 优先级 | 设计模块 | 设计文档 | 验收标准 | 测试用例 | 当前状态 |
 |--------|----------|--------|----------|----------|----------|----------|----------|
-| REQ-001 | Agent 定义 | P0 | AgentRuntime | [03-module-design/agent/agent-runtime.md](03-module-design/agent/agent-runtime.md) | 11.1 Agent 系统 | TC-001 | 设计中 |
-| REQ-002 | LLM 抽象层 | P0 | LLMProvider | [03-module-design/services/llm-provider.md](03-module-design/services/llm-provider.md) | 11.1 Agent 系统 | TC-002 | 设计中 |
-| REQ-003 | Skill 定义 | P0 | SkillEngine | [03-module-design/agent/skill-engine.md](03-module-design/agent/skill-engine.md) | 11.1 Skill 系统 | TC-003 | 设计中 |
-| REQ-004 | 触发引擎 | P0 | TriggerEngine | [03-module-design/agent/skill-engine.md](03-module-design/agent/skill-engine.md) | 11.1 Skill 系统 | TC-004 | 设计中 |
-| REQ-005 | 工具系统 | P0 | ToolRegistry | [03-module-design/tools/tool-system.md](03-module-design/tools/tool-system.md) | 11.1 工具系统 | TC-005 | 设计中 |
-| REQ-006 | MCP 集成 | P0 | MCPClient | [03-module-design/services/mcp-client.md](03-module-design/services/mcp-client.md) | 11.1 Agent 系统 | TC-006 | 设计中 |
-| REQ-007 | 多 Agent 并发 | P1 | Orchestrator | [03-module-design/core/orchestrator.md](03-module-design/core/orchestrator.md) | 11.2 协作系统 | TC-007 | 设计中 |
-| REQ-008 | 消息传递 | P1 | MessageBus | [03-module-design/core/orchestrator.md](03-module-design/core/orchestrator.md) | 11.2 协作系统 | TC-008 | 设计中 |
-| REQ-009 | 任务管理 | P1 | TaskManager | [03-module-design/core/task-manager.md](03-module-design/core/task-manager.md) | 11.2 其他 | TC-009 | 设计中 |
-| REQ-010 | 事件监听 | P1 | EventLoop | [03-module-design/core/event-loop.md](03-module-design/core/event-loop.md) | 11.2 其他 | TC-010 | 设计中 |
-| REQ-011 | 多会话并行 | P0 | SessionManager | [03-module-design/core/session-manager.md](03-module-design/core/session-manager.md) | 11.1 会话系统 | TC-011 | 设计中 |
-| REQ-012 | Workspace 隔离 | P0 | WorkspaceContext | [03-module-design/core/session-manager.md](03-module-design/core/session-manager.md) | 11.1 会话系统 + 11.3.1 | TC-012 | 设计中 |
-| REQ-013 | 会话持久化 | P1 | SessionStorage | [03-module-design/services/storage-service.md](03-module-design/services/storage-service.md) | 11.2 会话系统 | TC-013 | 设计中 |
-| REQ-014 | 上下文压缩 | P1 | CompressionEngine | [03-module-design/services/context-compressor.md](03-module-design/services/context-compressor.md) | 11.2 会话系统 | TC-014 | 设计中 |
-| REQ-015 | 历史搜索 | P1 | HistorySearch | [03-module-design/services/storage-service.md](03-module-design/services/storage-service.md) | 11.2 会话系统 | TC-015 | 设计中 |
-| REQ-016 | Hook 系统 | P2 | HookEngine | [03-module-design/core/hook-engine.md](03-module-design/core/hook-engine.md) | 11.2 其他 | TC-016 | 设计中 |
+| REQ-001 | Agent 定义 | P0 | AgentRuntime | [03-module-design/agent/agent-runtime.md](03-module-design/agent/agent-runtime.md) | Agent 系统 | TC-001 | 设计中 |
+| REQ-002 | LLM 抽象层 | P0 | LLMProvider | [03-module-design/services/llm-provider.md](03-module-design/services/llm-provider.md) | Agent 系统 | TC-002 | 设计中 |
+| REQ-003 | Skill 定义 | P0 | SkillEngine | [03-module-design/agent/skill-engine.md](03-module-design/agent/skill-engine.md) | Skill 系统 | TC-003 | 设计中 |
+| REQ-004 | 触发引擎 | P0 | TriggerEngine | [03-module-design/agent/skill-engine.md](03-module-design/agent/skill-engine.md) | Skill 系统 | TC-004 | 设计中 |
+| REQ-005 | 工具系统 | P0 | ToolRegistry | [03-module-design/tools/tool-system.md](03-module-design/tools/tool-system.md) | 工具系统 | TC-005 | 设计中 |
+| REQ-006 | MCP 集成 | P0 | MCPClient | [03-module-design/services/mcp-client.md](03-module-design/services/mcp-client.md) | Agent 系统 | TC-006 | 设计中 |
+| REQ-007 | 多 Agent 并发 | P1 | Orchestrator | [03-module-design/core/orchestrator.md](03-module-design/core/orchestrator.md) | 协作系统 | TC-007 | 设计中 |
+| REQ-008 | 消息传递 | P1 | MessageBus | [03-module-design/core/orchestrator.md](03-module-design/core/orchestrator.md) | 协作系统 | TC-008 | 设计中 |
+| REQ-009 | 任务管理 | P1 | TaskManager | [03-module-design/core/task-manager.md](03-module-design/core/task-manager.md) | 其他 | TC-009 | 设计中 |
+| REQ-010 | 事件监听 | P1 | EventLoop | [03-module-design/core/event-loop.md](03-module-design/core/event-loop.md) | 其他 | TC-010 | 设计中 |
+| REQ-011 | 多会话并行 | P0 | SessionManager | [03-module-design/core/session-manager.md](03-module-design/core/session-manager.md) | 会话系统 | TC-011 | 设计中 |
+| REQ-012 | Workspace 隔离 | P0 | WorkspaceContext | [03-module-design/core/session-manager.md](03-module-design/core/session-manager.md) | 会话系统 + 安全沙箱 | TC-012 | 设计中 |
+| REQ-013 | 会话持久化 | P1 | SessionStorage | [03-module-design/services/storage-service.md](03-module-design/services/storage-service.md) | 会话系统 | TC-013 | 设计中 |
+| REQ-014 | 上下文压缩 | P1 | CompressionEngine | [03-module-design/services/context-compressor.md](03-module-design/services/context-compressor.md) | 会话系统 | TC-014 | 设计中 |
+| REQ-015 | 历史搜索 | P1 | HistorySearch | [03-module-design/services/storage-service.md](03-module-design/services/storage-service.md) | 会话系统 | TC-015 | 设计中 |
+| REQ-016 | Hook 系统 | P2 | HookEngine | [03-module-design/core/hook-engine.md](03-module-design/core/hook-engine.md) | 其他 | TC-016 | 设计中 |
 
-### 12.3 状态说明
+### 状态说明
 
 | 状态 | 说明 |
 |------|------|
@@ -1207,7 +1207,7 @@ allowed_commands:
 | 已完成 | 测试通过，功能已交付 |
 | 暂缓 | 优先级调整，暂时搁置 |
 
-### 12.4 需求统计
+### 需求统计
 
 | 优先级 | 需求数量 | 完成数量 | 完成率 |
 |--------|----------|----------|--------|
@@ -1218,9 +1218,9 @@ allowed_commands:
 
 ---
 
-## 13. 技术债务管理
+## 技术债务管理
 
-### 13.1 预期技术债务
+### 预期技术债务
 
 | 债务项 | 原因 | 计划偿还时间 |
 |--------|------|--------------|
@@ -1229,7 +1229,7 @@ allowed_commands:
 | 有限的错误恢复 | 降低复杂度 | V1.2 |
 | Mock 实现 | 测试需要 | 持续优化 |
 
-### 13.2 技术债务预防
+### 技术债务预防
 
 - 代码审查机制
 - 自动化测试
@@ -1238,23 +1238,23 @@ allowed_commands:
 
 ---
 
-## 14. 非功能需求详解
+## 非功能需求详解
 
-### 14.1 可维护性
+### 可维护性
 
 - 代码模块化，单一职责
 - 清晰的接口定义
 - 完善的错误处理
 - 详细的日志记录
 
-### 14.2 可测试性
+### 可测试性
 
 - 依赖注入
 - Mock 支持
 - 集成测试覆盖
 - 性能基准测试
 
-### 14.3 可观测性
+### 可观测性
 
 - 结构化日志
 - 指标导出
@@ -1263,7 +1263,7 @@ allowed_commands:
 
 ---
 
-## 15. 里程碑规划
+## 里程碑规划
 
 | 阶段 | 目标 | 交付物 | 验收标准 |
 |------|------|--------|----------|
@@ -1354,7 +1354,7 @@ allowed_commands:
 
 ---
 
-## 16. 术语表
+## 术语表
 
 | 术语 | 定义 |
 |------|------|
@@ -1377,19 +1377,19 @@ allowed_commands:
 
 ---
 
-## 17. 参考资源
+## 参考资源
 
-### 17.1 技术参考
+### 技术参考
 - [MCP 协议规范](https://modelcontextprotocol.io)
 - [Anthropic API 文档](https://docs.anthropic.com)
 - [Rust 异步编程](https://rust-lang.github.io/async-book/)
 
-### 17.2 设计参考
+### 设计参考
 - [Claude Code Skills](https://github.com/affaan-m/everything-claude-code)
 - [AutoGen 文档](https://microsoft.github.io/autogen/)
 - [LangChain 文档](https://python.langchain.com/)
 
-### 17.3 最佳实践
+### 最佳实践
 - [The Twelve-Factor App](https://12factor.net/)
 - [Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
 - [Domain-Driven Design](https://martinfowler.com/bliki/DomainDrivenDesign.html)

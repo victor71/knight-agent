@@ -1,8 +1,8 @@
 # Knight-Agent 系统设计文档
 
-## 1. 系统架构
+## 系统架构
 
-### 1.1 整体架构
+### 整体架构
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -58,7 +58,7 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 1.2 架构分层
+### 架构分层
 
 | 层级 | 职责 | 核心组件 |
 |------|------|----------|
@@ -70,9 +70,9 @@
 
 ---
 
-## 2. 核心组件
+## 核心组件
 
-### 2.1 Session Manager (会话管理器)
+### Session Manager (会话管理器)
 
 **职责**: 会话生命周期管理、Workspace 隔离、上下文压缩、历史持久化
 
@@ -171,7 +171,7 @@ workspace_isolation:
     - separate_history: true
 ```
 
-### 2.2 Orchestrator (编排器)
+### Orchestrator (编排器)
 
 **职责**: Agent 生命周期管理、任务编排、资源分配
 
@@ -225,7 +225,7 @@ flowchart LR
     F --> B
 ```
 
-### 2.3 Agent (代理)
+### Agent (代理)
 
 **职责**: 执行指令、调用 LLM、管理上下文、调用工具
 
@@ -254,7 +254,7 @@ agent:
   state: string              # idle/thinking/acting/error
 ```
 
-### 2.4 Skill (技能)
+### Skill (技能)
 
 **职责**: 定义可复用的行为模式、响应触发、执行流程
 
@@ -298,7 +298,7 @@ skill:
         content: "{{ analysis }}"
 ```
 
-### 2.5 Tool (工具)
+### Tool (工具)
 
 **职责**: 执行具体操作、参数验证、权限检查
 
@@ -330,9 +330,9 @@ tool:
 
 ---
 
-## 3. 会话系统
+## 会话系统
 
-### 3.1 在架构中的位置
+### 在架构中的位置
 
 ```
 用户请求
@@ -373,7 +373,7 @@ tool:
 3. **上下文管理**: 自动压缩长对话，保留关键信息
 4. **状态持久化**: 会话状态可保存和恢复
 
-### 3.2 多会话并行
+### 多会话并行
 
 ```
 Session Manager
@@ -399,7 +399,7 @@ Session Manager
 - 每个会话有独立的上下文和消息历史
 - Agent 状态不跨会话共享
 
-### 3.3 上下文压缩
+### 上下文压缩
 
 ```yaml
 compression:
@@ -432,7 +432,7 @@ compression:
 [压缩点摘要] + [51, ..., 70]
 ```
 
-### 3.4 会话持久化
+### 会话持久化
 
 ```
 storage/sessions/
@@ -446,9 +446,9 @@ storage/sessions/
 
 ---
 
-## 4. 数据模型
+## 数据模型
 
-### 4.1 Agent 定义格式
+### Agent 定义格式
 
 ```markdown
 ---
@@ -493,7 +493,7 @@ version: "1.0.0"                  # 可选，语义化版本
 - **/.git/**
 ```
 
-### 4.2 Agent 变体格式
+### Agent 变体格式
 
 ```markdown
 ---
@@ -515,7 +515,7 @@ variant: quick
 3. 简单反模式
 ```
 
-### 4.3 Skill 定义格式
+### Skill 定义格式
 
 ```markdown
 ---
@@ -572,9 +572,9 @@ args:
 
 ---
 
-## 5. 协作机制
+## 协作机制
 
-### 5.1 协作模式
+### 协作模式
 
 **主从模式**:
 ```
@@ -607,7 +607,7 @@ Agent A ←── Agent B
           投票/共识
 ```
 
-### 5.2 上下文共享
+### 上下文共享
 
 ```yaml
 context_manager:
@@ -628,9 +628,9 @@ context_manager:
 
 ---
 
-## 6. 事件驱动系统
+## 事件驱动系统
 
-### 6.1 事件类型
+### 事件类型
 
 ```yaml
 events:
@@ -654,7 +654,7 @@ events:
     session_id: string
 ```
 
-### 6.2 监听器模式
+### 监听器模式
 
 ```yaml
 listener:
@@ -671,9 +671,9 @@ listener:
 
 ---
 
-## 7. Hook 系统
+## Hook 系统
 
-### 7.1 Hook 架构
+### Hook 架构
 
 Hook 系统允许插件在关键事件点注入自定义逻辑。
 
@@ -706,7 +706,7 @@ Hook 系统允许插件在关键事件点注入自定义逻辑。
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 7.2 Hook 定义
+### Hook 定义
 
 ```yaml
 hook:
@@ -734,7 +734,7 @@ hook:
     continue_on_error: boolean
 ```
 
-### 7.3 Hook 事件点
+### Hook 事件点
 
 ```yaml
 hook_events:
@@ -774,7 +774,7 @@ hook_events:
     - message_modify
 ```
 
-### 7.4 Hook 配置
+### Hook 配置
 
 ```yaml
 # config/hooks.yaml
@@ -813,7 +813,7 @@ hooks:
       target: "localhost:8080/handle"
 ```
 
-### 7.5 Hook 目录结构
+### Hook 目录结构
 
 ```
 ~/.knight-agent/
@@ -832,7 +832,7 @@ hooks:
     └── hooks.yaml
 ```
 
-### 7.6 Hook 上下文
+### Hook 上下文
 
 Hook 执行时接收的上下文：
 
@@ -871,9 +871,9 @@ hook_context:
 
 ---
 
-## 8. 任务管理系统
+## 任务管理系统
 
-### 8.1 任务模型
+### 任务模型
 
 ```yaml
 task:
@@ -901,7 +901,7 @@ task:
   continue_on_error: boolean
 ```
 
-### 8.2 DAG 依赖解析
+### DAG 依赖解析
 
 ```
      Task A (design)
@@ -939,7 +939,7 @@ dependency_rules:
       wait_for: all  # all/any
 ```
 
-### 8.3 Workflow 定义格式
+### Workflow 定义格式
 
 ```yaml
 # workflows/feature-development.yaml
@@ -996,7 +996,7 @@ workflow:
           condition: success
 ```
 
-### 8.4 任务调度器
+### 任务调度器
 
 ```yaml
 task_scheduler:
@@ -1023,9 +1023,9 @@ task_scheduler:
 
 ---
 
-## 9. 7×24 守护进程
+## 7×24 守护进程
 
-### 9.1 守护进程架构
+### 守护进程架构
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -1045,7 +1045,7 @@ task_scheduler:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 9.2 进程管理
+### 进程管理
 
 ```yaml
 process_manager:
@@ -1068,7 +1068,7 @@ process_manager:
     wait_for_completion: true  # 等待任务完成
 ```
 
-### 9.3 健康检查
+### 健康检查
 
 ```yaml
 health_check:
@@ -1098,7 +1098,7 @@ health_check:
       after: 3_consecutive_failures
 ```
 
-### 9.4 事件循环架构
+### 事件循环架构
 
 ```
 Event Loop
@@ -1143,9 +1143,9 @@ event_loop:
 
 ---
 
-## 10. 定时调度器
+## 定时调度器
 
-### 10.1 定时任务模型
+### 定时任务模型
 
 ```yaml
 schedule:
@@ -1181,7 +1181,7 @@ schedule:
   last_result: object
 ```
 
-### 10.2 自然语言解析
+### 自然语言解析
 
 ```yaml
 nlp_parser:
@@ -1211,7 +1211,7 @@ nlp_parser:
       type: string
 ```
 
-### 10.3 调度器架构
+### 调度器架构
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -1241,7 +1241,7 @@ nlp_parser:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 10.4 CLI 接口
+### CLI 接口
 
 ```bash
 # 创建定时任务
@@ -1265,9 +1265,9 @@ knight schedule create "2小时后提醒我提交代码"
 
 ---
 
-## 11. 监控与可观测性
+## 监控与可观测性
 
-### 11.1 核心指标
+### 核心指标
 
 ```yaml
 metrics:
@@ -1335,7 +1335,7 @@ metrics:
       description: 上下文压缩次数
 ```
 
-### 11.2 日志结构
+### 日志结构
 
 ```yaml
 logging:
@@ -1380,7 +1380,7 @@ logging:
 }
 ```
 
-### 11.3 追踪接口
+### 追踪接口
 
 ```yaml
 tracing:
@@ -1418,9 +1418,9 @@ tracing:
 
 ---
 
-## 12. LLM Provider 抽象层
+## LLM Provider 抽象层
 
-### 12.1 Provider 接口
+### Provider 接口
 
 ```yaml
 llm_provider:
@@ -1458,7 +1458,7 @@ llm_provider:
         - count: int
 ```
 
-### 12.2 多云支持
+### 多云支持
 
 ```yaml
 llm_providers:
@@ -1487,7 +1487,7 @@ llm_providers:
     api_key: ${CUSTOM_LLM_KEY}
 ```
 
-### 12.3 模型路由
+### 模型路由
 
 ```yaml
 model_router:
@@ -1523,9 +1523,9 @@ model_router:
 
 ---
 
-## 13. MCP 工具集成
+## MCP 工具集成
 
-### 13.1 MCP 配置
+### MCP 配置
 
 ```yaml
 mcp_config:
@@ -1557,7 +1557,7 @@ mcp_config:
     max_retries: 3             # 最大重试次数
 ```
 
-### 13.2 MCP 工具权限
+### MCP 工具权限
 
 ```yaml
 mcp_permissions:
@@ -1587,7 +1587,7 @@ mcp_permissions:
     alert_on_sensitive: true
 ```
 
-### 13.3 MCP 工具适配
+### MCP 工具适配
 
 ```yaml
 mcp_adapter:
@@ -1626,9 +1626,9 @@ mcp_adapter:
 
 ---
 
-## 14. 存储设计
+## 存储设计
 
-### 14.1 目录结构
+### 目录结构
 
 ```
 knight-agent/                   # 项目根目录 (代码仓库)
@@ -1662,7 +1662,7 @@ knight-agent/                   # 项目根目录 (代码仓库)
 └── logs/                      # 日志
 ```
 
-### 14.2 配置文件
+### 配置文件
 
 ```yaml
 # config/settings.yaml
@@ -1703,9 +1703,9 @@ session:
 
 ---
 
-## 15. CLI 接口
+## CLI 接口
 
-### 15.1 命令结构
+### 命令结构
 
 ```bash
 # Agent 管理
@@ -1734,7 +1734,7 @@ knight monitor
 knight logs <session>
 ```
 
-### 15.2 交互模式
+### 交互模式
 
 ```
 $ knight chat code-reviewer:quick
@@ -1764,9 +1764,9 @@ $ knight chat code-reviewer:quick
 
 ---
 
-## 16. 安全设计
+## 安全设计
 
-### 16.1 权限模型
+### 权限模型
 
 ```yaml
 permission:
@@ -1778,7 +1778,7 @@ permission:
     - read | write | execute | delete
 ```
 
-### 16.2 沙箱机制
+### 沙箱机制
 
 ```yaml
 sandbox:
@@ -1806,7 +1806,7 @@ sandbox:
     max_file_size: 10MB
 ```
 
-### 16.3 审计日志
+### 审计日志
 
 ```yaml
 audit_log:
@@ -1823,9 +1823,9 @@ audit_log:
 
 ---
 
-## 17. 技术选型
+## 技术选型
 
-### 17.1 混合架构
+### 混合架构
 
 | 模块 | 技术 | 理由 |
 |------|------|------|
@@ -1840,7 +1840,7 @@ audit_log:
 | **LLM** | 多云 HTTP API | Anthropic API + OpenAI Chat Completions |
 | **工具扩展** | MCP 协议 | 标准化工具接口 |
 
-### 17.2 模块边界
+### 模块边界
 
 ```
 Rust Core (knight-core)
@@ -1858,7 +1858,7 @@ TypeScript Extensions (knight-ext)
 └── Admin Panel
 ```
 
-### 17.3 通信协议
+### 通信协议
 
 ```yaml
 # Rust Core 对外接口
@@ -1871,9 +1871,9 @@ grpc_services:
 
 ---
 
-## 18. 部署架构
+## 部署架构
 
-### 18.1 开发环境
+### 开发环境
 
 ```
 开发者机器
@@ -1888,7 +1888,7 @@ grpc_services:
         └── project.yaml
 ```
 
-### 18.2 生产环境
+### 生产环境
 
 ```
 服务器
@@ -1903,9 +1903,9 @@ grpc_services:
 
 ---
 
-## 19. 状态机设计
+## 状态机设计
 
-### 19.1 Agent 生命周期
+### Agent 生命周期
 
 ```mermaid
 stateDiagram-v2
@@ -1923,7 +1923,7 @@ stateDiagram-v2
     Failed --> [*]: cleanup
 ```
 
-### 19.2 会话状态
+### 会话状态
 
 ```mermaid
 stateDiagram-v2
@@ -1939,16 +1939,16 @@ stateDiagram-v2
 
 ---
 
-## 20. 设计原则
+## 设计原则
 
-### 20.1 核心原则
+### 核心原则
 
 1. **会话隔离优先**: 每个 Session 独立运行，互不干扰
 2. **上下文自动管理**: 自动压缩长对话，保留关键信息
 3. **渐进式复杂**: MVP 支持基础功能，逐步增强
 4. **可扩展性**: 通过 MCP 协议扩展工具能力
 
-### 20.2 权衡
+### 权衡
 
 | 方面 | 选择 | 理由 |
 |------|------|------|
