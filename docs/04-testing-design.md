@@ -619,6 +619,8 @@ test_cases:
 | MCP Client | `services/mcp-client.md` | P1 |
 | Context Compressor | `services/context-compressor.md` | P1 |
 | Storage Service | `services/storage-service.md` | P1 |
+| Timer System | `services/timer-system.md` | P1 |
+| Logging System | `services/logging-system.md` | P1 |
 | Agent Variants | `agent/agent-variants.md` | P1 |
 
 ### Orchestrator 测试
@@ -1527,6 +1529,340 @@ test_cases:
       restored: true
 ```
 
+### Timer System 测试
+
+#### 单元测试
+
+```yaml
+test_suite: TimerSystem Unit Tests
+file: tests/unit/timer_system_test.rs
+
+test_cases:
+  # 一次性定时器
+  - name: 创建一次性定时器
+    input:
+      delay_ms: 5000
+      callback:
+        type: "callback"
+        function: "test_callback"
+    expect:
+      timer_id: type(string)
+      status: "active"
+      next_execution: "now + 5000ms"
+
+  - name: 定时器到期执行回调
+    setup:
+      - create_timer:
+          delay_ms: 100
+    wait: 150ms
+    expect:
+      callback_executed: true
+      timer.status: "completed"
+
+  # 周期性定时器
+  - name: 创建周期性定时器
+    input:
+      interval_ms: 1000
+      max_executions: 3
+      callback:
+        type: "callback"
+    expect:
+      timer_id: type(string)
+      type: "interval"
+      execution_count: 0
+
+  - name: 周期性定时器重复执行
+    setup:
+      - create_interval_timer:
+          interval_ms: 100
+          max_executions: 2
+    wait: 250ms
+    expect:
+      execution_count: 2
+      timer.status: "completed"
+
+  # Cron 定时器
+  - name: 创建 Cron 定时器
+    input:
+      cron_expression: "0 * * * *"
+      timezone: "UTC"
+      callback:
+        type: "callback"
+    expect:
+      timer_id: type(string)
+      type: "cron"
+      next_execution: "next_hour"
+
+  - name: Cron 表达式解析错误
+    input:
+      cron_expression: "invalid"
+    expect:
+      error: "INVALID_CRON"
+
+  # 定时器控制
+  - name: 取消定时器
+    setup:
+      - create_timer:
+          delay_ms: 10000
+    input:
+      timer_id: "<timer_id>"
+    expect:
+      timer.status: "cancelled"
+
+  - name: 暂停定时器
+    setup:
+      - create_interval_timer:
+          interval_ms: 1000
+    input:
+      timer_id: "<timer_id>"
+    expect:
+      timer.status: "paused"
+
+  - name: 恢复定时器
+    setup:
+      - create_and_pause_timer
+    input:
+      timer_id: "<timer_id>"
+    expect:
+      timer.status: "active"
+
+  # 查询功能
+  - name: 查询活跃定时器
+    setup:
+      - create_timers:
+          - status: "active"
+          - status: "active"
+          - status: "paused"
+    input:
+      filter:
+        status: "active"
+    expect:
+      timers.length: 2
+
+  # 统计功能
+  - name: 获取定时器统计
+    setup:
+      - create_multiple_timers
+    input: {}
+    expect:
+      stats.total_timers: "> 0"
+      stats.active_timers: "> 0"
+```
+
+#### 集成测试
+
+```yaml
+test_suite: TimerSystem Integration Tests
+file: tests/integration/timer_system_test.rs
+
+test_cases:
+  # 与 Event Loop 集成
+  - name: 定时器触发发送事件到 Event Loop
+    setup:
+      - register_event_listener:
+          event: "timer_triggered"
+    input:
+      delay_ms: 100
+    wait: 150ms
+    expect:
+      event_received: true
+      event.data.timer_id: type(string)
+
+  # 与 Hook Engine 集成
+  - name: 定时器触发 Hook 回调
+    setup:
+      - create_hook:
+          event: "timer_triggered"
+          handler: "test_hook"
+    input:
+      delay_ms: 100
+      callback:
+        type: "hook"
+        hook_id: "test_hook"
+    wait: 150ms
+    expect:
+      hook_executed: true
+
+  # 持久化测试
+  - name: 定时器重启后恢复
+    setup:
+      - create_persistent_timer
+      - restart_system
+    input:
+      filter:
+        persistent: true
+    expect:
+      timers.length: 1
+
+  # 并发测试
+  - name: 大量定时器并发执行
+    input:
+      count: 1000
+      interval_ms: 100
+    expect:
+      all_triggered: true
+      execution_delay: "< 100ms"
+```
+
+### Logging System 测试
+
+#### 单元测试
+
+```yaml
+test_suite: LoggingSystem Unit Tests
+file: tests/unit/logging_system_test.rs
+
+test_cases:
+  # 日志级别
+  - name: 记录不同级别日志
+    input:
+      level: "debug"
+      message: "Test message"
+      context:
+        key: "value"
+    expect:
+      logged: true
+      log.level: "debug"
+      log.context.key: "value"
+
+  - name: 日志级别过滤
+    setup:
+      - set_level: "info"
+    input:
+      level: "debug"
+      message: "Debug message"
+    expect:
+      logged: false
+
+  # 日志格式
+  - name: JSON 格式日志
+    setup:
+      - set_format: "json"
+    input:
+      level: "info"
+      message: "Test"
+    expect:
+      log_output: valid_json
+      log_output.level: "info"
+      log_output.message: "Test"
+      log_output.timestamp: type(string)
+
+  # 敏感信息脱敏
+  - name: 自动脱敏敏感字段
+    setup:
+      - enable_masking: true
+    input:
+      level: "info"
+      message: "Login with password"
+      context:
+        password: "secret123"
+        token: "abc123"
+    expect:
+      log.context.password: "***"
+      log.context.token: "***"
+
+  # 日志输出
+  - name: 输出到文件
+    setup:
+      - configure_file_output:
+          path: "/tmp/test.log"
+    input:
+      level: "info"
+      message: "Test message"
+    expect:
+      file_contains: "Test message"
+
+  # 日志查询
+  - name: 按级别查询日志
+    setup:
+      - log_multiple:
+          - level: "info"
+          - level: "error"
+          - level: "debug"
+    input:
+      filter:
+        level: "error"
+    expect:
+      logs.length: 1
+      logs[0].level: "error"
+
+  - name: 按时间范围查询日志
+    setup:
+      - log_at_times:
+          - "2026-04-01 10:00:00"
+          - "2026-04-01 11:00:00"
+          - "2026-04-01 12:00:00"
+    input:
+      filter:
+        start_time: "2026-04-01 10:30:00"
+        end_time: "2026-04-01 11:30:00"
+    expect:
+      logs.length: 1
+
+  # 日志轮转
+  - name: 文件大小达到阈值时轮转
+    setup:
+      - configure_rotation:
+          max_size: "1MB"
+    input:
+      - write_large_log: "2MB"
+    expect:
+      rotated: true
+      backup_files: "> 0"
+```
+
+#### 集成测试
+
+```yaml
+test_suite: LoggingSystem Integration Tests
+file: tests/integration/logging_system_test.rs
+
+test_cases:
+  # 多目标输出
+  - name: 同时输出到控制台和文件
+    setup:
+      - configure_outputs:
+          - type: "console"
+          - type: "file"
+    input:
+      level: "info"
+      message: "Test"
+    expect:
+      console_output: contains("Test")
+      file_output: contains("Test")
+
+  # 与其他模块集成
+  - name: Session Manager 记录日志
+    setup:
+      - configure_logging
+      - create_session
+    expect:
+      logs_contains: "Session created"
+
+  # 性能测试
+  - name: 高并发日志写入性能
+    setup:
+      - configure_async_logging
+    input:
+      threads: 10
+      logs_per_thread: 1000
+    expect:
+      all_logs_written: true
+      avg_latency: "< 1ms"
+
+  # 远程日志
+  - name: 发送日志到远程服务
+    setup:
+      - configure_remote:
+          type: "loki"
+          endpoint: "http://localhost:3100"
+    input:
+      level: "info"
+      message: "Remote log"
+    expect:
+      sent: true
+```
+
 ---
 
 ## 测试基础设施
@@ -1622,6 +1958,8 @@ mock_services:
 | MCP Client | 10 | 75% | ⏳ |
 | Context Compressor | 8 | 70% | ⏳ |
 | Storage Service | 12 | 80% | ⏳ |
+| Timer System | 10 | 75% | ⏳ |
+| Logging System | 10 | 75% | ⏳ |
 
 ### 集成测试计划
 
