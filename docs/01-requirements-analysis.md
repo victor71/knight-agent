@@ -30,6 +30,8 @@
 
 变体是**并行存在**的，用于不同场景；版本是**先后演进**的，用于升级回退。
 
+**变体命名规范**: 变体名称使用纯小写单词，不支持 kebab-case 或 camelCase。
+
 **变体示例**:
 ```
 agents/code-reviewer/
@@ -92,25 +94,44 @@ variant: quick             # 声明这是变体
 
 **Agent 定义格式示例**:
 ```markdown
-# Agent: CodeReviewer
-
-## Role
-专注于代码审查的 AI 助手
+---
+id: code-reviewer
+name: Code Reviewer
+description: 专注于代码审查的 AI 助手，擅长检测安全问题、性能问题和代码异味
+version: "1.0.0"
+---
 
 ## Model
 - provider: anthropic
 - model: claude-sonnet-4-6
 - temperature: 0.3
+- max_tokens: 8192
 
 ## Instructions
 - 检查代码安全性
 - 验证错误处理
 - 评估性能
+- 遵循项目代码规范
 
 ## Tools
 - Read
 - Grep
 - Bash (lint)
+
+## Capabilities
+- file_analysis
+- pattern_matching
+- command_execution
+
+## Permissions
+**允许**:
+- **/*.ts
+- **/*.tsx
+- **/*.rs
+
+**拒绝**:
+- **/node_modules/**
+- **/.git/**
 ```
 
 ### 2.2 自定义 Skill 系统
@@ -127,7 +148,11 @@ variant: quick             # 声明这是变体
 ```markdown
 ---
 name: code-review
-trigger: code change detected
+triggers:
+  - type: file_change
+    patterns: ["*.ts", "*.tsx"]
+  - type: git_status
+    patterns: ["staged"]
 description: Review code changes
 ---
 
@@ -271,15 +296,17 @@ Day 7:  回顾之前的讨论
 ```bash
 # 创建会话
 knight session create --name "前端开发" --workspace ~/project-frontend
+# Session created: abc123
 
 # 切换会话
 knight session use abc123
+# Now using session: abc123
 
 # 列出所有会话
 knight session list
-#   SESSION ID    NAME           WORKSPACE        STATUS    UPDATED
-#   abc123        前端开发       ~/frontend       Active    2m ago
-#   def456        后端开发       ~/backend        Paused    1h ago
+SESSION ID    NAME           WORKSPACE        STATUS    UPDATED
+abc123        前端开发       ~/frontend       Active    2m ago
+def456        后端开发       ~/backend        Paused    1h ago
 
 # 搜索历史
 knight session search "React 组件设计"
@@ -296,21 +323,28 @@ knight session archive abc123
 ```yaml
 # config/session.yaml
 compression:
-  # 触发条件
+  # 触发条件 (可配置，应适配 LLM 上下文限制)
   trigger:
-    message_count: 50        # 超过 50 条消息
-    token_count: 100000      # 超过 100k tokens
+    message_count: 50              # 超过 50 条消息
+    token_threshold: 0.8          # LLM 上下文上限的 80%
 
   # 压缩方法
-  method: summary            # 摘要压缩
-  keep_recent: 20            # 保留最近 20 条消息
+  method: summary                  # 摘要压缩
+  keep_recent: 20                  # 保留最近 20 条消息
 
   # 或使用语义压缩
   # method: semantic
   # keep_types:
-  #   - decision             # 保留决策
-  #   - code                 # 保留代码
-  #   - requirement          # 保留需求
+  #   - decision                 # 保留决策
+  #   - code                     # 保留代码
+  #   - requirement              # 保留需求
+
+# LLM 上下文限制配置
+llm_context_limit:
+  claude-sonnet-4-6: 200000
+  claude-haiku: 200000
+  gpt-4: 128000
+  gpt-3.5-turbo: 163000
 ```
 
 #### 2.7.5 目录结构
@@ -335,55 +369,11 @@ compression:
     └── session.yaml
 ```
 
-| 需求项 | 描述 | 优先级 |
-|--------|------|--------|
-| **多会话并行** | 同时运行多个独立会话，互不干扰 | P0 |
-| **Workspace 隔离** | 不同项目/工作区的完全隔离 | P0 |
-| **会话历史** | 保存会话记录，支持恢复和查询 | P1 |
-| **上下文压缩** | 智能压缩长上下文，保留关键信息 | P1 |
-| **会话共享** | 多 Agent 共享同一会话上下文 | P1 |
-| **历史搜索** | 跨会话搜索历史记录 | P1 |
-| **会话模板** | 预定义会话配置，快速启动 | P2 |
-| **云端同步** | 多设备会话同步 | P3 |
-
-**会话管理示例**:
-```bash
-# 创建会话
-knight session create --name "前端开发" --workspace ~/project-frontend
-
-# 切换会话
-knight session use abc123
-
-# 列出所有会话
-knight session list
-#   SESSION ID    NAME           WORKSPACE        STATUS
-#   abc123        前端开发       ~/frontend       Active
-#   def456        后端开发       ~/backend        Paused
-
-# 搜索历史
-knight session search "React 组件设计"
-
-# 查看会话信息
-knight session info
-```
-
-**上下文压缩策略**:
-```yaml
-# 自动压缩配置
-compression:
-  trigger:
-    message_count: 50      # 超过 50 条消息触发
-    token_count: 100000    # 超过 100k tokens 触发
-
-  method: summary          # 摘要压缩
-  keep_recent: 20          # 保留最近 20 条消息
-```
-
 ### 2.8 7×24 运行支持
 
 | 需求项 | 描述 | 优先级 |
 |--------|------|--------|
-| 事件监听 | 监听文件、网络、定时事件 | P0 |
+| 事件监听 | 监听文件、网络、定时事件 | P1 |
 | 条件触发 | 满足条件时自动执行 | P0 |
 | 长期运行 | 进程守护和自动重启 | P0 |
 | 资源限制 | CPU、内存、API 配额限制 | P1 |
@@ -465,18 +455,38 @@ hooks:
 
 ### 3.1 性能要求
 
-| 指标 | 要求 |
-|------|------|
-| 响应时间 | 用户请求 < 2s (不含 LLM) |
-| 并发能力 | 支持 10+ Agent 同时运行 |
-| 内存占用 | 单 Agent < 500MB |
-| 启动时间 | Agent 冷启动 < 3s |
+#### 响应时间
+
+| 指标 | 目标值 |
+|------|--------|
+| CLI 命令响应 (如 `knight session list`) | < 200ms |
+| Agent 本地处理时间 (不含 LLM) | < 500ms |
+| 工具调用 - Read/Write/Edit | < 100ms |
+| 工具调用 - Grep | < 500ms |
+| 会话切换 | < 100ms |
+
+#### 并发能力
+
+| 指标 | 目标值 |
+|------|--------|
+| 最大并发会话数 | 6 |
+| 单会话最大 Agent 数 | 20 |
+
+#### 资源占用
+
+| 指标 | 最小值 | 目标值 | 最大值 |
+|------|--------|--------|--------|
+| 单 Agent 空闲内存 | 50MB | 80MB | 100MB |
+| 单 Agent 运行时内存 | 150MB | 300MB | 500MB |
+| 会话进程内存 | 500MB | 1GB | 2GB |
+| Agent 冷启动时间 | 1s | 2s | 3s |
 
 ### 3.2 可靠性要求
 
 | 指标 | 要求 |
 |------|------|
-| 错误恢复 | LLM 失败自动重试 3 次 |
+| 系统错误率（非 LLM） | < 1% |
+| LLM 失败重试次数 | 10 次 |
 | 状态持久化 | Agent 状态定期保存 |
 | 日志完整 | 所有操作可追溯 |
 | 优雅关闭 | 信号处理和资源清理 |
@@ -497,6 +507,36 @@ hooks:
 | 敏感数据 | API Key 加密存储 |
 | 沙箱执行 | Bash 命令执行沙箱 |
 | 审计日志 | 所有工具调用记录 |
+
+### 3.5 可用性要求
+
+| 指标 | 要求 |
+|------|------|
+| 系统可用率 | > 99%（月度） |
+| 故障恢复时间 | < 5 分钟 |
+| 数据备份频率 | 每日自动备份 |
+| 降级策略 | LLM 不可用时保留历史查询功能 |
+
+### 3.6 兼容性要求
+
+| 类别 | 要求 |
+|------|------|
+| **操作系统** | macOS 12+, Ubuntu 20.04+, Windows 10+ |
+| **CPU 架构** | x86_64, ARM64 (Apple Silicon) |
+| **Rust 版本** | 1.70+ |
+| **Node.js 版本** | 18+ (MCP 客户端) |
+| **Python 版本** | 3.10+ (插件开发) |
+| **LLM 提供商** | 兼容 Anthropic API 协议的任意提供商 |
+
+### 3.7 数据保留策略
+
+| 数据类型 | 保留期限 | 清理策略 |
+|----------|----------|----------|
+| 活跃会话消息 | 无限制 | 不清理 |
+| 归档会话消息 | 90 天 | 超期自动清理 |
+| 压缩点历史 | 30 天 | 超期自动清理 |
+| 日志文件 | 30 天 | 超期自动清理 |
+| 临时文件 | 24 小时 | 下次启动时清理 |
 
 ---
 
@@ -581,40 +621,40 @@ hooks:
 ┌─────────────────────────────────────────────────────────────────┐
 │                    P0 - MVP (核心功能)                          │
 ├─────────────────────────────────────────────────────────────────┤
-│  ✓ Agent 定义系统          - Markdown 定义 Agent               │
-│  ✓ Skill 定义系统          - Markdown 定义 Skill               │
-│  ✓ 基础工具集              - Read, Write, Edit, Grep, Bash    │
-│  ✓ LLM 抽象层              - 多云模型支持 (Anthropic/OpenAI)   │
-│  ✓ **会话管理**            - 多会话并行、Workspace 隔离         │
-│  ✓ 简单上下文              - 单会话对话历史                    │
-│  ✓ CLI 交互界面            - REPL 模式                         │
+│  ○ Agent 定义系统          - Markdown 定义 Agent               │
+│  ○ Skill 定义系统          - Markdown 定义 Skill               │
+│  ○ 基础工具集              - Read, Write, Edit, Grep, Bash    │
+│  ○ LLM 抽象层              - 多云模型支持 (Anthropic/OpenAI)   │
+│  ○ **会话管理**            - 多会话并行、Workspace 隔离         │
+│  ○ 简单上下文              - 单会话对话历史                    │
+│  ○ CLI 交互界面            - REPL 模式                         │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
 │                    P1 - V1.0 (重要功能)                         │
 ├─────────────────────────────────────────────────────────────────┤
-│  ✓ Agent 变体支持          - 同一 Agent 多个变体              │
-│  ✓ 多 Agent 协作           - 消息传递、文件共享                │
-│  ✓ 事件监听系统            - 文件、Git、定时触发               │
-│  ✓ 任务管理                - DAG 依赖、状态跟踪                │
-│  ✓ MCP 集成                - 工具扩展                         │
-│  ✓ 权限控制                - 沙箱、白名单                      │
-│  ✓ 日志系统                - 结构化日志、审计                  │
-│  ✓ **会话持久化**          - 保存/恢复会话                     │
-│  ✓ **上下文压缩**          - 智能压缩长对话                    │
-│  ✓ **历史搜索**            - 跨会话搜索记录                    │
+│  ○ Agent 变体支持          - 同一 Agent 多个变体              │
+│  ○ 多 Agent 协作           - 消息传递、文件共享                │
+│  ○ 事件监听系统            - 文件、Git、定时触发               │
+│  ○ 任务管理                - DAG 依赖、状态跟踪                │
+│  ○ MCP 集成                - 工具扩展                         │
+│  ○ 权限控制                - 沙箱、白名单                      │
+│  ○ 日志系统                - 结构化日志、审计                  │
+│  ○ **会话持久化**          - 保存/恢复会话                     │
+│  ○ **上下文压缩**          - 智能压缩长对话                    │
+│  ○ **历史搜索**            - 跨会话搜索记录                    │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
 │                    P2 - V1.x (增强功能)                         │
 ├─────────────────────────────────────────────────────────────────┤
-│  ✓ Skill 调试              - 执行追踪、断点                    │
-│  ✓ 7×24 守护进程           - 自动重启、监控                    │
-│  ✓ 配置热更新              - 运行时重载                        │
-│  ✓ 插件系统                - 第三方扩展                        │
-│  ✓ **Hook 系统**           - 事件钩子、插件扩展                │
-│  ✓ 模板库                  - 内置 Agent/Skill 模板             │
-│  ✓ 成本监控                - Token 使用统计、预算控制          │
+│  ○ Skill 调试              - 执行追踪、断点                    │
+│  ○ 7×24 守护进程           - 自动重启、监控                    │
+│  ○ 配置热更新              - 运行时重载                        │
+│  ○ 插件系统                - 第三方扩展                        │
+│  ○ **Hook 系统**           - 事件钩子、插件扩展                │
+│  ○ 模板库                  - 内置 Agent/Skill 模板             │
+│  ○ 成本监控                - Token 使用统计、预算控制          │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
@@ -629,11 +669,15 @@ hooks:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+> **图例**: ○ = 待开发/规划中 | ✓ = 已完成
+
 ### 6.3 优先级调整说明
 
 | 原优先级 | 原功能 | 调整原因 | 新优先级 |
 |----------|--------|----------|----------|
 | P0 | 事件监听 | 移到 P1，MVP 先保证核心对话 | P1 |
+| P0 | 条件触发 | 移到 P1，依赖事件监听 | P1 |
+| P0 | 长期运行 | 移到 P2，MVP 不需要守护进程 | P2 |
 | P2 | Agent 版本管理 | 初期用 Git 管理，不需要复杂版本系统 | P3 |
 | - | Agent 变体支持 | **新增**，比版本管理更实用 | P1 |
 | P1 | 上下文隔离 | 合并到 P0，是核心功能 | P0 |
@@ -674,65 +718,66 @@ hooks:
 
 | ID | 故事 | 验收标准 | 优先级 |
 |----|------|----------|--------|
-| US-001 | 创建一个代码审查 Agent | Agent 能读取代码、发现问题并给出建议 | P0 |
-| US-002 | 定义 TDD 工作流 Skill | 开发时自动触发测试先行流程 | P0 |
-| US-003 | 让多个 Agent 协作完成开发 | 产品经理 → 架构师 → 开发者 → 测试员 | P0 |
-| US-004 | 让 Agent 7×24 监控代码质量 | 代码提交时自动审查 | P1 |
-| US-005 | 集成搜索工具增强 Agent 能力 | Agent 可以联网搜索资料 | P1 |
+| US-001 | 创建一个代码审查 Agent | Agent 能读取 `.ts`/`.tsx` 文件；能检测语法错误、反模式、安全问题；输出格式化的审查报告 | P0 |
+| US-002 | 定义 TDD 工作流 Skill | 开发前自动触发测试编写；测试失败时阻止实现；测试通过后才允许继续 | P0 |
+| US-003 | 让多个 Agent 协作完成开发 | 4 个 Agent 按流水线执行；每个 Agent 的输出作为下一个的输入；总完成时间 < 10 分钟 | P0 |
+| US-004 | 让 Agent 7×24 监控代码质量 | Git push 后 30 秒内触发审查；审查结果通过 webhook 通知；失败时阻止合并 | P1 |
+| US-005 | 集成搜索工具增强 Agent 能力 | Agent 可发起搜索请求；搜索结果 < 5 秒返回；可引用搜索内容 | P1 |
 
 ### 7.2 作为 AI 工程师，我希望...
 
 | ID | 故事 | 验收标准 | 优先级 |
 |----|------|----------|--------|
-| US-101 | 为不同任务选择不同模型 | 简单任务用 Haiku，复杂任务用 Sonnet | P0 |
-| US-102 | 监控 Agent 的 Token 使用 | 防止超出预算 | P1 |
-| US-103 | 调试 Skill 执行过程 | 看到 Skill 每一步的执行结果 | P2 |
-| US-104 | 扩展自定义工具 | 通过 MCP 集成新工具 | P1 |
+| US-101 | 为不同任务选择不同模型 | 简单任务自动路由到 Haiku；复杂任务自动路由到 Sonnet；切换延迟 < 100ms | P0 |
+| US-102 | 监控 Agent 的 Token 使用 | 实时显示当前会话 Token 消耗；达到预算 80% 时告警；达到 100% 时停止执行 | P1 |
+| US-103 | 调试 Skill 执行过程 | 显示每个步骤的输入/输出；执行失败时显示错误堆栈；支持断点暂停 | P2 |
+| US-104 | 扩展自定义工具 | 通过 MCP 配置添加工具；工具自动被发现；权限控制生效 | P1 |
 
 ### 7.3 作为终端用户，我希望...
 
 | ID | 故事 | 验收标准 | 优先级 |
 |----|------|----------|--------|
-| US-201 | 用自然语言描述任务 | Agent 理解并执行 | P0 |
-| US-202 | 查看 Agent 执行过程 | 实时反馈进度 | P1 |
-| US-203 | **同时在不同项目中工作** | **多会话并行，互不干扰** | **P0** |
-| US-204 | **恢复之前的对话** | **会话持久化，可以继续** | **P1** |
-| US-205 | **搜索历史讨论** | **找到之前说过的内容** | **P1** |
-| US-206 | 撤销 Agent 的操作 | 回滚不满意的更改 | P2 |
+| US-201 | 用自然语言描述任务 | Agent 正确理解意图；执行结果符合预期；无法理解时请求澄清 | P0 |
+| US-202 | 查看 Agent 执行过程 | 实时显示当前步骤；显示进度百分比；支持中断执行 | P1 |
+| US-203 | **同时在不同项目中工作** | **可创建 6 个独立会话；会话切换 < 100ms；跨会话访问被拒绝** | **P0** |
+| US-204 | **恢复之前的对话** | **重启后可列出历史会话；恢复后保留 100+ 条消息；上下文完整** | **P1** |
+| US-205 | **搜索历史讨论** | **关键词搜索 < 1 秒返回；显示匹配消息上下文；支持跨会话搜索** | **P1** |
+| US-206 | 撤销 Agent 的操作 | 支持回滚最近的 10 次文件修改；回滚操作 < 1 秒完成 | P2 |
 
 ### 7.4 关于会话的用户故事
 
 | ID | 故事 | 验收标准 | 优先级 |
 |----|------|----------|--------|
-| US-301 | 创建独立的工作会话 | 不同项目的会话完全隔离 | P0 |
-| US-302 | 长对话不丢失上下文 | 自动压缩，保留关键信息 | P1 |
-| US-303 | 重启后恢复会话 | 保存的会话可以继续 | P1 |
-| US-304 | 快速切换项目 | 一键切换到另一个项目的会话 | P0 |
+| US-301 | 创建独立的工作会话 | 不同项目的会话使用独立进程；文件访问拒绝率 100%；环境变量完全隔离 | P0 |
+| US-302 | 长对话不丢失上下文 | 消息 > 100 条时触发压缩；压缩保留决策和代码；压缩后 Token 减少 > 50% | P1 |
+| US-303 | 重启后恢复会话 | 会话列表显示所有历史会话；恢复后 Agent 状态保持一致；支持选择性恢复 | P1 |
+| US-304 | 快速切换项目 | 单条命令切换会话；切换响应 < 100ms；切换后上下文自动加载 | P0 |
 
 ---
 
 ## 8. 竞品分析
 
-### 8.1 OpenClaw
+### 8.1 通用 Agentic 框架
 
-| 特性 | OpenClaw | Knight-Agent |
+| 特性 | 通用框架 | Knight-Agent |
 |------|----------|--------------|
-| Agent 定义 | YAML | Markdown (更可读) |
-| Skill 系统 | 有 | 更完善的触发机制 |
-| LLM 支持 | Claude | 多云支持 |
-| 协作模式 | 有 | 更丰富的协作模式 |
-| 开源 | 否 | 是 |
-| 扩展性 | 中等 | 高 (插件系统) |
+| Agent 定义 | YAML/代码 | Markdown (更可读) |
+| Skill 系统 | 部分 | 完善的触发机制 |
+| LLM 支持 | 单一或有限 | 多云支持 (Anthropic 协议) |
+| 会话管理 | 单会话 | 多会话并行 (6+ 会话) |
+| 开源 | 混合 | 完全开源 |
+| 扩展性 | 中等 | 高 (插件系统 + MCP) |
 
 **借鉴点**:
-- Agent 的 YAML 定义格式
+- YAML 配置格式
 - 基础工具集设计
 - 上下文管理机制
 
 **改进点**:
 - Markdown 定义更易编辑
+- 多会话并行支持
 - 更灵活的 Skill 触发
-- 更好的可视化
+- 进程级隔离机制
 
 ### 8.2 Claude Code
 
@@ -798,7 +843,7 @@ hooks:
 
 | 指标 | 最小值 | 目标值 | 最大值 |
 |------|--------|--------|--------|
-| 单 Agent 内存 | 100MB | 300MB | 500MB |
+| 单 Agent 内存 | 150MB | 300MB | 500MB |
 | 并发 Agent 数 | 1 | 10 | 20 |
 | 响应延迟 (不含 LLM) | <100ms | <500ms | <2s |
 | 消息吞吐 | 1 msg/s | 10 msg/s | 100 msg/s |
@@ -853,28 +898,34 @@ hooks:
 
 ### 11.1 MVP 验收标准
 
-**Agent 系统**:
-- [ ] 可以通过 Markdown 定义 Agent
-- [ ] Agent 可以响应自然语言指令
-- [ ] Agent 可以调用基础工具
-- [ ] Agent 支持至少 2 种 LLM 提供商
+#### Agent 系统
+- [ ] Agent 定义必须包含 `id`, `name`, `model`, `description` 四个字段
+- [ ] Agent 响应自然语言指令时，本地处理时间 < 500ms（不含 LLM）
+- [ ] Agent 可以调用至少 5 个基础工具
+- [ ] Agent 支持兼容 **Anthropic API 协议** 的任意 LLM 提供商
 
-**Skill 系统**:
-- [ ] 可以通过 Markdown 定义 Skill
-- [ ] Skill 可以被触发执行
-- [ ] Skill 支持参数传递
-- [ ] 内置至少 3 个示例 Skill
+#### Skill 系统
+- [ ] Skill 定义必须包含 `name`, `description`, `triggers` 三个字段
+- [ ] Skill 触发匹配成功率 100%
+- [ ] Skill 支持的参数类型：string/number/array/object
+- [ ] 内置 3 个示例 Skill：code-review, tdd-workflow, security-review
 
-**工具系统**:
-- [ ] 实现至少 5 个基础工具 (Read, Write, Edit, Grep, Bash)
-- [ ] 工具有权限控制
-- [ ] 工具调用有日志记录
+#### 工具系统
+- [ ] 实现 5 个基础工具：Read, Write, Edit, Grep, Bash
+- [ ] Read 工具：单文件最大 1MB，超出返回错误
+- [ ] Grep 工具：支持单文件、目录、递归三种模式
+- [ ] Bash 工具：
+  - 默认执行前询问用户确认
+  - Skill 中定义的命令免确认
+  - 支持用户配置的白名单
+- [ ] 工具调用日志包含：timestamp/session_id/tool/args/result/duration
 
-**会话系统 (MVP)**:
-- [ ] 可以创建多个独立会话
-- [ ] 不同 Workspace 的会话完全隔离
-- [ ] 会话内保留完整的对话历史
-- [ ] 可以切换当前活跃会话
+#### 会话系统 (MVP)
+- [ ] 支持至少 6 个会话同时运行，使用独立进程隔离
+- [ ] 单个会话支持至少 20 个 Agent 并发
+- [ ] 跨会话文件访问拒绝率 100%（独立进程隔离验证）
+- [ ] 会话内至少保留 100 条消息历史
+- [ ] 会话切换响应时间 < 100ms
 
 ### 11.2 V1.0 验收标准
 
@@ -899,28 +950,122 @@ hooks:
 - [ ] 提供完整的 CLI 界面
 - [ ] 核心功能测试覆盖率 > 80%
 
+### 11.3 验证方法
+
+#### 11.3.1 跨会话隔离验证（方案A：进程级隔离测试）
+
+**测试步骤**：
+```bash
+# 1. 创建两个独立会话
+knight session create --name "session-a" --workspace ~/project-a
+knight session create --name "session-b" --workspace ~/project-b
+
+# 2. 在会话 A 中创建测试文件
+knight session use session-a
+echo "secret data" > ~/project-a/config.json
+
+# 3. 在会话 B 中尝试访问会话 A 的文件
+knight session use session-b
+knight ask agent "读取 ~/project-a/config.json"
+
+# 4. 预期结果：返回权限错误，文件读取失败
+```
+
+**验收标准**：跨会话文件访问拒绝率 = 100%
+
+#### 11.3.2 Bash 白名单配置验证
+
+**配置文件路径**（支持两种）：
+- 全局：`~/.knight-agent/config/bash-whitelist.yaml`
+- 项目级：`.knight/bash-whitelist.yaml`
+
+**配置格式**：
+```yaml
+# Bash 白名单配置
+allowed_commands:
+  - git              # Git 命令
+  - npm              # NPM 命令
+  - npm *            # 所有 NPM 子命令（通配符支持）
+  - cargo            # Cargo 命令
+  - python           # Python 解释器
+```
+
+**验证步骤**：
+1. 白名单内命令：直接执行（或根据策略确认）
+2. 白名单外命令：拒绝执行或强制用户确认
+3. Skill 中定义的命令：免确认执行
+
+#### 11.3.3 响应时间验证
+
+| 指标 | 测量方法 |
+|------|----------|
+| CLI 命令响应 | 执行 `knight session list`，测量从回车到输出完成的时间 |
+| Agent 本地处理 | 记录从用户输入到 LLM 请求发出的时间差 |
+| 工具调用 | 记录工具执行时间，不含 LLM 等待 |
+
+#### 11.3.4 资源占用验证
+
+| 指标 | 测量方法 |
+|------|----------|
+| 单 Agent 内存 | 使用系统监控工具（如 ps、top）测量进程内存 |
+| 会话进程内存 | 测量独立会话进程的 RSS 内存 |
+
 ---
 
 ## 12. 需求追溯矩阵
 
-| 需求ID | 需求描述 | 设计模块 | 测试用例 | 状态 |
-|--------|----------|----------|----------|------|
-| REQ-001 | Agent 定义 | AgentDefinition | TC-001 | 待实现 |
-| REQ-002 | LLM 选择 | LLMClient | TC-002 | 待实现 |
-| REQ-003 | Skill 定义 | Skill | TC-003 | 待实现 |
-| REQ-004 | 触发引擎 | TriggerEngine | TC-004 | 待实现 |
-| REQ-005 | 工具系统 | ToolRegistry | TC-005 | 待实现 |
-| REQ-006 | MCP 集成 | MCPAdapter | TC-006 | 待实现 |
-| REQ-007 | 多 Agent | Orchestrator | TC-007 | 待实现 |
-| REQ-008 | 消息传递 | MessageBus | TC-008 | 待实现 |
-| REQ-009 | 任务管理 | TaskScheduler | TC-009 | 待实现 |
-| REQ-010 | 事件监听 | EventLoop | TC-010 | 待实现 |
-| **REQ-011** | **多会话并行** | **SessionManager** | **TC-011** | **待实现** |
-| **REQ-012** | **Workspace 隔离** | **WorkspaceContext** | **TC-012** | **待实现** |
-| **REQ-013** | **会话持久化** | **SessionStorage** | **TC-013** | **待实现** |
-| **REQ-014** | **上下文压缩** | **CompressionEngine** | **TC-014** | **待实现** |
-| **REQ-015** | **历史搜索** | **HistorySearch** | **TC-015** | **待实现** |
-| **REQ-016** | **Hook 系统** | **HookEngine** | **TC-016** | **待实现** |
+### 12.1 矩阵说明
+
+| 列名 | 说明 |
+|------|------|
+| 需求ID | 唯一标识符 |
+| 需求描述 | 简要描述 |
+| 优先级 | P0/P1/P2/P3 |
+| 设计模块 | 负责实现的核心模块 |
+| 设计文档 | 详细设计文档链接 |
+| 验收标准 | 对应的验收标准章节 |
+| 测试用例 | 测试用例标识 |
+| 当前状态 | 设计中/开发中/测试中/已完成 |
+
+### 12.2 完整追溯矩阵
+
+| 需求ID | 需求描述 | 优先级 | 设计模块 | 设计文档 | 验收标准 | 测试用例 | 当前状态 |
+|--------|----------|--------|----------|----------|----------|----------|----------|
+| REQ-001 | Agent 定义 | P0 | AgentRuntime | [03-module-design/agent/agent-runtime.md](03-module-design/agent/agent-runtime.md) | 11.1 Agent 系统 | TC-001 | 设计中 |
+| REQ-002 | LLM 抽象层 | P0 | LLMProvider | [03-module-design/services/llm-provider.md](03-module-design/services/llm-provider.md) | 11.1 Agent 系统 | TC-002 | 设计中 |
+| REQ-003 | Skill 定义 | P0 | SkillEngine | [03-module-design/agent/skill-engine.md](03-module-design/agent/skill-engine.md) | 11.1 Skill 系统 | TC-003 | 设计中 |
+| REQ-004 | 触发引擎 | P0 | TriggerEngine | [03-module-design/agent/skill-engine.md](03-module-design/agent/skill-engine.md) | 11.1 Skill 系统 | TC-004 | 设计中 |
+| REQ-005 | 工具系统 | P0 | ToolRegistry | [03-module-design/tools/tool-system.md](03-module-design/tools/tool-system.md) | 11.1 工具系统 | TC-005 | 设计中 |
+| REQ-006 | MCP 集成 | P0 | MCPClient | [03-module-design/services/mcp-client.md](03-module-design/services/mcp-client.md) | 11.1 Agent 系统 | TC-006 | 设计中 |
+| REQ-007 | 多 Agent 并发 | P1 | Orchestrator | [03-module-design/core/orchestrator.md](03-module-design/core/orchestrator.md) | 11.2 协作系统 | TC-007 | 设计中 |
+| REQ-008 | 消息传递 | P1 | MessageBus | [03-module-design/core/orchestrator.md](03-module-design/core/orchestrator.md) | 11.2 协作系统 | TC-008 | 设计中 |
+| REQ-009 | 任务管理 | P1 | TaskManager | [03-module-design/core/task-manager.md](03-module-design/core/task-manager.md) | 11.2 其他 | TC-009 | 设计中 |
+| REQ-010 | 事件监听 | P1 | EventLoop | [03-module-design/core/event-loop.md](03-module-design/core/event-loop.md) | 11.2 其他 | TC-010 | 设计中 |
+| REQ-011 | 多会话并行 | P0 | SessionManager | [03-module-design/core/session-manager.md](03-module-design/core/session-manager.md) | 11.1 会话系统 | TC-011 | 设计中 |
+| REQ-012 | Workspace 隔离 | P0 | WorkspaceContext | [03-module-design/core/session-manager.md](03-module-design/core/session-manager.md) | 11.1 会话系统 + 11.3.1 | TC-012 | 设计中 |
+| REQ-013 | 会话持久化 | P1 | SessionStorage | [03-module-design/services/storage-service.md](03-module-design/services/storage-service.md) | 11.2 会话系统 | TC-013 | 设计中 |
+| REQ-014 | 上下文压缩 | P1 | CompressionEngine | [03-module-design/services/context-compressor.md](03-module-design/services/context-compressor.md) | 11.2 会话系统 | TC-014 | 设计中 |
+| REQ-015 | 历史搜索 | P1 | HistorySearch | [03-module-design/services/storage-service.md](03-module-design/services/storage-service.md) | 11.2 会话系统 | TC-015 | 设计中 |
+| REQ-016 | Hook 系统 | P2 | HookEngine | [03-module-design/core/hook-engine.md](03-module-design/core/hook-engine.md) | 11.2 其他 | TC-016 | 设计中 |
+
+### 12.3 状态说明
+
+| 状态 | 说明 |
+|------|------|
+| 设计中 | 需求已确认，正在进行详细设计 |
+| 开发中 | 设计完成，正在编码实现 |
+| 测试中 | 开发完成，正在进行测试验证 |
+| 已完成 | 测试通过，功能已交付 |
+| 暂缓 | 优先级调整，暂时搁置 |
+
+### 12.4 需求统计
+
+| 优先级 | 需求数量 | 完成数量 | 完成率 |
+|--------|----------|----------|--------|
+| P0 | 7 | 0 | 0% |
+| P1 | 8 | 0 | 0% |
+| P2 | 1 | 0 | 0% |
+| **总计** | **16** | **0** | **0%** |
 
 ---
 

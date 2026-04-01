@@ -867,7 +867,7 @@ hook_context:
 
 ## 8. 任务管理系统
 
-### 7.1 任务模型
+### 8.1 任务模型
 
 ```yaml
 task:
@@ -895,7 +895,7 @@ task:
   continue_on_error: boolean
 ```
 
-### 7.2 DAG 依赖解析
+### 8.2 DAG 依赖解析
 
 ```
      Task A (design)
@@ -933,7 +933,7 @@ dependency_rules:
       wait_for: all  # all/any
 ```
 
-### 7.3 Workflow 定义格式
+### 8.3 Workflow 定义格式
 
 ```yaml
 # workflows/feature-development.yaml
@@ -990,7 +990,7 @@ workflow:
           condition: success
 ```
 
-### 7.4 任务调度器
+### 8.4 任务调度器
 
 ```yaml
 task_scheduler:
@@ -1019,7 +1019,7 @@ task_scheduler:
 
 ## 9. 7×24 守护进程
 
-### 8.1 守护进程架构
+### 9.1 守护进程架构
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -1039,7 +1039,7 @@ task_scheduler:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 8.2 进程管理
+### 9.2 进程管理
 
 ```yaml
 process_manager:
@@ -1062,7 +1062,7 @@ process_manager:
     wait_for_completion: true  # 等待任务完成
 ```
 
-### 8.3 健康检查
+### 9.3 健康检查
 
 ```yaml
 health_check:
@@ -1092,7 +1092,7 @@ health_check:
       after: 3_consecutive_failures
 ```
 
-### 8.4 事件循环架构
+### 9.4 事件循环架构
 
 ```
 Event Loop
@@ -1503,8 +1503,8 @@ mcp_adapter:
 ### 12.1 目录结构
 
 ```
-knight-agent/
-├── agents/                    # Agent 定义
+knight-agent/                   # 项目根目录 (代码仓库)
+├── agents/                    # Agent 定义 (可分享)
 │   ├── code-reviewer/
 │   │   ├── AGENT.md
 │   │   ├── AGENT.quick.md
@@ -1512,26 +1512,26 @@ knight-agent/
 │   └── coder/
 │       └── AGENT.md
 │
-├── skills/                    # Skill 定义
+├── skills/                    # Skill 定义 (可分享)
 │   ├── security-review/SKILL.md
 │   └── tdd-workflow/SKILL.md
 │
 ├── workflows/                 # 工作流定义
 │   └── feature-dev.yaml
 │
-├── storage/                   # 运行时存储
-│   ├── sessions/              # 会话存储
-│   │   └── {session-id}/
-│   │       ├── session.json
-│   │       ├── messages.jsonl
-│   │       └── compression/
-│   ├── workspaces/            # Workspace 缓存
-│   └── logs/                  # 日志
-│
-└── config/                    # 配置文件
+└── config/                    # 项目级配置
     ├── settings.yaml
     ├── mcp.yaml
     └── session.yaml
+
+~/.knight-agent/               # 运行时数据 (不提交到仓库)
+├── sessions/                  # 会话存储
+│   └── {session-id}/
+│       ├── session.json
+│       ├── messages.jsonl
+│       └── compression/
+├── workspaces/                # Workspace 缓存
+└── logs/                      # 日志
 ```
 
 ### 12.2 配置文件

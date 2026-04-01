@@ -201,11 +201,23 @@ Agent 系统 (P0)
 
 | 文档 | 内容 |
 |------|------|
+| `00-priority-overview.md` | 优先级总览（本文档） |
 | `01-requirements-analysis.md` | 完整需求分析 |
 | `02-system-design.md` | 系统架构设计 |
 | `03-module-design/` | 模块详细设计文档 |
 | `03-module-design/core/session-manager.md` | 会话系统详细设计 |
 | `03-module-design/agent/agent-variants.md` | Agent 变体系统设计 |
+| `04-testing-design.md` | 测试设计文档 |
+| `05-technical-baseline-tests.md` | 技术基线测试文档 |
+
+---
+
+## 文档变更记录
+
+| 日期 | 文档 | 变更内容 |
+|------|------|----------|
+| 2026-04-01 | `01-requirements-analysis.md` | 量化 MVP 验收标准，更新非功能需求，新增验证方法章节 |
+| 2026-04-01 | `05-technical-baseline-tests.md` | 新增技术基线测试文档（6 个阶段测试计划） |
 
 ---
 
