@@ -1143,9 +1143,131 @@ event_loop:
 
 ---
 
-## 10. 监控与可观测性
+## 10. 定时调度器
 
-### 9.1 核心指标
+### 10.1 定时任务模型
+
+```yaml
+schedule:
+  id: string                   # 任务唯一标识
+  name: string                 # 任务名称
+  description: string          # 任务描述
+
+  # 触发条件 (二选一)
+  trigger:
+    type: cron | interval | once
+    cron: "0 8 * * *"         # 标准 cron 表达式
+    # interval: 24h           # 或间隔表达式
+    # once: "2026-04-01T10:00:00Z"  # 一次性任务
+
+  # 执行配置
+  agent_id: string             # 执行的 Agent ID
+  prompt: string              # 执行时的 prompt
+
+  # 通知配置
+  notify:
+    - type: email | webhook | slack
+      target: string
+
+  # 错误处理
+  retry:
+    max_attempts: 3
+    backoff: exponential
+
+  # 状态
+  status: active | paused | completed | failed
+  next_run: datetime
+  last_run: datetime
+  last_result: object
+```
+
+### 10.2 自然语言解析
+
+```yaml
+nlp_parser:
+  # 时间表达式识别
+  time_patterns:
+    - "每天早上8点" -> cron: "0 8 * * *"
+    - "每周五下午6点" -> cron: "0 18 * * 5"
+    - "每6小时" -> interval: "6h"
+    - "2小时后" -> interval: "2h"
+
+  # 意图识别
+  intent_detection:
+    - pattern: ".*提醒我.*"
+      action: create_reminder
+    - pattern: ".*每天.*发送.*"
+      action: create_daily_task
+    - pattern: ".*每周.*生成.*"
+      action: create_weekly_task
+
+  # 参数提取
+  parameter_extraction:
+    - slot: time
+      type: datetime
+    - slot: action
+      type: string
+    - slot: recipient
+      type: string
+```
+
+### 10.3 调度器架构
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Schedule Manager                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
+│  │ Task Store  │  │ NLP Parser  │  │ Cron Engine │         │
+│  │ (SQLite)   │  │             │  │             │         │
+│  └─────────────┘  └─────────────┘  └─────────────┘         │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Task Queue                               │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
+│  │ immediate   │  │ scheduled   │  │ recurring   │         │
+│  │ queue      │  │ queue       │  │ queue       │         │
+│  └─────────────┘  └─────────────┘  └─────────────┘         │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Executor                                 │
+│  - Create Agent Context                                    │
+│  - Execute Task                                           │
+│  - Send Notifications                                     │
+│  - Update Task Status                                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 10.4 CLI 接口
+
+```bash
+# 创建定时任务
+knight schedule create "每天早上8点给我发送AI新闻简报"
+knight schedule create --cron "0 8 * * *" --agent news-digester "发送AI新闻"
+
+# 管理任务
+knight schedule list                    # 列出所有任务
+knight schedule info <task-id>         # 查看任务详情
+knight schedule pause <task-id>         # 暂停任务
+knight schedule resume <task-id>       # 恢复任务
+knight schedule cancel <task-id>       # 取消任务
+
+# 查看执行历史
+knight schedule history <task-id>       # 执行历史
+knight schedule logs <task-id>         # 执行日志
+
+# 自然语言支持
+knight schedule create "2小时后提醒我提交代码"
+```
+
+---
+
+## 11. 监控与可观测性
+
+### 11.1 核心指标
 
 ```yaml
 metrics:
@@ -1213,7 +1335,7 @@ metrics:
       description: 上下文压缩次数
 ```
 
-### 9.2 日志结构
+### 11.2 日志结构
 
 ```yaml
 logging:
@@ -1258,7 +1380,7 @@ logging:
 }
 ```
 
-### 9.3 追踪接口
+### 11.3 追踪接口
 
 ```yaml
 tracing:
@@ -1296,9 +1418,9 @@ tracing:
 
 ---
 
-## 11. LLM Provider 抽象层
+## 12. LLM Provider 抽象层
 
-### 10.1 Provider 接口
+### 12.1 Provider 接口
 
 ```yaml
 llm_provider:
@@ -1336,7 +1458,7 @@ llm_provider:
         - count: int
 ```
 
-### 10.2 多云支持
+### 12.2 多云支持
 
 ```yaml
 llm_providers:
@@ -1365,7 +1487,7 @@ llm_providers:
     api_key: ${CUSTOM_LLM_KEY}
 ```
 
-### 10.3 模型路由
+### 12.3 模型路由
 
 ```yaml
 model_router:
@@ -1401,9 +1523,9 @@ model_router:
 
 ---
 
-## 12. MCP 工具集成
+## 13. MCP 工具集成
 
-### 11.1 MCP 配置
+### 13.1 MCP 配置
 
 ```yaml
 mcp_config:
@@ -1435,7 +1557,7 @@ mcp_config:
     max_retries: 3             # 最大重试次数
 ```
 
-### 11.2 MCP 工具权限
+### 13.2 MCP 工具权限
 
 ```yaml
 mcp_permissions:
@@ -1465,7 +1587,7 @@ mcp_permissions:
     alert_on_sensitive: true
 ```
 
-### 11.3 MCP 工具适配
+### 13.3 MCP 工具适配
 
 ```yaml
 mcp_adapter:
@@ -1504,9 +1626,9 @@ mcp_adapter:
 
 ---
 
-## 13. 存储设计
+## 14. 存储设计
 
-### 12.1 目录结构
+### 14.1 目录结构
 
 ```
 knight-agent/                   # 项目根目录 (代码仓库)
@@ -1540,7 +1662,7 @@ knight-agent/                   # 项目根目录 (代码仓库)
 └── logs/                      # 日志
 ```
 
-### 12.2 配置文件
+### 14.2 配置文件
 
 ```yaml
 # config/settings.yaml
@@ -1581,9 +1703,9 @@ session:
 
 ---
 
-## 14. CLI 接口
+## 15. CLI 接口
 
-### 14.1 命令结构
+### 15.1 命令结构
 
 ```bash
 # Agent 管理
@@ -1612,7 +1734,7 @@ knight monitor
 knight logs <session>
 ```
 
-### 14.2 交互模式
+### 15.2 交互模式
 
 ```
 $ knight chat code-reviewer:quick
@@ -1642,9 +1764,9 @@ $ knight chat code-reviewer:quick
 
 ---
 
-## 15. 安全设计
+## 16. 安全设计
 
-### 15.1 权限模型
+### 16.1 权限模型
 
 ```yaml
 permission:
@@ -1656,7 +1778,7 @@ permission:
     - read | write | execute | delete
 ```
 
-### 15.2 沙箱机制
+### 16.2 沙箱机制
 
 ```yaml
 sandbox:
@@ -1684,7 +1806,7 @@ sandbox:
     max_file_size: 10MB
 ```
 
-### 15.3 审计日志
+### 16.3 审计日志
 
 ```yaml
 audit_log:
@@ -1701,9 +1823,9 @@ audit_log:
 
 ---
 
-## 16. 技术选型
+## 17. 技术选型
 
-### 16.1 混合架构
+### 17.1 混合架构
 
 | 模块 | 技术 | 理由 |
 |------|------|------|
@@ -1718,7 +1840,7 @@ audit_log:
 | **LLM** | 多云 HTTP API | Anthropic API + OpenAI Chat Completions |
 | **工具扩展** | MCP 协议 | 标准化工具接口 |
 
-### 16.2 模块边界
+### 17.2 模块边界
 
 ```
 Rust Core (knight-core)
@@ -1736,7 +1858,7 @@ TypeScript Extensions (knight-ext)
 └── Admin Panel
 ```
 
-### 16.3 通信协议
+### 17.3 通信协议
 
 ```yaml
 # Rust Core 对外接口
@@ -1749,9 +1871,9 @@ grpc_services:
 
 ---
 
-## 17. 部署架构
+## 18. 部署架构
 
-### 17.1 开发环境
+### 18.1 开发环境
 
 ```
 开发者机器
@@ -1766,7 +1888,7 @@ grpc_services:
         └── project.yaml
 ```
 
-### 17.2 生产环境
+### 18.2 生产环境
 
 ```
 服务器
@@ -1781,9 +1903,9 @@ grpc_services:
 
 ---
 
-## 18. 状态机设计
+## 19. 状态机设计
 
-### 18.1 Agent 生命周期
+### 19.1 Agent 生命周期
 
 ```mermaid
 stateDiagram-v2
@@ -1801,7 +1923,7 @@ stateDiagram-v2
     Failed --> [*]: cleanup
 ```
 
-### 18.2 会话状态
+### 19.2 会话状态
 
 ```mermaid
 stateDiagram-v2
@@ -1817,16 +1939,16 @@ stateDiagram-v2
 
 ---
 
-## 19. 设计原则
+## 20. 设计原则
 
-### 19.1 核心原则
+### 20.1 核心原则
 
 1. **会话隔离优先**: 每个 Session 独立运行，互不干扰
 2. **上下文自动管理**: 自动压缩长对话，保留关键信息
 3. **渐进式复杂**: MVP 支持基础功能，逐步增强
 4. **可扩展性**: 通过 MCP 协议扩展工具能力
 
-### 19.2 权衡
+### 20.2 权衡
 
 | 方面 | 选择 | 理由 |
 |------|------|------|
