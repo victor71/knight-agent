@@ -7,11 +7,12 @@
 ```
 03-module-design/
 ├── README.md                    # 本文件 - 模块设计索引
-├── core/                        # 核心引擎模块
+├── core/                        # 核心引擎模块 (5个)
 │   ├── session-manager.md       # 会话管理器
 │   ├── orchestrator.md          # 编排器
 │   ├── event-loop.md            # 事件循环
-│   └── hook-engine.md           # Hook 引擎
+│   ├── hook-engine.md           # Hook 引擎
+│   └── bootstrap.md             # 系统启动器
 ├── agent/                       # Agent 运行模块
 │   ├── agent-runtime.md         # Agent 运行时
 │   ├── agent-variants.md        # Agent 变体系统
