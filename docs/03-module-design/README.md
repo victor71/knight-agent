@@ -21,7 +21,8 @@
 │   ├── llm-provider.md          # LLM 提供者抽象
 │   ├── mcp-client.md            # MCP 客户端
 │   ├── storage-service.md       # 存储服务
-│   └── context-compressor.md    # 上下文压缩
+│   ├── context-compressor.md    # 上下文压缩
+│   └── timer-system.md          # 定时器系统
 ├── tools/                       # 工具系统
 │   └── tool-system.md           # 工具框架
 └── security/                    # 安全模块
@@ -88,6 +89,7 @@
 - [x] [mcp-client](services/mcp-client.md) - MCP 客户端
 - [x] [context-compressor](services/context-compressor.md) - 上下文压缩
 - [x] [storage-service](services/storage-service.md) - 存储服务
+- [x] [timer-system](services/timer-system.md) - 定时器系统
 - [x] [agent-variants](agent/agent-variants.md) - Agent 变体系统
 
 ### P2 - 安全和运维 (已完成)
