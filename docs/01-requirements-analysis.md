@@ -497,26 +497,25 @@ schedule:
         │
         ▼
 ┌─────────────────────────────────────────┐
-│         自然语言解析引擎                   │
-│  - 意图识别                             │
-│  - 时间表达式提取                        │
-│  - 参数映射                             │
+│         Agent Runtime + LLM              │
+│  - 使用 LLM 解析自然语言                │
+│  - 意图识别和时间表达式提取             │
+│  - 结构化输出定时器参数                 │
 └─────────────────────────────────────────┘
         │
-        ▼
+        ▼ (结构化参数)
 ┌─────────────────────────────────────────┐
-│         定时调度器 (Scheduler)            │
-│  - 任务注册                            │
-│  - 时间计算                            │
+│         Timer System                     │
+│  - 定时器注册                          │
+│  - 时间计算和调度                      │
 │  - 触发执行                            │
 └─────────────────────────────────────────┘
         │
         ▼
 ┌─────────────────────────────────────────┐
-│         任务队列 (Task Queue)            │
-│  - 一次性任务                          │
-│  - 周期性任务                          │
-│  - 优先级调度                          │
+│         Event Loop                       │
+│  - 定时器事件分发                      │
+│  - Hook/Skill 触发                     │
 └─────────────────────────────────────────┘
         │
         ▼
@@ -527,6 +526,45 @@ schedule:
 │  - 工具调用                            │
 │  - 结果通知                            │
 └─────────────────────────────────────────┘
+```
+
+**自然语言处理实现**:
+
+自然语言解析由 Agent Runtime 通过 LLM 实现,无需独立的 NLP Parser 模块:
+
+```yaml
+# Timer System 提供自然语言解析接口
+parse_natural_language:
+  description: 使用 LLM 解析自然语言定时请求
+  inputs:
+    input:
+      type: string
+      example: "每天早上8点发送AI新闻简报"
+  outputs:
+    timer_config:
+      type: object
+      properties:
+        type: enum[oneshot, interval, cron]
+        schedule: string  # cron 表达式或延迟时间
+        name: string
+        description: string
+```
+
+```bash
+# 用户自然语言输入
+> 每天早上8点给我发送前一天的AI新闻简报
+
+# LLM 解析为结构化参数
+{
+  "type": "cron",
+  "schedule": "0 8 * * *",
+  "name": "AI新闻简报",
+  "description": "每天早上8点发送AI新闻简报",
+  "agent": "news-digester"
+}
+
+# Timer System 创建定时器
+✅ 定时任务已创建: task-001
 ```
 
 **定时任务类型**:
