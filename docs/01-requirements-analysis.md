@@ -224,6 +224,8 @@ ProductManager Agent → (spec) → Architect Agent → (design) → Developer A
 | 任务流程 | 定义任务执行模板 | P1 |
 | 任务队列 | 支持任务优先级队列 | P1 |
 | 任务重试 | 失败任务自动重试 | P2 |
+| **后台工作流** | **支持长时间运行的工作流（数天级别）** | **P1** |
+| **工作流持久化** | **工作流状态定期保存，支持断点恢复** | **P1** |
 
 **任务流程示例**:
 ```yaml
@@ -239,6 +241,62 @@ tasks:
   - name: test
     agent: tester
     depends_on: [implement]
+```
+
+### 自然语言工作流系统
+
+| 需求项 | 描述 | 优先级 |
+|--------|------|--------|
+| **Markdown 定义** | **使用 Markdown + 自然语言定义工作流** | **P1** |
+| **LLM 解析** | **LLM 解析自然语言工作流定义** | **P1** |
+| **工作流命令** | **通过 /workflow 命令执行工作流** | **P1** |
+| **动态 Agent 创建** | **根据工作流需求自动创建指定变体的 Agent** | **P1** |
+| **后台执行** | **工作流在后台运行，不阻塞 CLI** | **P1** |
+| **进度查询** | **查询工作流执行进度和状态** | **P1** |
+| **暂停/恢复** | **支持暂停和恢复工作流执行** | **P1** |
+| **断点恢复** | **进程重启后自动恢复未完成的工作流** | **P1** |
+
+**工作流定义示例** (Markdown):
+```markdown
+---
+name: feature-development
+category: software-development
+---
+
+# Feature Development Workflow
+
+## 执行步骤
+
+### 步骤 1: 需求分析
+使用 **Agent architect** 执行：
+分析以下需求，生成详细的需求分析文档
+
+### 步骤 2: 架构设计
+在 **步骤 1 完成后**执行：
+使用 **Agent architect** 执行：
+基于需求分析结果，设计技术架构
+
+### 步骤 3: 编码实现
+在 **步骤 2 完成后**执行：
+使用 **Agent developer** 执行：
+根据架构设计，实现功能代码
+```
+
+**工作流命令使用**:
+```bash
+# 列出所有工作流
+/workflow list
+
+# 执行工作流（后台运行）
+/workflow feature-development docs/requirements.md
+
+# 查询工作流状态
+/workflow status <workflow-id>
+
+# 暂停/恢复/终止工作流
+/workflow pause <workflow-id>
+/workflow resume <workflow-id>
+/workflow terminate <workflow-id>
 ```
 
 ### 会话管理系统
@@ -816,18 +874,20 @@ hooks:
 ┌─────────────────────────────────────────────────────────────────┐
 │                    P1 - V1.0 (重要功能)                         │
 ├─────────────────────────────────────────────────────────────────┤
-│  ○ Agent 变体支持          - 同一 Agent 多个变体              │
-│  ○ 多 Agent 协作           - 消息传递、文件共享                │
-│  ○ 事件监听系统            - 文件、Git、定时触发               │
-│  ○ **定时系统**            - 自然语言定时，自动执行             │
-│  ○ 任务管理                - DAG 依赖、状态跟踪                │
-│  ○ MCP 集成                - 工具扩展                         │
-│  ○ 权限控制                - 沙箱、白名单                      │
-│  ○ 日志系统                - 结构化日志、审计                  │
-│  ○ **Hook 系统**           - 事件钩子、插件扩展                │
-│  ○ **会话持久化**          - 保存/恢复会话                     │
-│  ○ **上下文压缩**          - 智能压缩长对话                    │
-│  ○ **历史搜索**            - 跨会话搜索记录                    │
+│  ✓ Agent 变体支持          - 同一 Agent 多个变体              │
+│  ✓ 多 Agent 协作           - 消息传递、文件共享                │
+│  ✓ 事件监听系统            - 文件、Git、定时触发               │
+│  ✓ **定时系统**            - 自然语言定时，自动执行             │
+│  ✓ 任务管理                - DAG 依赖、状态跟踪                │
+│  ✓ **工作流系统**          - 自然语言工作流、后台执行          │
+│  ✓ **动态 Agent 创建**     - 根据工作流需求自动创建            │
+│  ✓ MCP 集成                - 工具扩展                         │
+│  ✓ 权限控制                - 沙箱、白名单                      │
+│  ✓ 日志系统                - 结构化日志、审计                  │
+│  ✓ **Hook 系统**           - 事件钩子、插件扩展                │
+│  ✓ **会话持久化**          - 保存/恢复会话                     │
+│  ✓ **上下文压缩**          - 智能压缩长对话                    │
+│  ✓ **历史搜索**            - 跨会话搜索记录                    │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
@@ -1218,22 +1278,26 @@ allowed_commands:
 
 | 需求ID | 需求描述 | 优先级 | 设计模块 | 设计文档 | 验收标准 | 测试用例 | 当前状态 |
 |--------|----------|--------|----------|----------|----------|----------|----------|
-| REQ-001 | Agent 定义 | P0 | AgentRuntime | [03-module-design/agent/agent-runtime.md](03-module-design/agent/agent-runtime.md) | Agent 系统 | TC-001 | 设计中 |
-| REQ-002 | LLM 抽象层 | P0 | LLMProvider | [03-module-design/services/llm-provider.md](03-module-design/services/llm-provider.md) | Agent 系统 | TC-002 | 设计中 |
-| REQ-003 | Skill 定义 | P0 | SkillEngine | [03-module-design/agent/skill-engine.md](03-module-design/agent/skill-engine.md) | Skill 系统 | TC-003 | 设计中 |
-| REQ-004 | 触发引擎 | P0 | TriggerEngine | [03-module-design/agent/skill-engine.md](03-module-design/agent/skill-engine.md) | Skill 系统 | TC-004 | 设计中 |
-| REQ-005 | 工具系统 | P0 | ToolRegistry | [03-module-design/tools/tool-system.md](03-module-design/tools/tool-system.md) | 工具系统 | TC-005 | 设计中 |
-| REQ-006 | MCP 集成 | P0 | MCPClient | [03-module-design/services/mcp-client.md](03-module-design/services/mcp-client.md) | Agent 系统 | TC-006 | 设计中 |
-| REQ-007 | 多 Agent 并发 | P1 | Orchestrator | [03-module-design/core/orchestrator.md](03-module-design/core/orchestrator.md) | 协作系统 | TC-007 | 设计中 |
-| REQ-008 | 消息传递 | P1 | MessageBus | [03-module-design/core/orchestrator.md](03-module-design/core/orchestrator.md) | 协作系统 | TC-008 | 设计中 |
-| REQ-009 | 任务管理 | P1 | TaskManager | [03-module-design/core/task-manager.md](03-module-design/core/task-manager.md) | 其他 | TC-009 | 设计中 |
-| REQ-010 | 事件监听 | P1 | EventLoop | [03-module-design/core/event-loop.md](03-module-design/core/event-loop.md) | 其他 | TC-010 | 设计中 |
-| REQ-011 | 多会话并行 | P0 | SessionManager | [03-module-design/core/session-manager.md](03-module-design/core/session-manager.md) | 会话系统 | TC-011 | 设计中 |
-| REQ-012 | Workspace 隔离 | P0 | WorkspaceContext | [03-module-design/core/session-manager.md](03-module-design/core/session-manager.md) | 会话系统 + 安全沙箱 | TC-012 | 设计中 |
-| REQ-013 | 会话持久化 | P1 | SessionStorage | [03-module-design/services/storage-service.md](03-module-design/services/storage-service.md) | 会话系统 | TC-013 | 设计中 |
-| REQ-014 | 上下文压缩 | P1 | CompressionEngine | [03-module-design/services/context-compressor.md](03-module-design/services/context-compressor.md) | 会话系统 | TC-014 | 设计中 |
-| REQ-015 | 历史搜索 | P1 | HistorySearch | [03-module-design/services/storage-service.md](03-module-design/services/storage-service.md) | 会话系统 | TC-015 | 设计中 |
-| REQ-016 | Hook 系统 | P1 | HookEngine | [03-module-design/core/hook-engine.md](03-module-design/core/hook-engine.md) | 扩展系统 | TC-016 | 设计中 |
+| REQ-001 | Agent 定义 | P0 | AgentRuntime | [03-module-design/agent/agent-runtime.md](03-module-design/agent/agent-runtime.md) | Agent 系统 | TC-001 | 设计完成 |
+| REQ-002 | LLM 抽象层 | P0 | LLMProvider | [03-module-design/services/llm-provider.md](03-module-design/services/llm-provider.md) | Agent 系统 | TC-002 | 设计完成 |
+| REQ-003 | Skill 定义 | P0 | SkillEngine | [03-module-design/agent/skill-engine.md](03-module-design/agent/skill-engine.md) | Skill 系统 | TC-003 | 设计完成 |
+| REQ-004 | 触发引擎 | P0 | TriggerEngine | [03-module-design/agent/skill-engine.md](03-module-design/agent/skill-engine.md) | Skill 系统 | TC-004 | 设计完成 |
+| REQ-005 | 工具系统 | P0 | ToolRegistry | [03-module-design/tools/tool-system.md](03-module-design/tools/tool-system.md) | 工具系统 | TC-005 | 设计完成 |
+| REQ-006 | MCP 集成 | P0 | MCPClient | [03-module-design/services/mcp-client.md](03-module-design/services/mcp-client.md) | Agent 系统 | TC-006 | 设计完成 |
+| REQ-007 | 多 Agent 并发 | P1 | Orchestrator | [03-module-design/core/orchestrator.md](03-module-design/core/orchestrator.md) | 协作系统 | TC-007 | 设计完成 |
+| REQ-008 | 消息传递 | P1 | MessageBus | [03-module-design/core/orchestrator.md](03-module-design/core/orchestrator.md) | 协作系统 | TC-008 | 设计完成 |
+| REQ-009 | 任务管理 | P1 | TaskManager | [03-module-design/agent/task-manager.md](03-module-design/agent/task-manager.md) | 其他 | TC-009 | 设计完成 |
+| REQ-010 | 事件监听 | P1 | EventLoop | [03-module-design/core/event-loop.md](03-module-design/core/event-loop.md) | 其他 | TC-010 | 设计完成 |
+| REQ-011 | 多会话并行 | P0 | SessionManager | [03-module-design/core/session-manager.md](03-module-design/core/session-manager.md) | 会话系统 | TC-011 | 设计完成 |
+| REQ-012 | Workspace 隔离 | P0 | WorkspaceContext | [03-module-design/core/session-manager.md](03-module-design/core/session-manager.md) | 会话系统 + 安全沙箱 | TC-012 | 设计完成 |
+| REQ-013 | 会话持久化 | P1 | SessionStorage | [03-module-design/services/storage-service.md](03-module-design/services/storage-service.md) | 会话系统 | TC-013 | 设计完成 |
+| REQ-014 | 上下文压缩 | P1 | CompressionEngine | [03-module-design/services/context-compressor.md](03-module-design/services/context-compressor.md) | 会话系统 | TC-014 | 设计完成 |
+| REQ-015 | 历史搜索 | P1 | HistorySearch | [03-module-design/services/storage-service.md](03-module-design/services/storage-service.md) | 会话系统 | TC-015 | 设计完成 |
+| REQ-016 | Hook 系统 | P1 | HookEngine | [03-module-design/core/hook-engine.md](03-module-design/core/hook-engine.md) | 扩展系统 | TC-016 | 设计完成 |
+| REQ-017 | **自然语言工作流** | **P1** | **WorkflowsDirectory** | **[03-module-design/agent/workflows-directory.md](03-module-design/agent/workflows-directory.md)** | **工作流系统** | **TC-017** | **设计完成** |
+| REQ-018 | **工作流命令** | **P1** | **Command** | **[03-module-design/core/command.md](03-module-design/core/command.md)** | **工作流系统** | **TC-018** | **设计完成** |
+| REQ-019 | **后台工作流执行** | **P1** | **TaskManager** | **[03-module-design/agent/task-manager.md](03-module-design/agent/task-manager.md)** | **工作流系统** | **TC-019** | **设计完成** |
+| REQ-020 | **动态 Agent 创建** | **P1** | **Orchestrator** | **[03-module-design/core/orchestrator.md](03-module-design/core/orchestrator.md)** | **工作流系统** | **TC-020** | **设计完成** |
 
 ### 状态说明
 
@@ -1249,10 +1313,12 @@ allowed_commands:
 
 | 优先级 | 需求数量 | 完成数量 | 完成率 |
 |--------|----------|----------|--------|
-| P0 | 7 | 0 | 0% |
-| P1 | 8 | 0 | 0% |
+| P0 | 7 | 7 | 100% |
+| P1 | 13 | 13 | 100% |
 | P2 | 1 | 0 | 0% |
-| **总计** | **16** | **0** | **0%** |
+| **总计** | **21** | **20** | **95%** |
+
+**说明**: 所有 P0 和 P1 需求的设计已完成，等待实现阶段。P2 需求（7×24 守护进程）计划在后续版本实现。
 
 ---
 
@@ -1491,7 +1557,51 @@ knight skill pipeline create <名称> --skills <技能列表>
 knight skill pipeline run <Pipeline名称>
 ```
 
-#### 4. 定时器管理 (schedule/timer)
+#### 4. 工作流管理 (workflow)
+
+```bash
+# 列出所有工作流
+knight workflow list [--category <类别>]
+
+# 查看工作流详情
+knight workflow info <工作流名称>
+
+# 执行工作流（后台运行）
+knight workflow <工作流名称> [参数...]
+knight workflow exec <工作流名称> [参数...]
+
+# 前台执行工作流
+knight workflow exec --foreground <工作流名称> [参数...]
+
+# 查询工作流状态
+knight workflow status <workflow-id>
+
+# 暂停工作流
+knight workflow pause <workflow-id>
+
+# 恢复工作流
+knight workflow resume <workflow-id>
+
+# 终止工作流
+knight workflow terminate <workflow-id>
+
+# 查看工作流日志
+knight workflow logs <workflow-id> [--tail] [--follow]
+
+# 列出后台工作流
+knight workflow list [--status <状态>]
+```
+
+**交互式工作流命令**:
+```bash
+# 在交互式 Shell 中
+knight> /workflow list
+knight> /workflow feature-development docs/requirements.md
+knight> /workflow status <workflow-id>
+knight> /workflow pause <workflow-id>
+```
+
+#### 5. 定时器管理 (schedule/timer)
 
 ```bash
 # 列出定时任务
@@ -1519,7 +1629,7 @@ knight schedule info <任务ID>
 knight schedule history <任务ID> [--limit <数量>]
 ```
 
-#### 5. 工具管理 (tool)
+#### 6. 工具管理 (tool)
 
 ```bash
 # 列出所有工具
@@ -1538,7 +1648,7 @@ knight tool install mcp <工具名称>
 knight tool uninstall <工具名称>
 ```
 
-#### 6. Hook 管理 (hook)
+#### 7. Hook 管理 (hook)
 
 ```bash
 # 列出所有 Hook
@@ -1557,7 +1667,7 @@ knight hook disable <Hook名称>
 knight hook test <Hook名称> [--event <事件>]
 ```
 
-#### 7. 配置管理 (config)
+#### 8. 配置管理 (config)
 
 ```bash
 # 查看配置
@@ -1576,7 +1686,7 @@ knight config list
 knight config reset
 ```
 
-#### 8. 日志管理 (log)
+#### 9. 日志管理 (log)
 
 ```bash
 # 查看日志
@@ -1592,7 +1702,7 @@ knight log export [--format json|csv] [--output <路径>]
 knight log clear
 ```
 
-#### 9. 协作管理 (orchestrate)
+#### 10. 协作管理 (orchestrate)
 
 ```bash
 # 创建协作任务
@@ -1676,6 +1786,11 @@ knight "每天早上8点发送AI新闻简报"
 | **Orchestrator** | 编排器，管理多 Agent 协作的组件 |
 | **Trigger** | 触发器，启动 Skill 的条件 |
 | **Workflow** | 工作流，一组有序的任务 |
+| **自然语言工作流** | 使用自然语言描述的工作流定义，存储在 Markdown 文件中 |
+| **工作流命令** | `/workflow` 命令，用于执行和管理工作流 |
+| **后台工作流** | 在后台运行的工作流，支持长时间执行（数天级别） |
+| **工作流恢复** | 进程重启后自动恢复未完成的工作流 |
+| **动态 Agent 创建** | 根据工作流需求自动创建指定变体的 Agent |
 | **Event Loop** | 事件循环，持续监听和响应事件 |
 
 ---
