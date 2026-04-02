@@ -7,27 +7,30 @@
 ```
 03-module-design/
 ├── README.md                    # 本文件 - 模块设计索引
-├── core/                        # 核心引擎模块 (5个)
+├── core/                        # 核心引擎模块 (8个)
 │   ├── session-manager.md       # 会话管理器
 │   ├── orchestrator.md          # 编排器
 │   ├── event-loop.md            # 事件循环
 │   ├── hook-engine.md           # Hook 引擎
-│   └── bootstrap.md             # 系统启动器
-├── agent/                       # Agent 运行模块
+│   ├── bootstrap.md             # 系统启动器
+│   ├── router.md                # 路由器
+│   ├── command.md               # 命令系统
+│   └── monitor.md               # 监控模块
+├── agent/                       # Agent 运行模块 (4个)
 │   ├── agent-runtime.md         # Agent 运行时
 │   ├── agent-variants.md        # Agent 变体系统
 │   ├── skill-engine.md          # 技能引擎
 │   └── task-manager.md          # 任务管理器
-├── services/                    # 基础服务模块
+├── services/                    # 基础服务模块 (6个)
 │   ├── llm-provider.md          # LLM 提供者抽象
 │   ├── mcp-client.md            # MCP 客户端
 │   ├── storage-service.md       # 存储服务
 │   ├── context-compressor.md    # 上下文压缩
 │   ├── timer-system.md          # 定时器系统
 │   └── logging-system.md        # 日志系统
-├── tools/                       # 工具系统
+├── tools/                       # 工具系统 (1个)
 │   └── tool-system.md           # 工具框架
-└── security/                    # 安全模块
+└── security/                    # 安全模块 (2个)
     ├── security-manager.md      # 安全管理器
     └── sandbox.md               # 沙箱机制
 ```
@@ -94,6 +97,10 @@
 - [x] [timer-system](services/timer-system.md) - 定时器系统
 - [x] [logging-system](services/logging-system.md) - 日志系统
 - [x] [agent-variants](agent/agent-variants.md) - Agent 变体系统
+- [x] [router](core/router.md) - 路由器
+- [x] [command](core/command.md) - 命令系统
+- [x] [monitor](core/monitor.md) - 监控模块
+- [x] [bootstrap](core/bootstrap.md) - 系统启动器
 
 ### P2 - 安全和运维 (已完成)
 - [x] [security-manager](security/security-manager.md) - 安全管理器
