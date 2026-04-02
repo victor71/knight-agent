@@ -37,6 +37,39 @@ Monitor 模块负责系统的实时状态收集和统计，包括：
 | **保留时间** | 运行时 | 持久化（30天） |
 | **典型用途** | 当前状态查询 | 问题排查、审计 |
 
+### 历史数据持久化
+
+Monitor 除了实时内存查询外，还支持将统计数据持久化到数据库用于历史报告生成：
+
+```yaml
+# 持久化接口
+persist_stats:
+  description: 持久化当前统计数据
+  inputs:
+    period:
+      type: string
+      description: 统计周期 (hourly/daily)
+  outputs:
+    success:
+      type: boolean
+
+get_historical_stats:
+  description: 获取历史统计数据
+  inputs:
+    start_date:
+      type: date
+      required: true
+    end_date:
+      type: date
+      required: true
+    granularity:
+      type: string
+      description: 时间粒度 (hourly/daily)
+  outputs:
+    stats:
+      type: array<HistoricalStats>
+```
+
 ---
 
 ## 接口定义
@@ -249,6 +282,54 @@ SystemStatus:
       description: CPU 使用率
 ```
 
+### HistoricalStats 结构
+
+```yaml
+HistoricalStats:
+  period:
+    type: object
+    properties:
+      start:
+        type: datetime
+      end:
+        type: datetime
+    description: 统计时间段
+
+  # Token 统计
+  tokens:
+    total:
+      type: int
+    input:
+      type: int
+    output:
+      type: int
+    cost_estimate:
+      type: float
+
+  # 会话统计
+  sessions:
+    new_count:
+      type: int
+      active_count:
+      type: int
+      total_messages:
+      type: int
+
+  # Agent 统计
+  agents:
+    llm_calls:
+      type: int
+      active_count:
+      type: int
+
+  # 系统统计
+  system:
+    avg_memory_mb:
+      type: float
+    peak_memory_mb:
+      type: int
+```
+
 ---
 
 ## 数据收集
@@ -387,6 +468,57 @@ impl StatusCollector {
 }
 ```
 
+### 历史数据持久化
+
+```rust
+// 统计数据持久化器
+pub struct StatsPersister {
+    storage: Arc<StorageService>,
+}
+
+impl StatsPersister {
+    /// 持久化当前统计快照
+    pub async fn persist_snapshot(
+        &self,
+        period: StatsPeriod,
+    ) -> Result<()> {
+        let snapshot = StatsSnapshot {
+            period: period.clone(),
+            timestamp: Utc::now(),
+            tokens: self.collect_token_stats(),
+            sessions: self.collect_session_stats(),
+            agents: self.collect_agent_stats(),
+            system: self.collect_system_stats(),
+        };
+
+        self.storage.save_stats_snapshot(snapshot).await
+    }
+
+    /// 获取历史统计数据
+    pub async fn get_historical_stats(
+        &self,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+        granularity: Granularity,
+    ) -> Result<Vec<HistoricalStats>> {
+        self.storage.query_stats_range(start, end, granularity).await
+    }
+}
+
+/// 统计周期
+pub enum StatsPeriod {
+    Hourly,
+    Daily,
+}
+
+/// 时间粒度
+pub enum Granularity {
+    Hourly,
+    Daily,
+    Weekly,
+}
+```
+
 ---
 
 ## 监控指标
@@ -430,6 +562,15 @@ collection:
   system:
     trigger: periodic            # 定期收集
     interval: 10s                # 收集间隔
+
+# 持久化策略
+persistence:
+  stats_snapshot:
+    interval: hourly             # 每小时快照
+    retention: 90d               # 保留90天
+  report_data:
+    interval: daily              # 每日汇总
+    retention: 365d              # 保留365天
 ```
 
 ---
@@ -592,6 +733,8 @@ async fn test_status_query() {
 
 ## 未来扩展
 
+- [x] 历史数据持久化
+- [x] 每日/每周/每月报告生成
 - [ ] 历史趋势图表
 - [ ] 自定义指标
 - [ ] 指标导出（Prometheus 格式）

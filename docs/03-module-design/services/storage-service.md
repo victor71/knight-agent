@@ -276,6 +276,75 @@ StorageService:
       stats:
         type: StorageStats
 
+  # ========== 统计数据持久化 ==========
+  save_stats_snapshot:
+    description: 保存统计快照
+    inputs:
+      snapshot:
+        type: StatsSnapshot
+        required: true
+    outputs:
+      success:
+        type: boolean
+
+  query_stats_range:
+    description: 查询历史统计数据
+    inputs:
+      start_time:
+        type: datetime
+        required: true
+      end_time:
+        type: datetime
+        required: true
+      granularity:
+        type: string
+        required: false
+        description: 时间粒度 (hourly/daily)
+    outputs:
+      snapshots:
+        type: array<StatsSnapshot>
+
+  save_token_usage:
+    description: 记录 Token 使用
+    inputs:
+      usage:
+        type: TokenUsageRecord
+        required: true
+    outputs:
+      success:
+        type: boolean
+
+  save_llm_call:
+    description: 记录 LLM 调用
+    inputs:
+      call:
+        type: LLMCallRecord
+        required: true
+    outputs:
+      success:
+        type: boolean
+
+  save_session_event:
+    description: 记录会话事件
+    inputs:
+      event:
+        type: SessionEvent
+        required: true
+    outputs:
+      success:
+        type: boolean
+
+  # ========== 报告数据查询 ==========
+  get_daily_report:
+    description: 获取每日报告数据
+    inputs:
+      date:
+        type: date
+        required: true
+    outputs:
+      report:
+        type: DailyReport
+
   # ========== 备份和恢复 ==========
   backup:
     description: 备份数据库
@@ -400,6 +469,142 @@ TaskFilter:
     type: datetime | null
   created_before:
     type: datetime | null
+
+# 统计快照
+StatsSnapshot:
+  id:
+    type: string
+  period:
+    type: string
+    description: "hourly or daily"
+  timestamp_start:
+    type: datetime
+  timestamp_end:
+    type: datetime
+  created_at:
+    type: datetime
+  tokens:
+    type: TokenStats
+  sessions:
+    type: SessionUsageStats
+  agents:
+    type: AgentUsageStats
+  system:
+    type: SystemUsageStats
+
+# Token 统计
+TokenStats:
+  total:
+    type: integer
+  input:
+    type: integer
+  output:
+    type: integer
+  cost_estimate:
+    type: float
+
+# 会话使用统计
+SessionUsageStats:
+  new_count:
+    type: integer
+  active_count:
+    type: integer
+  total_count:
+    type: integer
+  messages_total:
+    type: integer
+
+# Agent 使用统计
+AgentUsageStats:
+  llm_calls:
+    type: integer
+  active_count:
+    type: integer
+  created_count:
+    type: integer
+
+# 系统使用统计
+SystemUsageStats:
+  memory_mb_avg:
+    type: float
+  memory_mb_peak:
+    type: integer
+  cpu_avg:
+    type: float
+  uptime_seconds:
+    type: integer
+
+# Token 使用记录
+TokenUsageRecord:
+  id:
+    type: string
+  session_id:
+    type: string
+  model:
+    type: string
+  input_tokens:
+    type: integer
+  output_tokens:
+    type: integer
+  total_tokens:
+    type: integer
+  cost_estimate:
+    type: float
+  timestamp:
+    type: datetime
+  metadata:
+    type: object
+
+# LLM 调用记录
+LLMCallRecord:
+  id:
+    type: string
+  session_id:
+    type: string
+  agent_id:
+    type: string
+  model:
+    type: string
+  prompt_tokens:
+    type: integer
+  completion_tokens:
+    type: integer
+  total_tokens:
+    type: integer
+  latency_ms:
+    type: integer
+  timestamp:
+    type: datetime
+  success:
+    type: boolean
+  error_message:
+    type: string
+
+# 会话事件
+SessionEvent:
+  id:
+    type: string
+  session_id:
+    type: string
+  event_type:
+    type: string
+  timestamp:
+    type: datetime
+  metadata:
+    type: object
+
+# 每日报告
+DailyReport:
+  date:
+    type: date
+  tokens:
+    type: TokenStats
+  sessions:
+    type: SessionUsageStats
+  agents:
+    type: AgentUsageStats
+  by_hour:
+    type: array<StatsSnapshot>
 ```
 
 ### 配置选项
@@ -530,11 +735,88 @@ CREATE TABLE config (
     updated_at INTEGER NOT NULL
 );
 
+-- ========== 统计数据表 ==========
+
+-- 统计快照表（每小时/每日）
+CREATE TABLE stats_snapshots (
+    id TEXT PRIMARY KEY,
+    period TEXT NOT NULL,              -- 'hourly' or 'daily'
+    timestamp_start INTEGER NOT NULL,  -- Unix timestamp
+    timestamp_end INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+
+    -- Token 统计
+    tokens_total INTEGER NOT NULL DEFAULT 0,
+    tokens_input INTEGER NOT NULL DEFAULT 0,
+    tokens_output INTEGER NOT NULL DEFAULT 0,
+    tokens_cost_estimate REAL DEFAULT 0,
+
+    -- 会话统计
+    sessions_new INTEGER NOT NULL DEFAULT 0,
+    sessions_active INTEGER NOT NULL DEFAULT 0,
+    sessions_total INTEGER NOT NULL DEFAULT 0,
+    messages_total INTEGER NOT NULL DEFAULT 0,
+
+    -- Agent 统计
+    agents_llm_calls INTEGER NOT NULL DEFAULT 0,
+    agents_active INTEGER NOT NULL DEFAULT 0,
+    agents_created INTEGER NOT NULL DEFAULT 0,
+
+    -- 系统统计
+    system_memory_mb_avg REAL DEFAULT 0,
+    system_memory_mb_peak INTEGER DEFAULT 0,
+    system_cpu_avg REAL DEFAULT 0,
+    system_uptime_seconds INTEGER DEFAULT 0
+);
+
+-- Token 使用明细表
+CREATE TABLE token_usage_log (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    model TEXT NOT NULL,
+    input_tokens INTEGER NOT NULL,
+    output_tokens INTEGER NOT NULL,
+    total_tokens INTEGER NOT NULL,
+    cost_estimate REAL,
+    timestamp INTEGER NOT NULL,
+    metadata TEXT
+);
+
+-- LLM 调用明细表
+CREATE TABLE llm_call_log (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    agent_id TEXT,
+    model TEXT NOT NULL,
+    prompt_tokens INTEGER NOT NULL,
+    completion_tokens INTEGER NOT NULL,
+    total_tokens INTEGER NOT NULL,
+    latency_ms INTEGER,
+    timestamp INTEGER NOT NULL,
+    success INTEGER NOT NULL,           -- 0 or 1
+    error_message TEXT
+);
+
+-- 会话事件表
+CREATE TABLE session_events (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,           -- created, archived, deleted, etc.
+    timestamp INTEGER NOT NULL,
+    metadata TEXT
+);
+
 -- 索引
 CREATE INDEX idx_messages_session ON messages(session_id, timestamp);
 CREATE INDEX idx_messages_timestamp ON messages(timestamp);
 CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_workflow ON tasks(workflow_id);
+CREATE INDEX idx_stats_snapshots_period ON stats_snapshots(period, timestamp_start);
+CREATE INDEX idx_token_usage_session ON token_usage_log(session_id, timestamp);
+CREATE INDEX idx_token_usage_timestamp ON token_usage_log(timestamp);
+CREATE INDEX idx_llm_call_session ON llm_call_log(session_id, timestamp);
+CREATE INDEX idx_llm_call_timestamp ON llm_call_log(timestamp);
+CREATE INDEX idx_session_events_session ON session_events(session_id, timestamp);
 ```
 
 ---

@@ -21,13 +21,14 @@
 │   ├── agent-variants.md        # Agent 变体系统
 │   ├── skill-engine.md          # 技能引擎
 │   └── task-manager.md          # 任务管理器
-├── services/                    # 基础服务模块 (6个)
+├── services/                    # 基础服务模块 (7个)
 │   ├── llm-provider.md          # LLM 提供者抽象
 │   ├── mcp-client.md            # MCP 客户端
 │   ├── storage-service.md       # 存储服务
 │   ├── context-compressor.md    # 上下文压缩
 │   ├── timer-system.md          # 定时器系统
-│   └── logging-system.md        # 日志系统
+│   ├── logging-system.md        # 日志系统
+│   └── report-skill.md          # 报告技能
 ├── tools/                       # 工具系统 (1个)
 │   └── tool-system.md           # 工具框架
 └── security/                    # 安全模块 (2个)
@@ -101,6 +102,7 @@
 - [x] [command](core/command.md) - 命令系统
 - [x] [monitor](core/monitor.md) - 监控模块
 - [x] [bootstrap](core/bootstrap.md) - 系统启动器
+- [x] [report-skill](services/report-skill.md) - 报告技能
 
 ### P2 - 安全和运维 (已完成)
 - [x] [security-manager](security/security-manager.md) - 安全管理器
@@ -121,3 +123,4 @@
 | 版本 | 日期 | 变更 |
 |------|------|------|
 | 1.0.0 | 2026-03-30 | 初始版本，创建目录结构 |
+| 1.1.0 | 2026-04-02 | 添加 report-skill.md；更新 Monitor 历史数据持久化；更新 Storage Service 统计表 |
