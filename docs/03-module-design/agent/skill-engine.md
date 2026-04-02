@@ -7,24 +7,26 @@
 Skill Engine 负责管理和执行技能（Skills），包括：
 
 - 技能注册和发现
-- 触发条件匹配
-- 技能执行编排
+- 触发条件匹配（基于自然语言）
+- 技能执行编排（LLM 驱动）
 - 技能管道（Pipeline）组合与执行
 - 参数传递和结果处理
 - 技能间依赖管理
 
 ### 设计目标
 
-1. **声明式定义**: 通过 YAML/Markdown 定义技能行为
-2. **灵活触发**: 支持关键词、文件变更、定时等多种触发方式
-3. **可组合**: 技能可以调用其他技能
-4. **可观测**: 完整的执行追踪和日志
+1. **自然语言优先**: 通过 Markdown + 自然语言描述技能行为
+2. **LLM 驱动执行**: 技能步骤由 LLM 根据自然语言描述决定执行方式
+3. **灵活触发**: 支持关键词、文件变更、定时等多种触发方式
+4. **可组合**: 技能可以调用其他技能
+5. **可观测**: 完整的执行追踪和日志
 
 ### 依赖模块
 
 | 依赖模块 | 依赖类型 | 说明 |
 |---------|---------|------|
 | Tool System | 依赖 | 工具调用 |
+| LLM Provider | 依赖 | LLM 驱动执行解析 |
 | Agent Runtime | 依赖 | AI 处理（agent 步骤直接调用） |
 | Event Loop | 依赖 | 事件监听 |
 
@@ -203,15 +205,9 @@ SkillDefinition:
   triggers:
     type: array<Trigger>
     description: 触发器列表
-  steps:
-    type: array<SkillStep>
-    description: 执行步骤
-  variables:
-    type: map<string, any>
-    description: 技能变量
-  permissions:
-    type: array<string>
-    description: 所需权限
+  content:
+    type: string
+    description: Markdown 格式的自然语言技能定义
 
 # 触发器
 Trigger:
@@ -275,87 +271,6 @@ Trigger:
         type: map<string, any>
         description: 事件过滤条件
 
-# 技能步骤
-SkillStep:
-  id:
-    type: string
-  name:
-    type: string
-  type:
-    type: enum
-    values: [tool, agent, skill, condition, parallel, loop]
-    description: 步骤类型
-
-  # 工具调用
-  tool:
-    type: object
-    properties:
-      name:
-        type: string
-      args:
-        type: object
-      output:
-        type: string
-        description: 输出变量名
-
-  # Agent 调用
-  agent:
-    type: object
-    properties:
-      agent_id:
-        type: string
-      prompt:
-        type: string
-      output:
-        type: string
-
-  # 技能调用
-  skill:
-    type: object
-    properties:
-      skill_id:
-        type: string
-      args:
-        type: object
-
-  # 条件分支
-  condition:
-    type: object
-    properties:
-      expression:
-        type: string
-        description: 条件表达式
-      then_steps:
-        type: array<SkillStep>
-      else_steps:
-        type: array<SkillStep>
-
-  # 并行执行
-  parallel:
-    type: array<SkillStep>
-    description: 并行执行的步骤
-
-  # 循环
-  loop:
-    type: object
-    properties:
-      over:
-        type: string
-        description: 循环变量
-      steps:
-        type: array<SkillStep>
-
-  # 错误处理
-  on_error:
-    type: object
-    properties:
-      continue:
-        type: boolean
-      retry:
-        type: integer
-      fallback:
-        type: array<SkillStep>
-
 # 技能上下文
 SkillContext:
   session_id:
@@ -387,7 +302,26 @@ SkillResult:
     type: integer
     description: 执行时间（毫秒）
   steps_executed:
-    type: integer
+    type: array<StepResult>
+    description: 执行步骤结果列表
+
+# 步骤执行结果
+StepResult:
+  step_name:
+    type: string
+  success:
+    type: boolean
+  tool_used:
+    type: string | null
+    description: 使用的工具（如果是工具调用）
+  agent_used:
+    type: string | null
+    description: 使用的 Agent（如果是 Agent 调用）
+  output:
+    type: any
+    description: 步骤输出
+  error:
+    type: string | null
 
 # 技能信息
 SkillInfo:
@@ -464,82 +398,120 @@ skill:
   execution:
     max_steps: 100
     timeout: 600
-    parallel_steps: 5
 
   # 触发器配置
   triggers:
     debounce: 500
     max_queue_size: 1000
 
-  # 错误处理
-  error_handling:
-    max_retries: 3
-    retry_delay: 1000
-    continue_on_error: false
+  # LLM 驱动配置
+  llm:
+    model: "claude-sonnet-4-20250514"
+    max_tokens: 4096
+    temperature: 0.7
 ```
 
 ---
 
 ## 核心流程
 
-### 技能执行流程
+### LLM 驱动的技能执行流程
 
 ```
 技能触发
-        │
-        ▼
+    │
+    ▼
 ┌──────────────────────────────┐
 │ 1. 加载技能定义              │
-│    - 验证技能存在            │
-│    - 检查是否启用            │
+│    - 读取 Markdown 内容      │
+│    - 解析触发条件            │
+│    - 提取执行步骤描述        │
 └──────────────────────────────┘
-        │
-        ▼
+    │
+    ▼
 ┌──────────────────────────────┐
 │ 2. 准备执行上下文            │
 │    - 合并变量                │
-│    - 解析参数                │
+│    - 解析输入参数            │
 └──────────────────────────────┘
-        │
-        ▼
+    │
+    ▼
 ┌──────────────────────────────┐
-│ 3. 依次执行步骤              │
-│    for step in steps:        │
-│      - 解析步骤类型          │
-│      - 执行步骤              │
-│      - 处理结果              │
-│      - 更新上下文            │
+│ 3. LLM 解析执行计划          │
+│    - 将自然语言步骤发送给 LLM │
+│    - LLM 生成执行计划        │
+│    - 决定使用哪些工具/Agent  │
 └──────────────────────────────┘
-        │
-        ▼
-    ┌───┴────┐
-    │ 成功？  │
-    └───┬────┘
-        │ 否                │ 是
-        ▼                   ▼
-┌──────────────────┐   ┌──────────────┐
-│ 4. 错误处理      │   │ 4. 保存输出  │
-│    - 检查重试    │   │    返回结果  │
-│    - 执行回退    │   └──────────────┘
-└──────────────────┘
+    │
+    ▼
+┌──────────────────────────────┐
+│ 4. 执行步骤                  │
+│    - 按计划调用工具/Agent    │
+│    - 收集执行结果            │
+│    - 更新上下文变量          │
+└──────────────────────────────┘
+    │
+    ▼
+┌──────────────────────────────┐
+│ 5. 保存输出                  │
+│    - 汇总步骤结果            │
+│    - 返回最终输出            │
+└──────────────────────────────┘
+```
+
+### LLM 执行计划生成
+
+LLM 根据自然语言步骤描述生成执行计划：
+
+```yaml
+# LLM 生成的执行计划
+execution_plan:
+  steps:
+    - name: "收集文件"
+      reasoning: "需要先找到所有 TypeScript 文件"
+      action:
+        type: tool
+        tool: glob
+        args:
+          pattern: "**/*.ts"
+      output_key: files
+
+    - name: "运行 Lint"
+      reasoning: "需要先检查代码风格问题"
+      depends_on: ["收集文件"]
+      action:
+        type: tool
+        tool: bash
+        args:
+          command: "npm run lint"
+      output_key: lint_result
+
+    - name: "AI 分析代码"
+      reasoning: "需要 LLM 分析代码质量和安全问题"
+      depends_on: ["收集文件"]
+      action:
+        type: agent
+        agent_id: code-reviewer
+        prompt: "分析以下代码的质量、安全性和性能问题..."
+      output_key: analysis
 ```
 
 ### 触发器匹配流程
 
 ```
 事件到达
-        │
-        ▼
+    │
+    ▼
 ┌──────────────────────────────┐
 │ 1. 遍历所有触发器            │
 └──────────────────────────────┘
-        │
-        ▼
+    │
+    ▼
 ┌──────────────────────────────┐
 │ 2. 检查触发器类型            │
 └──────────────────────────────┘
-        │
-        ▼
+    │
+    ▼
     ┌───┴────────────────────────┐
     │                            │
     ▼                            ▼
@@ -562,68 +534,72 @@ skill:
             └──────────────┘
 ```
 
-### 步骤执行类型
+---
 
-#### 工具调用步骤
+## 技能定义格式
 
-```yaml
-type: tool
-tool:
-  name: read
-  args:
-    file_path: "{{ context.input_file }}"
-  output: file_content
-```
+### Markdown 自然语言格式
 
-#### Agent 调用步骤
+每个技能是一个 Markdown 文件，包含以下部分：
 
-```yaml
-type: agent
-agent:
-  agent_id: code-reviewer
-  prompt: |
-    请分析以下代码：
-    {{ context.file_content }}
-  output: review_result
-```
+```markdown
+---
+name: code-review
+category: quality
+tags: [code, review, quality]
+description: 代码审查技能，自动分析代码质量和安全性
+author: knight-agent
+version: 1.0.0
+---
 
-#### 条件分支步骤
+# Code Review Skill
 
-```yaml
-type: condition
-condition:
-  expression: "{{ context.test_result == 'passed' }}"
-  then_steps:
-    - type: tool
-      tool: {name: deploy}
-  else_steps:
-    - type: tool
-      tool: {name: notify_failure}
-```
+## 概述
 
-#### 并行执行步骤
+当检测到代码文件变更时，自动执行代码审查。分析代码的质量、安全性、性能和可维护性。
 
-```yaml
-type: parallel
-parallel:
-  - type: skill
-    skill: {skill_id: test-unit}
-  - type: skill
-    skill: {skill_id: test-integration}
-  - type: skill
-    skill: {skill_id: lint}
-```
+## 触发条件
 
-#### 循环步骤
+当以下条件满足时触发：
+- 关键词匹配：`review`、`审查`、`代码审查`
+- 文件变更：`**/*.ts`, `**/*.tsx`, `**/*.js`, `**/*.jsx`
 
-```yaml
-type: loop
-loop:
-  over: context.files
-  steps:
-    - type: agent
-      agent:
-        prompt: "分析 {{ item }}"
+## 输入参数
+
+| 参数 | 类型 | 必需 | 描述 |
+|------|------|------|------|
+| files | array | 否 | 要审查的文件列表，默认为变更的文件 |
+
+## 执行步骤
+
+### 步骤 1: 收集文件
+
+首先收集所有需要审查的代码文件。
+
+输入：
+- `files`: 要审查的文件（来自上下文或变更检测）
+
+### 步骤 2: 运行 Lint 检查
+
+运行代码 lint 检查，发现潜在的代码风格问题。
+
+输入：
+- `command`: "npm run lint"
+
+### 步骤 3: AI 代码分析
+
+使用 AI 分析代码的质量、安全性和性能问题。
+
+输入：
+- `task`: "请分析以下代码的质量、安全性和性能问题"
+- `context`: 代码文件列表和 lint 结果
+
+### 步骤 4: 生成审查报告
+
+将分析结果整理成审查报告。
+
+输出：
+- `report`: Markdown 格式的审查报告
 ```
 
 ---
@@ -638,15 +614,22 @@ loop:
 ├─────────────────────────────────────────┤
 │                                         │
 │  ┌──────────┐  ┌──────────┐  ┌────────┐│
-│  │Registry  │  │Trigger   │  │Executor││
+│  │Registry  │  │Trigger   │  │Executor ││
+│  │          │  │Matcher   │  │(LLM)   ││
 │  └──────────┘  └──────────┘  └────────┘│
 └─────┬──────────────┬──────────────┬─────┘
       │              │              │
       ▼              ▼              ▼
 ┌──────────┐  ┌──────────┐  ┌──────────┐
-│Tool      │  │Agent     │  │Event     │
-│System    │  │Runtime   │  │Loop      │
+│Tool      │  │Event     │  │LLM       │
+│System    │  │Loop      │  │Provider  │
 └──────────┘  └──────────┘  └──────────┘
+                     │
+                     ▼
+              ┌──────────┐
+              │Agent     │
+              │Runtime   │
+              └──────────┘
 ```
 
 ### 消息流
@@ -658,25 +641,34 @@ loop:
 ┌─────────────────────────────┐
 │ Skill Engine                │
 │ - 匹配触发器                │
-│ - 加载技能                  │
+│ - 加载技能（Markdown）      │
 └─────────────────────────────┘
-        │
-        ▼
+    │
+    ▼
+┌─────────────────────────────┐
+│ LLM Provider                │
+│ - 解析自然语言执行步骤      │
+│ - 生成执行计划              │
+└─────────────────────────────┘
+    │
+    ▼
 ┌─────────────────────────────┐
 │ 执行技能步骤                │
+│ - 调用工具或 Agent          │
+│ - 收集执行结果              │
 └─────────────────────────────┘
-        │
-        ├─────────────────────────────┐
-        │                             │
-        ▼                             ▼
-┌─────────────────┐         ┌─────────────────┐
-│ Tool System     │         │ Agent Runtime   │
-│ - 执行工具      │         │ - AI 处理       │
-└─────────────────┘         └─────────────────┘
-        │                             │
-        └────────────┬────────────────┘
-                     ▼
-              返回执行结果
+    │
+    ├─────────────────────────────┐
+    │                             │
+    ▼                             ▼
+┌─────────────────┐     ┌─────────────────┐
+│ Tool System     │     │ Agent Runtime   │
+│ - 执行工具      │     │ - AI 处理       │
+└─────────────────┘     └─────────────────┘
+    │                             │
+    └────────────┬────────────────┘
+                 ▼
+          返回执行结果
 ```
 
 ---
@@ -685,113 +677,117 @@ loop:
 
 ### 代码审查技能
 
-```yaml
-# skills/code-review/SKILL.md
+```markdown
 ---
 name: code-review
 category: quality
-triggers:
-  - type: keyword
-    keyword:
-      patterns: ["review", "审查"]
-      match_type: contains
-  - type: file_change
-    file_change:
-      patterns: ["**/*.ts", "**/*.tsx"]
-      events: [modified]
+description: 代码审查技能，分析代码质量和安全性
 ---
 
-## Steps
+# Code Review Skill
 
-### Step 1: 收集文件
-```yaml
-type: tool
-tool:
-  name: glob
-  args:
-    pattern: "**/*.ts"
-  output: files
-```
+## 概述
 
-### Step 2: 运行 Lint
-```yaml
-type: tool
-tool:
-  name: bash
-  args:
-    command: npm run lint
-  output: lint_result
-  on_error:
-    continue: true
-```
+自动分析代码的质量、安全性和性能。适用于代码提交审查或手动触发的代码检查。
 
-### Step 3: AI 分析
-```yaml
-type: agent
-agent:
-  prompt: |
-    分析以下代码的质量：
-    Files: {{ context.files }}
-    Lint: {{ context.lint_result }}
-  output: analysis
-```
+## 触发条件
 
-### Step 4: 生成报告
-```yaml
-type: tool
-tool:
-  name: write
-  args:
-    path: "reports/review-{{ timestamp }}.md"
-    content: |
-      # Code Review Report
-      {{ context.analysis }}
-```
+- 关键词：`review`、`审查`、`代码审查`
+- 文件变更：`**/*.ts`, `**/*.tsx`, `**/*.js`
+
+## 输入参数
+
+| 参数 | 类型 | 必需 | 描述 |
+|------|------|------|------|
+| files | array | 否 | 文件列表，默认全部 |
+
+## 执行步骤
+
+### 步骤 1: 收集文件
+
+使用 glob 工具收集所有 TypeScript/JavaScript 文件。
+
+输入：
+- `pattern`: "**/*.{ts,tsx,js,jsx}"
+
+输出：
+- `files`: 文件列表
+
+### 步骤 2: 运行 Lint
+
+执行 npm run lint 检查代码风格问题。
+
+输入：
+- `command`: "npm run lint"
+
+输出：
+- `lint_result`: Lint 检查结果
+
+### 步骤 3: AI 分析
+
+使用 AI 分析代码的质量、安全性和性能。
+
+输入：
+- `files`: 来自步骤 1 的文件列表
+- `lint_result`: 来自步骤 2 的结果
+- `task`: "分析这些代码的质量、安全性和性能问题，给出具体的改进建议"
+
+输出：
+- `analysis`: AI 分析结果
+
+### 步骤 4: 生成报告
+
+将分析结果保存为 Markdown 报告。
+
+输入：
+- `analysis`: 来自步骤 3 的分析结果
+- `filename`: "reports/code-review-{{ timestamp }}.md"
 ```
 
 ### CI/CD 技能
 
-```yaml
-# skills/ci-pipeline/SKILL.md
+```markdown
 ---
 name: ci-pipeline
 category: automation
-triggers:
-  - type: event
-    event:
-      event_type: git.push
-      filter:
-        branch: main
+description: CI/CD 流水线技能
 ---
 
-## Steps
+# CI/CD Pipeline Skill
 
-### Step 1: 并行测试
-```yaml
-type: parallel
-parallel:
-  - type: skill
-    skill: {skill_id: test-unit}
-  - type: skill
-    skill: {skill_id: test-integration}
-  - type: skill
-    skill: {skill_id: lint}
-```
+## 概述
 
-### Step 2: 条件部署
-```yaml
-type: condition
-condition:
-  expression: "{{ context.all_tests_passed == true }}"
-  then_steps:
-    - type: skill
-      skill: {skill_id: deploy}
-  else_steps:
-    - type: tool
-      tool:
-        name: notify
-        args: {message: "CI Failed"}
-```
+当检测到 Git push 事件时，自动执行 CI/CD 流水线。包括测试、构建和部署。
+
+## 触发条件
+
+- 事件类型：`git.push`
+- 分支：`main` 或 `release/*`
+
+## 执行步骤
+
+### 步骤 1: 并行测试
+
+同时运行单元测试和集成测试。
+
+输入：
+- `task`: "运行所有单元测试和集成测试"
+
+### 步骤 2: 构建
+
+如果测试通过，执行构建。
+
+输入：
+- `task`: "执行项目构建"
+- `condition`: 所有测试必须通过
+
+### 步骤 3: 部署
+
+如果构建成功，执行部署。
+
+输入：
+- `task`: "部署到 staging 环境"
+- `condition`: 构建必须成功
 ```
 
 ---
@@ -812,18 +808,17 @@ skill:
   execution:
     max_steps: 100
     timeout: 600
-    parallel_steps: 5
 
   # 触发器配置
   triggers:
     debounce: 500
     max_queue_size: 1000
 
-  # 错误处理
-  error_handling:
-    max_retries: 3
-    retry_delay: 1000
-    continue_on_error: false
+  # LLM 驱动配置
+  llm:
+    model: "claude-sonnet-4-20250514"
+    max_tokens: 4096
+    temperature: 0.7
 ```
 
 ### 环境变量
@@ -838,6 +833,9 @@ export KNIGHT_SKILL_TIMEOUT=600
 
 # 触发器配置
 export KNIGHT_TRIGGER_DEBOUNCE=500
+
+# LLM 配置
+export KNIGHT_LLM_MODEL="claude-sonnet-4-20250514"
 ```
 
 ---
@@ -850,6 +848,7 @@ export KNIGHT_TRIGGER_DEBOUNCE=500
 |------|--------|------|
 | 技能加载 | < 50ms | 单个技能 |
 | 触发器匹配 | < 1ms | 单次匹配 |
+| LLM 解析步骤 | < 2s | 生成执行计划 |
 | 步骤执行 | < 5s | 简单步骤 |
 
 ### 错误处理
@@ -875,6 +874,11 @@ error_codes:
     code: 408
     message: "技能执行超时"
     action: "增加超时时间或优化技能"
+
+  LLM_PARSING_FAILED:
+    code: 500
+    message: "LLM 解析步骤失败"
+    action: "检查自然语言步骤描述是否清晰"
 ```
 
 ### 内置技能
@@ -894,4 +898,4 @@ error_codes:
 |------|------|------|
 | 1.0.0 | 2026-03-30 | 初始版本 |
 | 1.1.0 | 2026-04-01 | 重命名"工作流"为"管道"(Pipeline) |
-
+| 1.2.0 | 2026-04-03 | 改为 LLM 驱动的自然语言格式 |
