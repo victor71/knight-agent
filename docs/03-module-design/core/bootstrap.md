@@ -325,6 +325,7 @@ bootstrap:
     # 基础服务层
     - llm_provider
     - tool_system
+    - security_manager        # 权限检查能力需尽早可用
 
     # 事件层
     - event_loop
@@ -337,12 +338,11 @@ bootstrap:
     # Agent 层
     - agent_runtime
     - skill_engine
-    - task_manager
     - orchestrator
+    - task_manager
 
     # 安全层
-    - security_manager
-    - sandbox
+    - sandbox                  # 依赖 session_manager, tool_system
 
   # 故障恢复
   recovery:
@@ -423,7 +423,8 @@ Bootstrap::start()
 
 阶段 2: 核心服务 (依赖基础设施)
 ├── llm_provider         # 依赖 storage (缓存)
-└── tool_system          # 无其他依赖
+├── tool_system          # 无其他依赖
+└── security_manager     # 权限检查能力需尽早可用
 
 阶段 3: 事件系统 (依赖核心服务)
 ├── event_loop           # 依赖 logging, tool_system
@@ -436,12 +437,11 @@ Bootstrap::start()
 阶段 5: Agent 层 (依赖引擎层)
 ├── agent_runtime        # 依赖 llm_provider, tool_system, hook_engine
 ├── skill_engine         # 依赖 agent_runtime
-├── task_manager         # 依赖 skill_engine
-└── orchestrator         # 依赖 agent_runtime, task_manager
+├── orchestrator         # 依赖 agent_runtime
+└── task_manager         # 依赖 skill_engine, orchestrator (调用 Agent 分配)
 
 阶段 6: 安全层 (可选,最后初始化)
-├── security_manager
-└── sandbox
+└── sandbox              # 依赖 session_manager, tool_system
 ```
 
 ### 优雅关闭流程

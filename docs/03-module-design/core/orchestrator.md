@@ -4,20 +4,20 @@
 
 ### 职责描述
 
-Orchestrator 负责整体系统的编排和调度，包括：
+Orchestrator 负责 Agent 生命周期管理和消息路由，包括：
 
 - Agent 生命周期管理（创建、启动、停止、销毁）
-- 任务调度和分配
-- 消息路由和广播
-- 资源分配和负载均衡
-- Agent 间协作协调
+- Agent 消息路由和广播
+- Agent 间协作协调（主题订阅/发布）
+- Agent 资源分配和负载均衡
+- **为 Task Manager 提供 Agent 分配接口**
 
 ### 设计目标
 
-1. **高效调度**: 合理分配任务到最优 Agent
-2. **资源优化**: 控制并发数量，避免资源耗尽
-3. **协作支持**: 支持多 Agent 协作模式
-4. **可观测性**: 完整的状态追踪和监控
+1. **高效调度**: 管理并发 Agent 数量，优化资源使用
+2. **消息可靠**: 确保消息正确路由到目标 Agent
+3. **协作支持**: 支持多 Agent 协作模式（主从、流水线、投票）
+4. **可观测性**: 完整的 Agent 状态追踪和监控
 
 ### 依赖模块
 
@@ -25,8 +25,14 @@ Orchestrator 负责整体系统的编排和调度，包括：
 |---------|---------|------|
 | Session Manager | 依赖 | 会话信息获取 |
 | Agent Runtime | 依赖 | Agent 执行 |
-| Task Manager | 依赖 | 任务状态管理 |
 | Event Loop | 依赖 | 事件通知 |
+| Hook Engine | 协作 | Agent 生命周期 Hook |
+
+### 被依赖模块
+
+| 模块 | 依赖类型 | 说明 |
+|------|---------|------|
+| Task Manager | 被依赖 | 调用 Agent 分配接口 |
 
 ---
 
@@ -114,69 +120,29 @@ Orchestrator:
       info:
         type: AgentInfo
 
-  # ========== 任务调度 ==========
-  submit_task:
-    description: 提交任务到调度队列
+  # ========== Agent 分配 (供 Task Manager 调用) ==========
+  allocate_agent:
+    description: 为任务分配可用的 Agent
     inputs:
-      task:
-        type: Task
+      task_requirements:
+        type: TaskRequirements
+        description: 任务对 Agent 的要求（能力、负载等）
         required: true
-      priority:
-        type: integer
-        description: 任务优先级（越小越优先）
-        required: false
-        default: 100
     outputs:
-      task_id:
-        type: string
-
-  assign_task:
-    description: 分配任务到指定 Agent
-    inputs:
-      task_id:
-        type: string
-        required: true
       agent_id:
         type: string
-        required: true
-    outputs:
-      success:
-        type: boolean
+        description: 分配的 Agent ID
 
-  get_task_status:
-    description: 获取任务状态
+  get_available_agents:
+    description: 获取可用 Agent 列表
     inputs:
-      task_id:
-        type: string
-        required: true
-    outputs:
-      status:
-        type: TaskStatus
-
-  list_tasks:
-    description: 列出任务
-    inputs:
-      agent_id:
-        type: string
-        description: 过滤 Agent
-        required: false
-      status:
-        type: string
-        description: 过滤状态
+      filter:
+        type: AgentFilter
+        description: Agent 过滤条件（能力、状态等）
         required: false
     outputs:
-      tasks:
-        type: array<TaskInfo>
-
-  cancel_task:
-    description: 取消任务
-    inputs:
-      task_id:
-        type: string
-        required: true
-    outputs:
-      success:
-        type: boolean
+      agents:
+        type: array<AgentInfo>
 
   # ========== 消息路由 ==========
   send_message:
