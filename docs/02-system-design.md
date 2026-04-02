@@ -305,7 +305,7 @@ flowchart LR
 
 ### Router (路由器)
 
-**职责**: CLI 命令处理、请求分发
+**职责**: CLI 命令处理、请求分发、命令加载
 
 Router 处理 Knight Agent CLI 中的斜杠命令（`/command`），非命令输入传递给会话的 main agent 处理。
 
@@ -319,6 +319,13 @@ router:
     outputs:
       - response: string
       - to_agent: boolean      # 是否传递给 agent
+
+  # 加载用户自定义命令
+  load_user_commands:
+    inputs:
+      - path: string           # ~/.knight-agent/commands/
+    outputs:
+      - commands: map          # 命令名 → 命令定义
 
   # 会话的 main agent
   get_main_agent:
@@ -334,29 +341,145 @@ router:
     ↓
 Router: 检测是否以 / 开头
     ↓
-    ├─→ 是命令 (/command) → 直接执行 → 返回结果
+    ├─→ 是命令 (/command)
+    │     ↓
+    │  查找命令
+    │     ↓
+    │  ├─→ 内置命令 (硬编码) → 执行 → 返回结果
+    │  └─→ 用户自定义命令 (Markdown) → 加载 → 执行 → 返回结果
     │
     └─→ 不是命令 → 传递给会话的 main agent → LLM 处理
 ```
 
-**内置命令**:
+**命令加载顺序**:
+```
+1. 先查找内置命令 (硬编码)
+2. 未找到则查找用户自定义命令 (~/.knight-agent/commands/)
+```
+
+---
+
+## Command (命令)
+
+**职责**: 用户可自定义 CLI 命令，通过 Markdown 文件定义
+
+Command 允许用户通过 Markdown 定义自定义命令，类似于 Claude Code 的 Skills。
+
+### Command 定义格式
+
+```markdown
+---
+name: review
+description: 执行代码审查
+---
+
+# Command: review
+
+执行代码审查，支持指定文件或目录。
+
+## Usage
+
+```
+/review [文件路径]
+```
+
+## Args
+
+- `path` (可选): 要审查的文件或目录路径，默认为当前目录
+
+## Steps
+
+### Step 1: 收集文件
 ```yaml
-# 会话管理
+tool: glob
+args:
+  patterns: ["**/*.ts", "**/*.tsx"]
+output: files
+```
+
+### Step 2: 运行审查
+```yaml
+agent: code-reviewer
+prompt: |
+  审查以下文件：
+  {{ files }}
+```
+
+### Step 3: 生成报告
+```yaml
+tool: write
+args:
+  path: "reports/review-{{ timestamp }}.md"
+  content: "{{ review_result }}"
+```
+
+## Examples
+
+```bash
+# 审查当前目录
+/review
+
+# 审理指定文件
+/review src/App.tsx
+
+# 审理目录
+/review src/components/
+```
+```
+
+### 内置命令（硬编码）
+
+系统提供以下内置命令，无需用户定义：
+
+**会话管理**:
+```bash
 /new-session [--name <名称>] [--workspace <路径>]
 /switch-session <会话ID>
 /list-sessions
 /current-session
 /delete-session <会话ID>
+```
 
-# Agent 管理
+**Agent 管理**:
+```bash
 /list-agents
 /use-agent <Agent名称>[:<变体>]
 /current-agent
+```
 
-# 上下文控制
+**上下文控制**:
+```bash
 /clear
 /history [--limit <数量>]
 /compress
+```
+
+**系统控制**:
+```bash
+/status
+/help
+/exit 或 /quit
+```
+
+### Command 存储结构
+
+```
+~/.knight-agent/
+└── commands/                    # 用户自定义命令
+    ├── review.md
+    ├── deploy.md
+    ├── test.md
+    └── analyze.md
+```
+
+### Command 类型
+
+| 类型 | 说明 | 示例 |
+|------|------|------|
+| **action** | 执行特定操作 | `/review`, `/test` |
+| **query** | 查询状态信息 | `/status` (内置) |
+| **navigation** | 导航切换 | `/switch-session` (内置) |
+| **system** | 系统控制 | `/exit` (内置) |
 
 # 系统控制
 /status
@@ -1876,6 +1999,10 @@ knight-agent/                   # 项目根目录 (代码仓库)
 │       ├── session.json
 │       ├── messages.jsonl
 │       └── compression/
+├── commands/                  # 用户自定义命令
+│   ├── review.md
+│   ├── deploy.md
+│   └── test.md
 ├── workspaces/                # Workspace 缓存
 └── logs/                      # 日志
 ```
@@ -1976,9 +2103,11 @@ knight --version
 
 ### 内部 CLI (Internal CLI)
 
-在 Knight Agent REPL 中执行的命令。
+在 Knight Agent REPL 中执行的命令，包括内置命令和用户自定义命令。
 
-**会话管理**:
+**内置命令**（系统提供）:
+
+*会话管理*:
 ```bash
 /new-session [--name <名称>] [--workspace <路径>]
 /switch-session <会话ID>
@@ -1987,26 +2116,43 @@ knight --version
 /delete-session <会话ID>
 ```
 
-**Agent 管理**:
+*Agent 管理*:
 ```bash
 /list-agents
 /use-agent <Agent名称>[:<变体>]
 /current-agent
 ```
 
-**上下文控制**:
+*上下文控制*:
 ```bash
 /clear
 /history [--limit <数量>]
 /compress
 ```
 
-**系统控制**:
+*系统控制*:
 ```bash
 /status
 /help
 /exit 或 /quit
 ```
+
+**用户自定义命令**:
+
+用户可在 `~/.knight-agent/commands/` 目录下创建 Markdown 文件定义自定义命令：
+
+```bash
+# 示例：用户创建了 review.md 命令
+/review [文件路径]
+
+# 示例：用户创建了 deploy.md 命令
+/deploy --env <环境>
+
+# 查看所有可用命令（包括自定义）
+/help
+```
+
+自定义命令定义格式参见上方 [Command (命令)](#command-命令) 章节。
 
 **自然语言输入**:
 ```bash
