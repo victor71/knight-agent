@@ -218,6 +218,7 @@ Agent 系统 (P0)
 
 | 日期 | 文档 | 变更内容 |
 |------|------|----------|
+| 2026-04-02 | `00-priority-overview.md`, `01-requirements-analysis.md` | Hook Engine 优先级从 P2 升级到 P1（Timer System 依赖） |
 | 2026-04-01 | `01-requirements-analysis.md` | 量化 MVP 验收标准，更新非功能需求，新增验证方法章节 |
 | 2026-04-01 | `05-technical-baseline-tests.md` | 新增技术基线测试文档（6 个阶段测试计划） |
 
