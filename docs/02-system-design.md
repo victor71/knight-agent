@@ -59,7 +59,7 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                        工具层                                    │
 ├─────────────────────────────────────────────────────────────────┤
-│  File │ Grep │ Bash │ Git │ Edit │ Lint │ Test │ MCP Tools     │
+│  Read │ Write │ Edit │ Glob │ Grep │ Bash │ Git │ MCP Tools    │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -73,7 +73,7 @@
 | 核心引擎层 | 监控与安全 | Timer System、Monitor、Logging System、Sandbox |
 | Agent 运行层 | Agent 执行 | Agent、Context、Skill、Tool |
 | 基础服务层 | 基础能力 | LLM Provider、MCP Client、Storage、Context Compressor |
-| 工具层 | 具体操作 | 文件、搜索、命令、Git 等 |
+| 工具层 | 具体操作 | Read、Write、Edit、Glob、Grep、Bash、Git、MCP Tools |
 
 ---
 
@@ -590,6 +590,7 @@ tool:
 | Glob | 文件模式匹配 | Workspace 路径检查 |
 | Grep | 搜索文本 | Workspace 路径检查 |
 | Bash | 执行命令 | 命令白名单 |
+| Git | Git 操作 | Workspace 路径检查 |
 
 ---
 
