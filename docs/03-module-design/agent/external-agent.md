@@ -18,6 +18,7 @@ External Agent 模块负责集成和调用外部 Agent 服务，包括：
 2. **可靠性**: 完善的进程管理和错误处理
 3. **可控性**: 支持超时、中断、资源限制
 4. **可观测性**: 完整的执行日志和状态追踪
+5. **安全性**: 进程隔离、权限控制、资源边界
 
 ### 与内置 Agent 的区别
 
@@ -30,6 +31,27 @@ External Agent 模块负责集成和调用外部 Agent 服务，包括：
 | **生命周期** | 内存对象 | 进程对象 |
 | **适用场景** | 简单任务、快速响应 | 复杂任务、深度交互 |
 
+### 安全边界
+
+外部 Agent 运行在独立的进程中，与 Knight 核心隔离：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Knight Core (Rust)                       │
+│  Session Manager, Security Manager, Internal Agents        │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼ IPC Boundary (安全边界)
+┌─────────────────────────────────────────────────────────────┐
+│                External Agent Process                       │
+│  - 独立进程空间                                             │
+│  - 受限的工作目录                                           │
+│  - 受限的环境变量                                           │
+│  - 资源限制 (内存/CPU/时间)                                  │
+│  - 权限控制 (工具白名单)                                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
 ### 依赖模块
 
 | 依赖模块 | 依赖类型 | 说明 |
@@ -38,6 +60,8 @@ External Agent 模块负责集成和调用外部 Agent 服务，包括：
 | Session Manager | 依赖 | 获取会话上下文 |
 | Tool System | 依赖 | 结果回传 |
 | Monitor | 依赖 | 执行统计 |
+| Security Manager | 协作 | 权限验证、安全检查 |
+| Sandbox | 协作 | 沙箱隔离、资源限制 |
 
 ---
 
@@ -1200,6 +1224,304 @@ impl ExternalAgentManager {
 
 ---
 
+## 安全设计
+
+### 进程隔离
+
+外部 Agent 运行在独立的操作系统进程中，与 Knight 核心隔离：
+
+```yaml
+isolation:
+  # 进程隔离
+  process:
+    type: "child_process"
+    stdio: "pipe"           # 管道通信，不共享内存
+    working_dir: "restricted"  # 受限工作目录
+
+  # 资源限制
+  resource_limits:
+    max_memory_mb: 2048     # 最大内存
+    max_cpu_percent: 80     # 最大 CPU 使用率
+    max_duration: 3600      # 最大执行时间 (秒)
+    max_output_size: 10485760  # 最大输出 10MB
+```
+
+### 权限控制
+
+外部 Agent 需要遵守 Knight 的安全策略：
+
+```yaml
+permissions:
+  # 调用前权限检查
+  pre_flight_check:
+    - verify_user_consent     # 用户确认
+    - check_tool_whitelist    # 工具白名单
+    - validate_resource_limit # 资源限制
+
+  # 工具白名单 (默认允许)
+  allowed_tools:
+    - Read                   # 文件读取
+    - Write                  # 文件写入
+    - Edit                   # 文件编辑
+    - Bash                   # 命令执行 (需审批)
+    - Glob                   # 文件查找
+    - Grep                   # 内容搜索
+
+  # 工具黑名单 (禁止)
+  denied_tools:
+    - SystemShutdown         # 系统操作
+    - NetworkUnrestricted    # 无限制网络访问
+```
+
+### 输入验证
+
+```rust
+impl ExternalAgentManager {
+    /// 验证外部 Agent 输入
+    pub fn validate_input(&self, input: &str) -> Result<()> {
+        // 1. 大小限制
+        if input.len() > MAX_INPUT_SIZE {
+            return Err(Error::InputTooLarge);
+        }
+
+        // 2. 内容检查 (防止命令注入)
+        if self.contains_dangerous_patterns(input) {
+            return Err(Error::DangerousInput);
+        }
+
+        // 3. 路径验证
+        if self.contains_unsafe_paths(input) {
+            return Err(Error::UnsafePath);
+        }
+
+        Ok(())
+    }
+
+    /// 危险模式检测
+    fn contains_dangerous_patterns(&self, input: &str) -> bool {
+        let dangerous = [
+            "rm -rf /",
+            "format c:",
+            "mkfs",
+            "dd if=/dev/zero",
+            ":(){:|:&};:",  # fork bomb
+        ];
+
+        dangerous.iter().any(|pattern| input.contains(pattern))
+    }
+}
+```
+
+### 资源限制实现
+
+```rust
+use sysinfo::{ProcessExt, SystemExt};
+
+pub struct ResourceMonitor {
+    max_memory_mb: u64,
+    max_cpu_percent: f32,
+}
+
+impl ResourceMonitor {
+    /// 监控外部 Agent 资源使用
+    pub async fn monitor(&self, agent_id: &str) -> Result<()> {
+        let mut sys = sysinfo::System::new();
+        loop {
+            sys.refresh_all();
+
+            if let Some(process) = self.get_process(agent_id) {
+                // 内存检查
+                let memory_mb = process.memory() / 1024;
+                if memory_mb > self.max_memory_mb {
+                    self.terminate(agent_id, true).await?;
+                    return Err(Error::MemoryLimitExceeded);
+                }
+
+                // CPU 检查
+                let cpu_percent = process.cpu_usage();
+                if cpu_percent > self.max_cpu_percent {
+                    // 警告但不终止
+                    warn!("Agent {} CPU usage high: {}%", agent_id, cpu_percent);
+                }
+            }
+
+            tokio::time::sleep(Duration::from_secs(5)).await;
+        }
+    }
+}
+```
+
+### 沙箱配置
+
+```yaml
+# config/external-agent-sandbox.yaml
+sandbox:
+  # 工作目录限制
+  working_dir:
+    allow_escape: false       # 禁止跳出工作目录
+    readonly_paths:           # 只读路径
+      - /usr/bin
+      - /usr/local/bin
+    forbidden_paths:          # 禁止访问
+      - /etc/shadow
+      - /etc/passwd
+      - ~/.ssh
+
+  # 环境变量过滤
+  env_filter:
+    allow_patterns:
+      - "PATH"
+      - "HOME"
+      - "ANTHROPIC_API_KEY"
+      - "KNIGHT_*"
+    deny_patterns:
+      - "*PASSWORD*"
+      - "*SECRET*"
+      - "*TOKEN*"
+    strip_all: false          # 是否移除所有非白名单变量
+
+  # 网络限制
+  network:
+    allow_localhost: true
+    allow_lan: false
+    allow_internet: false     # 默认禁止互联网
+    whitelist_domains:        # 白名单域名
+      - "api.anthropic.com"
+      - "cdn.jsdelivr.net"
+```
+
+### 安全钩子
+
+```rust
+/// 安全钩子 - 在外部 Agent 生命周期关键点执行
+pub struct SecurityHooks {
+    sandbox: Arc<Sandbox>,
+}
+
+impl SecurityHooks {
+    /// 启动前检查
+    pub async fn before_spawn(
+        &self,
+        config: &ExternalAgentConfig,
+    ) -> Result<()> {
+        // 1. 用户确认 (如果需要)
+        if self.requires_user_consent(config) {
+            self.request_user_consent(config).await?;
+        }
+
+        // 2. 资源可用性检查
+        self.check_resource_availability().await?;
+
+        // 3. 沙箱初始化
+        self.sandbox.prepare_for_agent(config).await?;
+
+        Ok(())
+    }
+
+    /// 运行时监控
+    pub async fn during_execution(
+        &self,
+        agent_id: &str,
+    ) -> Result<()> {
+        // 1. 资源监控
+        self.monitor_resources(agent_id).await?;
+
+        // 2. 输出检查
+        self.monitor_output(agent_id).await?;
+
+        Ok(())
+    }
+
+    /// 终止后清理
+    pub async fn after_terminate(
+        &self,
+        agent_id: &str,
+    ) -> Result<()> {
+        // 1. 资源清理
+        self.cleanup_resources(agent_id).await?;
+
+        // 2. 审计日志
+        self.log_execution(agent_id).await?;
+
+        Ok(())
+    }
+
+    /// 输出监控 - 检测敏感信息泄露
+    async fn monitor_output(&self, agent_id: &str) -> Result<()> {
+        let output = self.get_output(agent_id).await?;
+
+        // 检测敏感信息
+        if self.contains_sensitive_info(&output) {
+            warn!("Potential sensitive data in output from agent {}", agent_id);
+            self.sanitize_output(agent_id).await?;
+        }
+
+        Ok(())
+    }
+
+    /// 敏感信息检测
+    fn contains_sensitive_info(&self, output: &str) -> bool {
+        // API Key 模式
+        let api_key_patterns = [
+            r"sk-[a-zA-Z0-9]{48}",  # OpenAI
+            r"sk-ant-[a-zA-Z0-9]{95}",  # Anthropic
+        ];
+
+        // 密码模式
+        let password_patterns = [
+            r"password\s*[:=]\s*\S+",
+            r"token\s*[:=]\s*\S+",
+        ];
+
+        api_key_patterns.iter()
+            .chain(password_patterns.iter())
+            .any(|pattern| regex::Regex::new(pattern).unwrap().is_match(output))
+    }
+}
+```
+
+### 审计日志
+
+```rust
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ExternalAgentAuditLog {
+    pub agent_id: String,
+    pub agent_type: String,
+    pub started_at: DateTime<Utc>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub exit_code: Option<i32>,
+    pub resources_used: ResourceUsage,
+    pub security_events: Vec<SecurityEvent>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SecurityEvent {
+    pub event_type: SecurityEventType,
+    pub timestamp: DateTime<Utc>,
+    pub details: String,
+    pub severity: SecuritySeverity,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum SecurityEventType {
+    ResourceLimitExceeded,
+    DangerousInputDetected,
+    SensitiveInfoInOutput,
+    UnauthorizedToolAttempt,
+    ProcessAbnormalTermination,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum SecuritySeverity {
+    Info,
+    Warning,
+    Error,
+    Critical,
+}
+```
+
+---
+
 ## 测试要点
 
 ### 单元测试
@@ -1252,7 +1574,60 @@ async fn test_process_timeout() {
     let status = manager.get_status(&agent_id).await.unwrap();
     assert_eq!(status.state, ProcessState::Error);
 }
+
+#[tokio::test]
+async fn test_dangerous_input_detection() {
+    let manager = ExternalAgentManager::new();
+
+    // 危险输入应被拒绝
+    assert!(manager.validate_input("rm -rf /").await.is_err());
+    assert!(manager.validate_input("format c:").await.is_err());
+    assert!(manager.validate_input(":(){:|:&};:").await.is_err());
+
+    // 正常输入应通过
+    assert!(manager.validate_input("列出当前目录文件").await.is_ok());
+}
+
+#[tokio::test]
+async fn test_resource_limit_enforcement() {
+    let manager = ExternalAgentManager::new_with_limits(
+        ResourceLimits {
+            max_memory_mb: 100,  // 限制为 100MB
+            max_duration: 5,     // 限制为 5 秒
+        }
+    );
+
+    // 启动一个会消耗大量内存的 Agent
+    let config = ExternalAgentConfig {
+        command: "stress".to_string(),
+        args: vec!["--vm".to_string(), "1".to_string(), "--vm-bytes".to_string(), "200M".to_string()],
+        ..Default::default()
+    };
+
+    let result = manager.spawn(&config, "").await;
+    assert!(result.is_err());  // 应该因资源限制被拒绝
+}
+
+#[tokio::test]
+async fn test_sensitive_info_detection() {
+    let hooks = SecurityHooks::new();
+
+    // 测试敏感信息检测
+    assert!(hooks.contains_sensitive_info("API key: sk-ant-api123-456"));
+    assert!(hooks.contains_sensitive_info("password: secret123"));
+
+    // 正常输出应通过
+    assert!(!hooks.contains_sensitive_info("Hello, World!"));
+}
 ```
+
+### 安全测试
+
+- [ ] 危险输入检测
+- [ ] 资源限制执行
+- [ ] 敏感信息泄露检测
+- [ ] 沙箱逃逸防护
+- [ ] 权限边界验证
 
 ---
 
@@ -1275,3 +1650,10 @@ async fn test_process_timeout() {
 - [ ] Agent 池管理
 - [ ] 输出解析器
 - [ ] 中间结果共享
+
+### 版本历史
+
+| 版本 | 日期 | 变更 |
+|------|------|------|
+| 1.0.0 | 2026-04-02 | 初始版本 |
+| 1.1.0 | 2026-04-02 | 添加安全设计章节（进程隔离、权限控制、沙箱、审计） |

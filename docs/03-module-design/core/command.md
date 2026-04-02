@@ -4,28 +4,45 @@
 
 ### 职责描述
 
-Command 系统负责用户可定义 CLI 命令的完整生命周期管理，包括：
+Command 系统负责用户可定义 CLI 命令的入口管理，采用**松耦合、LLM 驱动**的设计：
 
 - 命令定义解析（Markdown 格式）
-- 命令元数据管理
-- 命令执行引擎
-- 命令参数验证和绑定
-- 命令步骤编排
+- 命令元数据管理（名称、描述、参数说明）
+- 参数解析和验证（基础级别）
+- **LLM 理解命令意图，动态决定调用目标**（Skill/Agent/工具）
+
+### 设计理念
+
+Command 采用**声明式 + LLM 驱动**的设计，类似 Claude Code：
+
+1. **用户声明**：在 Markdown 中定义命令名称、描述、预期行为
+2. **LLM 解析**：当用户调用命令时，LLM 根据描述理解意图
+3. **动态执行**：LLM 决定调用哪个 Skill、Agent，或直接使用工具
+4. **灵活适应**：同一命令可以根据上下文产生不同行为
 
 ### 设计目标
 
-1. **易用性**: 用户通过简单的 Markdown 定义命令
-2. **灵活性**: 支持工具调用、Agent 调用、Skill 调用
-3. **可组合**: 步骤之间可以传递数据
-4. **可扩展**: 支持自定义步骤类型
+1. **极简定义**：用户只需描述命令用途，不需要复杂的编排配置
+2. **智能理解**：LLM 根据描述和上下文智能选择执行方式
+3. **松散耦合**：命令不硬编码依赖具体的 Skill 或 Agent
+4. **灵活适应**：同一命令可以根据不同情况产生不同行为
+
+### 与 Skill Engine 的区别
+
+| 特性 | Command | Skill Engine |
+|------|---------|-------------|
+| 用途 | CLI 命令入口 | 可复用行为模式 |
+| 定义格式 | Markdown + 参数 | Markdown + 触发条件 + 步骤 |
+| 执行方式 | 委托给 Skill/Agent | 独立执行引擎 |
+| 步骤编排 | ❌ 不包含 | ✅ 完整的 DAG 编排 |
+| 调用方式 | 用户调用 `/command` | 事件触发或手动调用 |
 
 ### 依赖模块
 
 | 依赖模块 | 依赖类型 | 说明 |
 |---------|---------|------|
-| Tool System | 依赖 | 工具调用 |
-| Agent Runtime | 依赖 | Agent 调用 |
-| Skill Engine | 依赖 | Skill 调用 |
+| Skill Engine | 委托 | Command 委托给 Skill 执行步骤 |
+| Agent Runtime | 委托 | Command 可直接调用 Agent |
 | Session Manager | 依赖 | 会话上下文获取 |
 
 ---
@@ -39,36 +56,30 @@ CommandDefinition:
   # 元数据
   metadata:
     name: string                  # 命令名称（如 review）
-    description: string           # 命令描述
+    description: string           # 命令描述（LLM 理解意图的关键）
     version: string               # 版本号（可选）
     author: string                # 作者（可选）
     file_path: string             # 定义文件路径
 
-  # 使用说明
+  # 使用说明（供用户参考）
   usage:
     syntax: string                # 语法: /review [path]
     examples: array               # 示例列表
+    expected_behavior: string     # 预期行为描述（帮助 LLM 理解）
 
-  # 参数定义
+  # 参数定义（基础说明，LLM 会智能解析）
   args:
     - name: string                # 参数名
-      type: string                # 类型: string/int/float/boolean/array
+      description: string         # 参数说明
       required: boolean           # 是否必需
-      description: string         # 描述
-      default: any                # 默认值（可选）
-
-  # 执行步骤
-  steps:
-    - id: string                 # 步骤 ID
-      name: string               # 步骤名称
-      type: string               # 步骤类型: tool/agent/skill/command
-      source: string             # 工具/Agent/Skill 名称
-      action: string             # 操作名称（可选）
-      args: map                  # 参数映射
-      output: string             # 输出变量名
-      condition: string          # 执行条件（可选）
-      on_error: string           # 错误处理: continue/stop（可选）
+      type_hint: string           # 类型提示（可选，如 "file path"）
 ```
+
+**关键变化**：
+- 移除了 `steps` 字段（不再包含硬编码的执行步骤）
+- 新增 `expected_behavior` 字段（帮助 LLM 理解命令意图）
+- `type_hint` 替代严格 `type`（仅作为提示，LLM 灵活解析）
+- 执行由 LLM 动态决定，而非预定义步骤
 
 ### CommandExecutionContext
 
@@ -76,10 +87,8 @@ CommandDefinition:
 CommandExecutionContext:
   command: CommandDefinition      # 命令定义
   parsed_args: map                # 解析后的参数
-  variables: map                  # 步骤间变量
   session: Session                # 当前会话
-  current_step: int               # 当前步骤索引
-  results: array                  # 步骤执行结果
+  user_input: string              # 用户原始输入
 ```
 
 ---
@@ -91,13 +100,11 @@ CommandExecutionContext:
 ```markdown
 ---
 name: review
-description: 执行代码审查
+description: 执行代码审查，支持指定文件或目录。根据用户输入智能选择审查策略（快速/完整/安全）。
 version: "1.0.0"
 ---
 
 # Command: review
-
-执行代码审查，支持指定文件或目录。
 
 ## Usage
 
@@ -110,45 +117,19 @@ version: "1.0.0"
 - `path` (可选): 要审查的文件或目录路径，默认为当前目录
 - `type` (可选): 审查类型 (quick/full/security)，默认为 quick
 
-## Steps
+## Expected Behavior
 
-### Step 1: 收集文件
-
-```yaml
-tool: glob
-args:
-  patterns: ["**/*.ts", "**/*.tsx"]
-output: files
-```
-
-### Step 2: 选择 Agent
-
-根据审查类型选择不同的 Agent。
-
-```yaml
-agent: code-reviewer:{{ type | default: "quick" }}
-prompt: |
-  审查以下文件：
-  {{ files }}
-output: review_result
-```
-
-### Step 3: 生成报告
-
-```yaml
-tool: write
-args:
-  path: "reports/review-{{ timestamp }}.md"
-  content: |
-    # Code Review Report
-
-    {{ review_result }}
-```
+当用户调用 `/review` 时：
+1. 分析用户输入的参数
+2. 根据路径收集相关文件
+3. 根据 type 参数选择合适的审查深度
+4. 智能决定：调用 code-reviewer Skill 或直接分析文件
+5. 生成审查报告并输出
 
 ## Examples
 
 ```bash
-# 审查当前目录
+# 审查当前目录（LLM 会智能决定具体执行方式）
 /review
 
 # 完整审查
@@ -157,6 +138,13 @@ args:
 # 审理指定文件
 /review src/App.tsx
 ```
+
+### 说明
+
+- Command **不定义**具体的执行步骤
+- LLM 根据 `description` 和 `expected_behavior` 智能决定如何执行
+- 同一个命令可以根据上下文产生不同行为
+- 如果需要复杂流程，应由 Skill Engine 定义 Skill，Command 仅仅调用该 Skill
 ```
 
 ### Front Matter 字段
@@ -244,92 +232,104 @@ impl ArgBinder {
 
 ---
 
-## 执行引擎
+## 执行流程
 
-### 执行流程
+### LLM 驱动的执行流程
 
 ```
-命令调用
+用户输入: /review src/App.tsx --type full
     ↓
-解析参数
+Command 系统解析命令
+    - 找到命令定义
+    - 解析参数: {path: "src/App.tsx", type: "full"}
     ↓
-创建执行上下文
+构建 LLM 理解 Prompt
+    - 包含命令描述和预期行为
+    - 包含用户参数
     ↓
-遍历步骤
+LLM 分析意图
+    - 理解：需要对 src/App.tsx 进行完整代码审查
+    - 决定：调用 code-reviewer:full Skill
     ↓
-    ├─→ 检查执行条件
-    │   ↓
-    ├─→ 条件满足 → 执行步骤
-    │   ↓
-    │   ├─→ tool → Tool System
-    │   ├─→ agent → Agent Runtime
-    │   └─→ skill → Skill Engine
-    │   ↓
-    │   保存输出到变量
-    │   ↓
-    └─→ 下一步骤
-        ↓
-    返回最终结果
+委托执行
+    - 调用 Skill Engine 执行 code-reviewer:full
+    - 或者直接调用 Agent Runtime
+    - 或者调用 Tool System
+    ↓
+返回结果
 ```
 
-### 步骤执行器
+### Command 执行器
 
 ```rust
-// 步骤执行器
-pub struct StepExecutor;
+// Command 执行器
+pub struct CommandExecutor;
 
-impl StepExecutor {
-    pub async fn execute_step(
-        step: &CommandStep,
-        context: &mut CommandExecutionContext,
-    ) -> Result<Value> {
-        // 检查执行条件
-        if let Some(condition) = &step.condition {
-            if !Self::evaluate_condition(condition, context)? {
-                return Ok(Value::Null);
+impl CommandExecutor {
+    pub async fn execute(
+        command: &CommandDefinition,
+        user_input: &str,
+        parsed_args: HashMap<String, Value>,
+        session: &Session,
+    ) -> Result<String> {
+        // 1. 构建 LLM Prompt
+        let prompt = Self::build_llm_prompt(command, user_input, &parsed_args);
+
+        // 2. LLM 分析意图并决定执行方式
+        let agent_runtime = session.agent_runtime();
+        let llm_response = agent_runtime.send_message(
+            &llm_provider.get_default_model(),
+            &prompt
+        ).await?;
+
+        // 3. 解析 LLM 响应，提取决策
+        let decision = Self::parse_llm_decision(&llm_response)?;
+
+        // 4. 根据决策执行
+        match decision.target_type {
+            "skill" => {
+                // 调用 Skill Engine
+                let skill_engine = session.skill_engine();
+                skill_engine.execute_skill(&decision.target_name, decision.params).await
             }
+            "agent" => {
+                // 直接调用 Agent
+                let agent_runtime = session.agent_runtime();
+                agent_runtime.call_agent(&decision.target_name, &decision.prompt, session).await
+            }
+            "tools" => {
+                // 直接调用工具
+                let tool_system = session.tool_system();
+                // 执行工具调用序列
+                Self::execute_tools(&decision.tool_calls, tool_system).await
+            }
+            _ => Err(Error::UnknownTargetType(decision.target_type)),
         }
-
-        // 变量替换
-        let resolved_args = Self::resolve_variables(&step.args, context)?;
-
-        // 执行步骤
-        let result = match step.ty.as_str() {
-            "tool" => Self::execute_tool(&step.source, &resolved_args, context).await?,
-            "agent" => Self::execute_agent(&step.source, &resolved_args, context).await?,
-            "skill" => Self::execute_skill(&step.source, &resolved_args, context).await?,
-            "command" => Self::execute_command(&step.source, &resolved_args, context).await?,
-            _ => return Err(Error::UnknownStepType(step.ty.clone())),
-        };
-
-        // 保存输出
-        if let Some(output_var) = &step.output {
-            context.variables.insert(output_var.clone(), result.clone());
-        }
-
-        Ok(result)
     }
 
-    async fn execute_tool(
-        tool_name: &str,
-        args: &HashMap<String, Value>,
-        context: &CommandExecutionContext,
-    ) -> Result<Value> {
-        let tool_system = context.session.tool_system();
-        tool_system.call_tool(tool_name, args).await
-    }
+    fn build_llm_prompt(
+        command: &CommandDefinition,
+        user_input: &str,
+        parsed_args: &HashMap<String, Value>,
+    ) -> String {
+        format!(
+            r#"用户执行命令: {}
 
-    async fn execute_agent(
-        agent_name: &str,
-        args: &HashMap<String, Value>,
-        context: &CommandExecutionContext,
-    ) -> Result<Value> {
-        let prompt = args.get("prompt")
-            .and_then(|v| v.as_str())
-            .ok_or(Error::MissingPrompt)?;
+命令描述: {}
 
-        let agent_runtime = context.session.agent_runtime();
-        agent_runtime.call_agent(agent_name, prompt, context).await
+用户参数: {:#}
+
+请分析用户意图，决定如何执行此命令。可用选项：
+1. 调用某个 Skill (返回 skill:skill_name)
+2. 调用某个 Agent (返回 agent:agent_name[:variant])
+3. 直接使用工具 (返回 tools:tool_calls)
+
+返回 JSON 格式：
+{{"target_type": "skill|agent|tools", "target_name": "...", "params": {{...}}, "prompt": "...", "tool_calls": [...]}}"#,
+            user_input,
+            command.metadata.description,
+            parsed_args
+        )
     }
 }
 ```

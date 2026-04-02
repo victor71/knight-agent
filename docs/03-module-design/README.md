@@ -32,6 +32,8 @@
 │   └── report-skill.md          # 报告技能
 ├── tools/                       # 工具系统 (1个)
 │   └── tool-system.md           # 工具框架
+├── infrastructure/              # 基础设施模块 (1个)
+│   └── ipc-contract.md          # 进程间通信契约
 └── security/                    # 安全模块 (2个)
     ├── security-manager.md      # 安全管理器
     └── sandbox.md               # 沙箱机制
@@ -109,6 +111,7 @@
 ### P2 - 安全和运维 (已完成)
 - [x] [security-manager](security/security-manager.md) - 安全管理器
 - [x] [sandbox](security/sandbox.md) - 沙箱机制
+- [x] [ipc-contract](infrastructure/ipc-contract.md) - 进程间通信契约
 
 ## 相关文档
 
@@ -127,3 +130,4 @@
 | 1.0.0 | 2026-03-30 | 初始版本，创建目录结构 |
 | 1.1.0 | 2026-04-02 | 添加 report-skill.md；更新 Monitor 历史数据持久化；更新 Storage Service 统计表 |
 | 1.2.0 | 2026-04-02 | 添加 external-agent.md 外部 Agent 集成设计（Claude Code） |
+| 1.3.0 | 2026-04-02 | 添加 ipc-contract.md 进程间通信契约设计（Rust/TS） |

@@ -6,11 +6,13 @@
 
 Event Loop 负责系统的事件驱动架构，包括：
 
-- 事件源管理（文件、Git、定时器等）
+- 事件源管理（文件、Git、网络等）
 - 事件队列和分发
 - 事件监听器注册
 - 防抖和节流控制
-- 后台任务调度
+- **接收来自 Timer System 的定时器事件并分发**
+
+**注意**: Event Loop **不管理**定时任务的调度。定时任务管理由 Timer System 负责，Timer System 在定时器触发时向 Event Loop 发送 `timer_triggered` 事件。
 
 ### 设计目标
 
@@ -26,6 +28,7 @@ Event Loop 负责系统的事件驱动架构，包括：
 | Hook Engine | 依赖 | 触发 Hook |
 | Skill Engine | 依赖 | 触发技能 |
 | Orchestrator | 依赖 | 分发到 Agent |
+| **Timer System** | **被依赖** | **Timer System 向 Event Loop 发送 timer_triggered 事件** |
 
 ---
 
@@ -177,33 +180,6 @@ EventLoop:
     outputs:
       success:
         type: boolean
-
-  # ========== 调度器 ==========
-  schedule:
-    description: 调度定时任务
-    inputs:
-      task:
-        type: ScheduledTask
-        required: true
-    outputs:
-      task_id:
-        type: string
-
-  unschedule:
-    description: 取消定时任务
-    inputs:
-      task_id:
-        type: string
-        required: true
-    outputs:
-      success:
-        type: boolean
-
-  list_scheduled:
-    description: 列出定时任务
-    outputs:
-      tasks:
-        type: array<ScheduledTaskInfo>
 
   # ========== 统计和监控 ==========
   get_stats:
@@ -392,22 +368,6 @@ ListenerErrorHandling:
     type: boolean
   log_errors:
     type: boolean
-
-# 定时任务
-ScheduledTask:
-  id:
-    type: string
-  name:
-    type: string
-  schedule:
-    type: string
-    description: Cron 表达式
-  handler:
-    type: EventHandler
-  enabled:
-    type: boolean
-  timezone:
-    type: string
 
 # 事件循环配置
 EventLoopConfig:
