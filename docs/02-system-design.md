@@ -14,18 +14,20 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                        核心引擎层                                │
 ├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
-│  │Bootstrap     │  │Orchestrat│  │ Router   │  │ Scheduler│    │
-│  │              │  │or        │  │          │  │          │    │
-│  │              │  └──────────┘  └──────────┘  └──────────┘    │
-│  │┌────────────┐│  ┌──────────┐  ┌──────────┐  ┌──────────┐  │
-│  ││Session     ││  │ Monitor  │  │ Event    │  │  Hook   │  │
-│  ││Manager     ││  │          │  │ Loop     │  │  Engine  │  │
-│  ││            ││  │          │  │          │  │          │  │
-│  ││Timer       ││  │ Logging  │  │ Security │  │ Sandbox  │  │
-│  ││System      ││  │ System   │  │ Manager  │  │          │  │
-│  │└────────────┘│  └──────────┘  └──────────┘  └──────────┘  │
-│  └──────────────┘                                         │    │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐       │
+│  │Bootstrap │  │Orchestrat│  │  Router  │  │Scheduler │       │
+│  │          │  │   or     │  │          │  │          │       │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘       │
+│                                                                  │
+│  ┌──────────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
+│  │  Session     │  │  Event   │  │  Hook    │  │ Security │   │
+│  │   Manager    │  │   Loop   │  │  Engine  │  │ Manager  │   │
+│  └──────────────┘  └──────────┘  └──────────┘  └──────────┘   │
+│                                                                  │
+│  ┌──────────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
+│  │    Timer     │  │  Monitor │  │  Log     │  │  Sandbox │   │
+│  │    System    │  │          │  │  System  │  │          │   │
+│  └──────────────┘  └──────────┘  └──────────┘  └──────────┘   │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
@@ -66,11 +68,12 @@
 | 层级 | 职责 | 核心组件 |
 |------|------|----------|
 | 用户接口层 | 用户交互 | CLI、Web UI、API |
-| 核心引擎层 | 编排调度、会话管理、扩展钩子 | Bootstrap、Session Manager、Orchestrator、Router、Scheduler、Hook Engine、Event Loop |
+| 核心引擎层 | 系统启动、编排调度、事件处理 | Bootstrap、Orchestrator、Router、Scheduler |
+| 核心引擎层 | 会话与运行时管理 | Session Manager、Event Loop、Hook Engine、Security Manager |
+| 核心引擎层 | 监控与安全 | Timer System、Monitor、Logging System、Sandbox |
 | Agent 运行层 | Agent 执行 | Agent、Context、Skill、Tool |
-| 基础服务层 | 基础能力 | LLM Provider、MCP Client、Storage、Context Compressor、Timer System、Logging System |
+| 基础服务层 | 基础能力 | LLM Provider、MCP Client、Storage、Context Compressor |
 | 工具层 | 具体操作 | 文件、搜索、命令、Git 等 |
-| 安全层 | 安全隔离 | Security Manager、Sandbox |
 
 ---
 
