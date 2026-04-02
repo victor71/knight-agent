@@ -128,6 +128,30 @@ Orchestrator:
         type: string
         description: 分配的 Agent ID
 
+  create_and_allocate_agent:
+    description: 创建新的 Agent 并分配给任务（支持指定 variant）
+    inputs:
+      task_requirements:
+        type: TaskRequirements
+        description: 任务对 Agent 的要求（包含 variant）
+        required: true
+      definition_id:
+        type: string
+        description: Agent 定义 ID（如 "claude-opus-4-6"）
+        required: true
+      variant:
+        type: string | null
+        description: Agent 变体（如 "architect", "developer", "tester"）
+        required: false
+      session_id:
+        type: string
+        description: 会话 ID
+        required: true
+    outputs:
+      agent_id:
+        type: string
+        description: 新创建的 Agent ID
+
   get_available_agents:
     description: 获取可用 Agent 列表
     inputs:
@@ -290,6 +314,9 @@ TaskRequirements:
   agent_type:
     type: string | null
     description: 需要的 Agent 类型
+  agent_variant:
+    type: string | null
+    description: 需要 Agent 变体（如 architect, developer, tester）
   capabilities:
     type: array<string>
     description: 需要的能力
@@ -303,6 +330,10 @@ TaskRequirements:
     type: datetime | null
   completed_at:
     type: datetime | null
+  create_if_missing:
+    type: boolean
+    default: true
+    description: 当没有可用 Agent 时是否自动创建
 
 # 资源使用
 ResourceUsage:
@@ -466,6 +497,72 @@ Task Queue (priority):
   T3 (100) ← 低优先级
 
 先执行 T1，再 T2，再 T3
+```
+
+### 动态 Agent 分配流程（支持 Variant）
+
+```
+Task Manager 请求分配 Agent
+        │
+        ▼
+┌──────────────────────────────┐
+│ 1. 分析任务需求              │
+│    - 检查 agent_variant      │
+│    - 检查 capabilities        │
+└──────────────────────────────┘
+        │
+        ▼
+    ┌───┴────┐
+    │ 有可用 │
+    │ Agent？│
+    └───┬────┘
+        │ 是                   │ 否
+        ▼                       ▼
+┌──────────────────┐   ┌──────────────────┐
+│ 2a. 使用现有     │   │ 2b. 创建新 Agent  │
+│     Agent        │   │ - 调用 Agent      │
+│ - 返回 agent_id  │   │   Runtime         │
+└──────────────────┘   │ - 传递 variant    │
+        │               │ - 注册到池       │
+        │               └──────────────────┘
+        │                       │
+        └───────────┬───────────┘
+                    ▼
+        ┌──────────────────────┐
+        │ 3. 返回 agent_id     │
+        │    给 Task Manager   │
+        └──────────────────────┘
+```
+
+### Variant 匹配流程
+
+```
+任务需求: agent_variant = "architect"
+        │
+        ▼
+┌──────────────────────────────┐
+│ 1. 查找现有 Architect Agent  │
+│    - 过滤 variant="architect"│
+│    - 检查状态= idle         │
+└──────────────────────────────┘
+        │
+        ▼
+    ┌───┴────┐
+    │ 找到？  │
+    └───┬────┘
+        │ 是                   │ 否
+        ▼                       ▼
+┌──────────────────┐   ┌──────────────────┐
+│ 2a. 返回现有     │   │ 2b. 创建新的     │
+│     Agent        │   │   Architect Agent │
+│ - agent_id: A1   │   │ - 选择 definition │
+└──────────────────┘   │ - 设置 variant    │
+        │               │ - 创建并注册     │
+        │               └──────────────────┘
+        │                       │
+        └───────────┬───────────┘
+                    ▼
+              返回 agent_id
 ```
 
 ### 消息路由流程

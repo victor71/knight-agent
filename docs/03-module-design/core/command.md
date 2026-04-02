@@ -44,6 +44,9 @@ Command 采用**声明式 + LLM 驱动**的设计，类似 Claude Code：
 | Skill Engine | 委托 | Command 委托给 Skill 执行步骤 |
 | Agent Runtime | 委托 | Command 可直接调用 Agent |
 | Session Manager | 依赖 | 会话上下文获取 |
+| Task Manager | 委托 | Workflow 命令委托给 Task Manager 执行 |
+| LLM Provider | 依赖 | Workflow 命令需要 LLM 解析自然语言定义 |
+| Storage Service | 依赖 | 加载 workflows/ 目录中的定义文件 |
 
 ---
 
@@ -60,6 +63,13 @@ CommandDefinition:
     version: string               # 版本号（可选）
     author: string                # 作者（可选）
     file_path: string             # 定义文件路径
+    command_type:
+      type: enum
+      values: [simple, workflow]   # 命令类型
+      default: simple
+      description: |
+        - simple: 普通命令，直接调用 Skill/Agent/Tool
+        - workflow: 工作流命令，通过 Task Manager 执行多 Agent 协同
 
   # 使用说明（供用户参考）
   usage:
@@ -73,6 +83,14 @@ CommandDefinition:
       description: string         # 参数说明
       required: boolean           # 是否必需
       type_hint: string           # 类型提示（可选，如 "file path"）
+```
+
+**工作流命令特殊字段**（仅当 `command_type: workflow` 时存在）：
+```yaml
+  workflow_config:
+    workflow_definition_path: string  # 工作流定义文件路径
+    dynamic_agent_creation: boolean    # 是否动态创建 Agent
+    parallel_execution: boolean       # 是否支持并行执行
 ```
 
 **关键变化**：
@@ -147,7 +165,129 @@ version: "1.0.0"
 - 如果需要复杂流程，应由 Skill Engine 定义 Skill，Command 仅仅调用该 Skill
 ```
 
-### Front Matter 字段
+### 说明
+
+- Command **不定义**具体的执行步骤
+- LLM 根据 `description` 和 `expected_behavior` 智能决定如何执行
+- 同一个命令可以根据上下文产生不同行为
+- 如果需要复杂流程，应由 Skill Engine 定义 Skill，Command 仅仅调用该 Skill
+
+### 工作流类型命令
+
+工作流命令是 Command 的特殊类型，用于执行多 Agent 协同任务：
+
+```markdown
+---
+name: workflow
+description: 执行多 Agent 协同工作流，自动创建所需 Agents 并按流程协同工作
+---
+
+# Command: workflow
+
+## Usage
+
+```
+/workflow <workflow-name> [arguments...]
+```
+
+## Args
+
+- `workflow_name` (必需): 工作流名称，如 `software-development`
+- `arguments` (可变): 工作流特定参数，会传递给工作流定义
+
+## Examples
+
+```bash
+# 软件开发工作流
+/workflow software-development docs/requirements.md
+
+# 代码审查工作流
+/workflow code-review src/ --type full
+
+# 部署工作流
+/workflow deploy --env production --version v1.2.0
+```
+
+## Expected Behavior
+
+当用户调用 `/workflow software-development docs/requirements.md` 时：
+
+1. Command 识别为工作流类型命令
+2. 加载 `workflows/software-development.md` 工作流定义
+3. LLM 解析工作流定义，识别所需的 Agents 和步骤
+4. 通过 Task Manager 创建工作流实例
+5. Task Manager 通过 Orchestrator 动态创建所需的 Agents
+6. 按工作流定义的顺序协同执行
+7. 返回最终结果
+
+## Workflow Definition Format
+
+工作流定义文件位于 `workflows/software-development.md`：
+
+```markdown
+---
+name: software-development
+description: 从需求到部署的完整软件开发流程
+agents:
+  - architect
+  - developer
+  - tester
+---
+
+# Software Development Workflow
+
+## Overview
+
+本工作流通过多 Agent 协作完成软件开发任务：
+
+1. **Architect Agent** - 分析需求，生成设计方案
+2. **Developer Agent** - 根据设计方案实现代码
+3. **Tester Agent** - 测试实现的功能
+
+## Parameters
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| requirement | string | 需求文档路径 |
+
+## Steps
+
+### Step 1: 需求分析
+
+执行者：`architect` Agent
+
+任务：阅读需求文档，生成技术设计方案
+
+输出：`docs/design.md`
+
+### Step 2: 代码实现
+
+执行者：`developer` Agent
+
+依赖：Step 1 完成
+
+任务：根据设计方案实现功能代码
+
+### Step 3: 功能测试
+
+执行者：`tester` Agent
+
+依赖：Step 2 完成
+
+任务：测试实现的功能
+```
+
+**工作流命令与普通命令的区别**：
+
+| 特性 | 普通命令 | 工作流命令 |
+|------|----------|------------|
+| 执行方式 | 直接调用 Skill/Agent/Tool | 通过 Task Manager 执行工作流 |
+| 定义位置 | `commands/` 目录 | `workflows/` 目录 |
+| 参数解析 | Command 定义中声明 | 工作流定义中声明 |
+| Agent 创建 | 无（使用现有） | 动态创建所需 Agents |
+| 复杂度 | 单步骤 | 多步骤 DAG |
+
+```
 
 | 字段 | 必需 | 说明 |
 |------|------|------|
@@ -259,6 +399,39 @@ LLM 分析意图
 返回结果
 ```
 
+### 工作流命令执行流程
+
+```
+用户输入: /workflow software-development docs/requirements.md
+    ↓
+Command 系统解析命令
+    - 识别 command_type: workflow
+    - 解析参数: {workflow_name: "software-development", requirement: "docs/requirements.md"}
+    ↓
+加载工作流定义
+    - 从 workflows/software-development.md 加载工作流定义
+    - 解析工作流所需 Agents 和步骤
+    ↓
+构建 LLM 理解 Prompt
+    - 包含工作流定义和用户参数
+    ↓
+LLM 解析工作流
+    - 识别需要的 Agents: [architect, developer, tester]
+    - 解析步骤和依赖关系
+    - 构建工作流 DAG
+    ↓
+委托 Task Manager 执行
+    - 调用 Task Manager.create_workflow()
+    - 传递工作流 DAG 和参数
+    ↓
+Task Manager 执行工作流
+    - 通过 Orchestrator 动态创建 Agents
+    - 按依赖顺序调度任务
+    - 每个任务由对应 Agent 执行
+    ↓
+返回工作流结果
+```
+
 ### Command 执行器
 
 ```rust
@@ -272,20 +445,25 @@ impl CommandExecutor {
         parsed_args: HashMap<String, Value>,
         session: &Session,
     ) -> Result<String> {
-        // 1. 构建 LLM Prompt
+        // 1. 检查命令类型
+        if command.metadata.command_type == "workflow" {
+            return Self::execute_workflow_command(command, user_input, parsed_args, session).await;
+        }
+
+        // 2. 普通 LLM 驱动命令
         let prompt = Self::build_llm_prompt(command, user_input, &parsed_args);
 
-        // 2. LLM 分析意图并决定执行方式
+        // 3. LLM 分析意图并决定执行方式
         let agent_runtime = session.agent_runtime();
         let llm_response = agent_runtime.send_message(
             &llm_provider.get_default_model(),
             &prompt
         ).await?;
 
-        // 3. 解析 LLM 响应，提取决策
+        // 4. 解析 LLM 响应，提取决策
         let decision = Self::parse_llm_decision(&llm_response)?;
 
-        // 4. 根据决策执行
+        // 5. 根据决策执行
         match decision.target_type {
             "skill" => {
                 // 调用 Skill Engine
@@ -305,6 +483,53 @@ impl CommandExecutor {
             }
             _ => Err(Error::UnknownTargetType(decision.target_type)),
         }
+    }
+
+    /// 执行工作流命令
+    async fn execute_workflow_command(
+        command: &CommandDefinition,
+        user_input: &str,
+        parsed_args: HashMap<String, Value>,
+        session: &Session,
+    ) -> Result<String> {
+        // 1. 加载工作流定义
+        let workflow_name = parsed_args.get("workflow_name")
+            .or_else(|| parsed_args.get("0"))
+            .and_then(|v| v.as_str())
+            .ok_or(Error::MissingWorkflowName)?;
+
+        let workflow_path = format!("workflows/{}.md", workflow_name);
+        let workflow_definition = Self::load_workflow_definition(&workflow_path).await?;
+
+        // 2. LLM 解析工作流定义
+        let parsed_workflow = Self::parse_workflow_with_llm(
+            &workflow_definition,
+            &parsed_args,
+            session
+        ).await?;
+
+        // 3. 构建工作流上下文（类型定义见 Task Manager 模块）
+        let context = WorkflowContext {
+            source: "command".to_string(),
+            command_name: Some(command.metadata.name.clone()),
+            command_args: parsed_args.keys().cloned().collect(),
+            session_id: session.id().to_string(),
+            environment: std::env::vars().collect(),
+        };
+
+        // 4. 通过 Task Manager 执行工作流（默认后台执行）
+        let task_manager = session.task_manager();
+        let result = task_manager.create_workflow_from_parsed(
+            parsed_workflow,
+            context,
+            true,  // background = true
+        ).await?;
+
+        // 5. 返回工作流 ID（后台执行，立即返回）
+        Ok(format!(
+            "工作流 '{}' 已启动（后台执行）\n工作流 ID: {}\n使用 `/workflow status {}` 查看进度",
+            workflow_name, result.workflow_id, result.workflow_id
+        ))
     }
 
     fn build_llm_prompt(

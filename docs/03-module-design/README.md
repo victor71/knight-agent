@@ -16,12 +16,13 @@
 │   ├── router.md                # 路由器
 │   ├── command.md               # 命令系统
 │   └── monitor.md               # 监控模块
-├── agent/                       # Agent 运行模块 (5个)
+├── agent/                       # Agent 运行模块 (6个)
 │   ├── agent-runtime.md         # Agent 运行时
 │   ├── agent-variants.md        # Agent 变体系统
 │   ├── external-agent.md        # 外部 Agent 集成
 │   ├── skill-engine.md          # 技能引擎
-│   └── task-manager.md          # 任务管理器
+│   ├── task-manager.md          # 任务管理器
+│   └── workflows-directory.md   # 工作流目录（自然语言工作流定义）
 ├── services/                    # 基础服务模块 (7个)
 │   ├── llm-provider.md          # LLM 提供者抽象
 │   ├── mcp-client.md            # MCP 客户端
@@ -103,8 +104,9 @@
 - [x] [agent-variants](agent/agent-variants.md) - Agent 变体系统
 - [x] [external-agent](agent/external-agent.md) - 外部 Agent 集成
 - [x] [router](core/router.md) - 路由器
-- [x] [command](core/command.md) - 命令系统
+- [x] [command](core/command.md) - 命令系统（支持 workflow 命令）
 - [x] [monitor](core/monitor.md) - 监控模块
+- [x] [workflows-directory](agent/workflows-directory.md) - 工作流目录（自然语言工作流定义）
 - [x] [bootstrap](core/bootstrap.md) - 系统启动器
 - [x] [report-skill](services/report-skill.md) - 报告技能
 
@@ -131,3 +133,4 @@
 | 1.1.0 | 2026-04-02 | 添加 report-skill.md；更新 Monitor 历史数据持久化；更新 Storage Service 统计表 |
 | 1.2.0 | 2026-04-02 | 添加 external-agent.md 外部 Agent 集成设计（Claude Code） |
 | 1.3.0 | 2026-04-02 | 添加 ipc-contract.md 进程间通信契约设计（Rust/TS） |
+| 1.4.0 | 2026-04-02 | 添加 workflows-directory.md 工作流目录设计；更新 Command/Task Manager/Orchestrator 支持工作流命令 |
