@@ -184,14 +184,14 @@ impl CommandParser {
         // 3. 解析 Args 部分
         let args = Self::extract_args(content)?;
 
-        // 4. 解析 Steps 部分
-        let steps = Self::extract_steps(content)?;
+        // 4. 解析 Expected Behavior 部分
+        let expected_behavior = Self::extract_expected_behavior(content)?;
 
         Ok(CommandDefinition {
             metadata,
             usage,
             args,
-            steps,
+            expected_behavior,
             file_path: path.to_string_lossy().to_string(),
         })
     }
@@ -414,9 +414,13 @@ CommandError:
     description: 参数错误
     message: "参数错误: {reason}"
 
-  StepError:
-    description: 步骤执行失败
-    message: "步骤 {step} 执行失败: {reason}"
+  ExecutionError:
+    description: 命令执行失败
+    message: "执行失败: {reason}"
+
+  LLMDecisionError:
+    description: LLM 决策解析失败
+    message: "无法解析 LLM 决策: {reason}"
 
   VariableError:
     description: 变量引用错误
@@ -427,16 +431,13 @@ CommandError:
 
 ```yaml
 on_error:
-  continue:                     # 继续执行下一步骤
-    log: true                    # 记录错误
-    set_var: error_message       # 设置错误变量
-
   stop:                          # 停止执行
     return_error: true           # 返回错误信息
 
   retry:                         # 重试
     max_attempts: 3
     backoff: exponential
+    retry_on: [ExecutionError, LLMDecisionError]
 ```
 
 ---
@@ -484,7 +485,7 @@ command:
 - [ ] Markdown 解析正确性
 - [ ] 参数绑定正确性
 - [ ] 变量替换正确性
-- [ ] 步骤执行正确性
+- [ ] LLM 决策解析正确性
 - [ ] 错误处理正确性
 
 ### 集成测试
@@ -511,6 +512,7 @@ name: test
     let definition = CommandParser::parse_content(markdown, Path::new("test.md")).unwrap();
     assert_eq!(definition.metadata.name, "test");
     assert_eq!(definition.args.len(), 1);
+    assert!(definition.expected_behavior.is_some());
 }
 
 #[tokio::test]

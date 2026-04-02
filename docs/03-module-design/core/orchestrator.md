@@ -4,13 +4,26 @@
 
 ### 职责描述
 
-Orchestrator 负责 Agent 生命周期管理和消息路由，包括：
+Orchestrator 负责**多 Agent 编排和资源管理**，包括：
 
-- Agent 生命周期管理（创建、启动、停止、销毁）
-- Agent 消息路由和广播
-- Agent 间协作协调（主题订阅/发布）
-- Agent 资源分配和负载均衡
+- Agent 资源分配和负载均衡（为 Task Manager 分配可用 Agent）
+- Agent 消息路由和广播（跨 Agent 通信）
+- Agent 间协作协调（主题订阅/发布、协作组管理）
+- Agent 池管理和容量控制
 - **为 Task Manager 提供 Agent 分配接口**
+
+**注意**: Orchestrator **不直接负责**单个 Agent 实例的创建/销毁。单个 Agent 的生命周期由 Agent Runtime 管理。
+
+### 与 Agent Runtime 的职责划分
+
+| 职责 | Agent Runtime | Orchestrator |
+|------|--------------|--------------|
+| 单个 Agent 创建/销毁 | ✅ 负责 | ❌ 不负责 |
+| 单个 Agent 状态管理 | ✅ 负责 | ❌ 仅监控 |
+| Agent 池管理 | ❌ 不负责 | ✅ 负责 |
+| Agent 资源分配 | ❌ 不负责 | ✅ 负责 |
+| 跨 Agent 消息路由 | ❌ 不负责 | ✅ 负责 |
+| Agent 协作模式 | ❌ 不负责 | ✅ 负责 |
 
 ### 设计目标
 
@@ -27,12 +40,15 @@ Orchestrator 负责 Agent 生命周期管理和消息路由，包括：
 | Agent Runtime | 依赖 | Agent 执行 |
 | Event Loop | 依赖 | 事件通知 |
 | Hook Engine | 协作 | Agent 生命周期 Hook |
+| Task Manager | 协作 | 使用 Task Manager 的 Task 数据结构定义 |
 
 ### 被依赖模块
 
 | 模块 | 依赖类型 | 说明 |
 |------|---------|------|
 | Task Manager | 被依赖 | 调用 Agent 分配接口 |
+
+**注意**: Orchestrator 不定义自己的 Task 数据结构，Task 相关类型由 Task Manager 统一定义。
 
 ---
 
@@ -43,50 +59,26 @@ Orchestrator 负责 Agent 生命周期管理和消息路由，包括：
 ```yaml
 # Orchestrator 接口定义
 Orchestrator:
-  # ========== Agent 管理 ==========
-  create_agent:
-    description: 创建并启动 Agent 实例
+  # ========== Agent 池管理 ==========
+  register_agent:
+    description: 注册已创建的 Agent 到池中（由 Agent Runtime 调用）
     inputs:
-      definition:
-        type: AgentDefinition
+      agent_id:
+        type: string
         required: true
       session_id:
         type: string
         required: true
-      variant:
-        type: string
+      capabilities:
+        type: array<string>
+        description: Agent 能力列表
         required: false
-    outputs:
-      agent_id:
-        type: string
-
-  start_agent:
-    description: 启动已创建的 Agent
-    inputs:
-      agent_id:
-        type: string
-        required: true
     outputs:
       success:
         type: boolean
 
-  stop_agent:
-    description: 停止 Agent
-    inputs:
-      agent_id:
-        type: string
-        required: true
-      graceful:
-        type: boolean
-        description: 优雅停止（等待当前任务完成）
-        required: false
-        default: true
-    outputs:
-      success:
-        type: boolean
-
-  destroy_agent:
-    description: 销毁 Agent 释放资源
+  unregister_agent:
+    description: 从池中注销 Agent（由 Agent Runtime 调用）
     inputs:
       agent_id:
         type: string
@@ -96,7 +88,7 @@ Orchestrator:
         type: boolean
 
   list_agents:
-    description: 列出 Agent
+    description: 列出 Agent（监控用）
     inputs:
       session_id:
         type: string
@@ -289,34 +281,8 @@ AgentInfo:
   last_active_at:
     type: datetime
 
-# 任务
-Task:
-  id:
-    type: string
-  type:
-    type: enum
-    values: [message, workflow, skill, custom]
-  priority:
-    type: integer
-  payload:
-    type: object
-    description: 任务数据
-  requirements:
-    type: TaskRequirements
-    description: 任务需求
-  status:
-    type: enum
-    values: [pending, assigned, running, completed, failed, cancelled]
-  assigned_agent:
-    type: string | null
-  created_at:
-    type: datetime
-  started_at:
-    type: datetime | null
-  completed_at:
-    type: datetime | null
-
-# 任务需求
+# 任务分配需求 (用于 allocate_agent 接口)
+# 注意: 完整的 Task 数据结构定义见 Task Manager 模块
 TaskRequirements:
   agent_type:
     type: string | null
@@ -330,24 +296,6 @@ TaskRequirements:
   max_duration:
     type: integer
     description: 最大执行时间（秒）
-
-# 任务状态
-TaskStatus:
-  task_id:
-    type: string
-  status:
-    type: string
-  assigned_agent:
-    type: string | null
-  progress:
-    type: float
-    description: 进度 0-1
-  result:
-    type: object | null
-  error:
-    type: string | null
-  created_at:
-    type: datetime
   started_at:
     type: datetime | null
   completed_at:
@@ -739,11 +687,8 @@ agent_id = orchestrator.allocate_agent(
     }
 )
 
-# 或者先创建 Agent，再使用
-agent_id = orchestrator.create_agent(
-    definition=agent_def,
-    session_id="abc123"
-)
+# Agent Runtime 创建 Agent 后会自动注册
+# agent_runtime.create_agent() 内部调用 orchestrator.register_agent()
 ```
 
 #### 场景 2: 创建协作组

@@ -268,19 +268,20 @@ workspace_isolation:
 
 ### Orchestrator (编排器)
 
-**职责**: Agent 生命周期管理、任务编排、资源分配
+**职责**: Agent 池管理、任务分配、消息路由、协作协调
 
 ```yaml
 orchestrator:
-  # Agent 管理
-  start_agent:
+  # Agent 池管理
+  register_agent:
     inputs:
-      - id: string
-      - config: object
+      - agent_id: string
+      - session_id: string
+      - capabilities: array
 
-  stop_agent:
+  unregister_agent:
     inputs:
-      - id: string
+      - agent_id: string
 
   list_agents:
     outputs:

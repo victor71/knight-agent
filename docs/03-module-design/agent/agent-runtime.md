@@ -28,6 +28,15 @@ Agent Runtime 负责单个 Agent 的执行逻辑，包括：
 | Tool System | 依赖 | 工具执行 |
 | Skill Engine | 依赖 | 技能触发 |
 | Hook Engine | 依赖 | 生命周期钩子 |
+| Orchestrator | 协作 | 创建 Agent 后注册到 Orchestrator 池 |
+
+### 被依赖模块
+
+| 模块 | 依赖类型 | 说明 |
+|------|---------|------|
+| Orchestrator | 被依赖 | Agent 创建后调用 Orchestrator.register_agent |
+| Skill Engine | 被依赖 | Agent 可调用 Skill |
+| External Agent | 被依赖 | 外部 Agent 基于内部 Agent 接口 |
 
 ---
 
@@ -40,7 +49,11 @@ Agent Runtime 负责单个 Agent 的执行逻辑，包括：
 AgentRuntime:
   # ========== Agent 生命周期 ==========
   create_agent:
-    description: 创建 Agent 实例
+    description: |
+      创建 Agent 实例
+
+      注意: 创建成功后，会自动调用 Orchestrator.register_agent
+      将 Agent 注册到池中，供 Task Manager 分配使用
     inputs:
       definition:
         type: AgentDefinition
