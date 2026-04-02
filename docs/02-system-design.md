@@ -1376,59 +1376,153 @@ dependency_rules:
 
 ### Workflow 定义格式
 
-```yaml
-# workflows/feature-development.yaml
-workflow:
-  name: "Feature Development"
-  description: "从设计到部署的完整流程"
+工作流使用 Markdown 格式定义，支持自然语言描述：
 
-  variables:
-    feature_name: string
-    target_branch: string
+```markdown
+---
+name: feature-development
+category: software-development
+tags: [feature, full-stack, multi-agent]
+description: 从需求到部署的完整功能开发流程
+author: knight-agent
+version: 1.0.0
+---
 
-  tasks:
-    # 任务 1: 设计
-    - name: design
-      agent: architect
-      inputs:
-        requirement: "{{ feature_name }}"
-      outputs:
-        - design.md
+# Feature Development Workflow
 
-    # 任务 2: 实现（依赖设计）
-    - name: implement
-      agent: developer
-      depends_on: [design]
-      inputs:
-        design: "{{ design.md }}"
-      outputs:
-        - implementation/
+## 概述
 
-    # 任务 3: 代码审查（依赖实现）
-    - name: review
-      agent: reviewer
-      depends_on: [implement]
-      inputs:
-        code: "{{ implementation }}"
-      run_if: "{{ target_branch != 'main' }}"
+端到端功能开发流程，从需求分析到生产部署，支持多 Agent 协作。
 
-    # 任务 4: 测试（依赖实现）
-    - name: test
-      agent: tester
-      depends_on: [implement]
-      inputs:
-        code: "{{ implementation }}"
-      outputs:
-        - test-report.html
+## 前置条件
 
-    # 任务 5: 部署（依赖审查和测试）
-    - name: deploy
-      agent: devops
-      depends_on:
-        - task_id: review
-          condition: success
-        - task_id: test
-          condition: success
+- 需求文档已准备
+- 代码仓库已初始化
+- 开发环境已配置
+
+## 输入参数
+
+| 参数 | 类型 | 必需 | 描述 |
+|------|------|------|------|
+| requirements | file | 是 | 需求文档路径 |
+| target_branch | string | 否 | 目标分支，默认为 feature/* |
+
+## 执行步骤
+
+### 步骤 1: 需求分析
+
+使用 **Agent architect** 执行：
+
+```
+分析需求文档 {{ requirements }}，提取关键功能和约束条件。
+输出结构化的需求分析报告。
+```
+
+输入：
+- `requirements`: 来自 {{ context.requirements }}
+
+输出：
+- `analysis_report`: 需求分析报告
+
+### 步骤 2: 架构设计
+
+使用 **Agent architect** 执行：
+
+```
+基于需求分析报告 {{ steps.analysis.output }} 设计系统架构。
+输出架构设计文档和详细的实现计划。
+```
+
+输入：
+- `analysis_report`: 来自 {{ steps.analysis.output }}
+
+输出：
+- `design_doc`: 架构设计文档
+- `implementation_plan`: 实现计划
+
+### 步骤 3: 功能实现
+
+使用 **Agent developer** 执行：
+
+```
+根据设计文档 {{ steps.design.output.design_doc }} 实现功能。
+使用 {{ context.target_branch }} 作为目标分支。
+```
+
+输入：
+- `design_doc`: 来自 {{ steps.design.output.design_doc }}
+- `target_branch`: 来自 {{ context.target_branch }}
+
+输出：
+- `implementation`: 实现代码
+
+### 步骤 4: 代码审查
+
+使用 **Agent code-reviewer** 执行：
+
+```
+审查代码实现 {{ steps.implement.output }} 的质量、安全性和性能。
+```
+
+输入：
+- `code`: 来自 {{ steps.implement.output }}
+
+输出：
+- `review_report`: 审查报告
+
+### 步骤 5: 单元测试
+
+使用 **Agent developer** 执行：
+
+```
+为实现代码 {{ steps.implement.output }} 编写和运行单元测试。
+确保测试覆盖率超过 80%。
+```
+
+输入：
+- `code`: 来自 {{ steps.implement.output }}
+
+输出：
+- `test_report`: 测试报告
+
+### 步骤 6: 部署
+
+使用 **Agent devops** 执行：
+
+```
+将通过审查和测试的代码部署到目标环境。
+目标分支：{{ context.target_branch }}
+```
+
+输入：
+- `code`: 来自 {{ steps.implement.output }}
+- `review_approved`: {{ steps.review.approved }}
+- `tests_passed`: {{ steps.test.passed }}
+- `target_branch`: 来自 {{ context.target_branch }}
+
+## 工作流目录结构
+
+```
+workflows/
+├── README.md                           # 工作流目录索引
+├── software-development/              # 软件开发工作流
+│   ├── README.md
+│   ├── feature-development.md          # 功能开发流程
+│   ├── bug-fix.md                     # Bug 修复流程
+│   └── refactoring.md                 # 重构流程
+├── code-quality/                      # 代码质量工作流
+│   ├── README.md
+│   ├── code-review.md
+│   ├── security-audit.md
+│   └── performance-review.md
+├── deployment/                        # 部署工作流
+│   ├── README.md
+│   ├── staging-deploy.md
+│   └── production-deploy.md
+└── documentation/                     # 文档工作流
+    ├── README.md
+    ├── api-docs.md
+    └── user-guide.md
 ```
 
 ### 任务调度器
@@ -2159,7 +2253,14 @@ knight-agent/                   # 项目根目录 (代码仓库)
 │   └── tdd-workflow/SKILL.md
 │
 ├── workflows/                 # 工作流定义
-│   └── feature-dev.yaml
+│   ├── README.md
+│   ├── software-development/
+│   │   ├── feature-development.md
+│   │   ├── bug-fix.md
+│   │   └── refactoring.md
+│   ├── code-quality/
+│   ├── deployment/
+│   └── documentation/
 │
 └── config/                    # 项目级配置
     ├── settings.yaml
