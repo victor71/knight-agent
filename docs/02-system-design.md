@@ -15,12 +15,15 @@
 │                        核心引擎层                                │
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌──────────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
-│  │Session       │  │Orchestrat│  │ Router   │  │ Scheduler│    │
-│  │Manager       │  │or        │  │          │  │          │    │
+│  │Bootstrap     │  │Orchestrat│  │ Router   │  │ Scheduler│    │
+│  │              │  │or        │  │          │  │          │    │
 │  │              │  └──────────┘  └──────────┘  └──────────┘    │
 │  │┌────────────┐│  ┌──────────┐  ┌──────────┐  ┌──────────┐  │
-│  ││Session A/B ││  │ Monitor  │  │ Event    │  │  Hook   │  │
-│  ││(并行)      ││  │          │  │ Loop     │  │  Engine  │  │
+│  ││Session     ││  │ Monitor  │  │ Event    │  │  Hook   │  │
+│  ││Manager     ││  │          │  │ Loop     │  │  Engine  │  │
+│  ││            ││  │          │  │          │  │          │  │
+│  ││Timer       ││  │ Logging  │  │ Security │  │ Sandbox  │  │
+│  ││System      ││  │ System   │  │ Manager  │  │          │  │
 │  │└────────────┘│  └──────────┘  └──────────┘  └──────────┘  │
 │  └──────────────┘                                         │    │
 └─────────────────────────────────────────────────────────────────┘
@@ -63,14 +66,86 @@
 | 层级 | 职责 | 核心组件 |
 |------|------|----------|
 | 用户接口层 | 用户交互 | CLI、Web UI、API |
-| 核心引擎层 | 编排调度、会话管理、扩展钩子 | Session Manager、Orchestrator、Router、Scheduler、Hook Engine |
+| 核心引擎层 | 编排调度、会话管理、扩展钩子 | Bootstrap、Session Manager、Orchestrator、Router、Scheduler、Hook Engine、Event Loop |
 | Agent 运行层 | Agent 执行 | Agent、Context、Skill、Tool |
-| 基础服务层 | 基础能力 | LLM Provider、MCP Client、Storage、Context Compressor |
+| 基础服务层 | 基础能力 | LLM Provider、MCP Client、Storage、Context Compressor、Timer System、Logging System |
 | 工具层 | 具体操作 | 文件、搜索、命令、Git 等 |
+| 安全层 | 安全隔离 | Security Manager、Sandbox |
 
 ---
 
 ## 核心组件
+
+### Bootstrap (系统启动器)
+
+**职责**: 系统启动、模块初始化、配置加载、优雅关闭
+
+```yaml
+# Bootstrap 接口定义
+bootstrap:
+  # 系统启动
+  start:
+    inputs:
+      - config_path: string      # 可选，默认 ~/.knight-agent/config.yaml
+      - workspace: string         # 可选，默认当前目录
+    outputs:
+      system: KnightAgentSystem
+
+  # 系统关闭
+  stop:
+    inputs:
+      - graceful: boolean        # 是否优雅关闭（等待任务完成）
+      - timeout_ms: integer       # 等待超时时间
+    outputs:
+      success: boolean
+
+  # 状态查询
+  get_status:
+    outputs:
+      status: SystemStatus        # initializing/running/stopping/stopped/error
+
+  health_check:
+    outputs:
+      health: HealthCheckResult
+```
+
+**模块初始化顺序**:
+```
+1. 日志系统 (Logging System)     ← 最先初始化，记录所有日志
+2. 存储服务 (Storage Service)
+3. LLM Provider
+4. Tool System
+5. Event Loop
+6. Timer System
+7. Hook Engine
+8. Session Manager
+9. Agent Runtime
+10. Skill Engine
+11. Security Manager
+12. Sandbox
+```
+
+**启动配置**:
+```yaml
+# config/bootstrap.yaml
+bootstrap:
+  startup:
+    init_timeout_ms: 60000
+    parallel_init: false
+    retry_on_failure: true
+    max_retries: 3
+    lazy_modules:
+      - mcp_client
+      - context_compressor
+
+  shutdown:
+    timeout_ms: 30000
+    wait_for_tasks: true
+```
+
+详细设计参见: [`03-module-design/core/bootstrap.md`](03-module-design/core/bootstrap.md)
+
+---
 
 ### Session Manager (会话管理器)
 
@@ -1143,9 +1218,13 @@ event_loop:
 
 ---
 
-## 定时调度器
+## 定时调度器 (Timer System)
 
 ### 定时任务模型
+
+> **说明**: 本节描述定时调度的高层功能。详细设计参见 [`03-module-design/services/timer-system.md`](03-module-design/services/timer-system.md)
+
+Timer System 负责管理所有定时任务和调度功能，包括：
 
 ```yaml
 schedule:
@@ -1262,6 +1341,33 @@ knight schedule logs <task-id>         # 执行日志
 # 自然语言支持
 knight schedule create "2小时后提醒我提交代码"
 ```
+
+**定时器配置**:
+```yaml
+# config/timer-system.yaml
+timer_system:
+  scheduler:
+    workers: 4
+    queue_size: 10000
+    resolution_ms: 10
+
+  persistence:
+    enabled: true
+    sync_interval_ms: 60000
+    storage_path: "./data/timers"
+
+  execution:
+    timeout_ms: 300000
+    retry_on_failure: false
+    max_retries: 3
+```
+
+**详细设计**: 参见 [`03-module-design/services/timer-system.md`](03-module-design/services/timer-system.md) 了解完整的定时器系统设计，包括：
+- 一次性定时器 (delay_ms)
+- 周期性定时器 (interval_ms)
+- Cron 定时器 (cron_expression)
+- 定时器持久化和恢复
+- 回调类型 (callback/hook/skill/webhook)
 
 ---
 
@@ -1415,6 +1521,10 @@ tracing:
     - type: otlp
       endpoint: http://otel-collector:4317
 ```
+
+**日志系统**: 系统包含完整的 Logging System，提供结构化日志、多输出目标、敏感信息脱敏等功能。
+
+详细设计参见: [`03-module-design/services/logging-system.md`](03-module-design/services/logging-system.md)
 
 ---
 
@@ -1963,7 +2073,26 @@ stateDiagram-v2
 | 文档 | 内容 |
 |------|------|
 | `01-requirements-analysis.md` | 需求分析 |
-| `03-module-design/` | 模块详细设计文档 |
-| `03-module-design/core/session-manager.md` | 会话系统详细设计 |
-| `03-module-design/agent/agent-variants.md` | Agent 变体系统设计 |
 | `00-priority-overview.md` | 优先级总览 |
+| `03-module-design/` | 模块详细设计文档索引 |
+| **核心引擎模块** | | |
+| `03-module-design/core/bootstrap.md` | 系统启动器详细设计 |
+| `03-module-design/core/session-manager.md` | 会话系统详细设计 |
+| `03-module-design/core/orchestrator.md` | 编排器详细设计 |
+| `03-module-design/core/event-loop.md` | 事件循环详细设计 |
+| `03-module-design/core/hook-engine.md` | Hook 引擎详细设计 |
+| **Agent 运行模块** | | |
+| `03-module-design/agent/agent-runtime.md` | Agent 运行时详细设计 |
+| `03-module-design/agent/agent-variants.md` | Agent 变体系统设计 |
+| `03-module-design/agent/skill-engine.md` | Skill 引擎详细设计 |
+| `03-module-design/agent/task-manager.md` | 任务管理器详细设计 |
+| **基础服务模块** | | |
+| `03-module-design/services/llm-provider.md` | LLM 提供者详细设计 |
+| `03-module-design/services/mcp-client.md` | MCP 客户端详细设计 |
+| `03-module-design/services/storage-service.md` | 存储服务详细设计 |
+| `03-module-design/services/context-compressor.md` | 上下文压缩详细设计 |
+| `03-module-design/services/timer-system.md` | **定时器系统详细设计** |
+| `03-module-design/services/logging-system.md` | **日志系统详细设计** |
+| **安全模块** | | |
+| `03-module-design/security/security-manager.md` | 安全管理器详细设计 |
+| `03-module-design/security/sandbox.md` | 沙箱机制详细设计 |
