@@ -286,18 +286,18 @@ orchestrator:
     outputs:
       agents: array
 
-  # 任务管理
-  submit_task:
+  # Agent 分配 (供 Task Manager 调用)
+  allocate_agent:
     inputs:
-      - task: object
+      - task_requirements: object
     outputs:
-      task_id: string
+      agent_id: string
 
-  get_task_status:
+  get_available_agents:
     inputs:
-      - id: string
+      - filter: object (optional)
     outputs:
-      status: string
+      agents: array
 
   # 消息路由
   send_message:

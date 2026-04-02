@@ -727,21 +727,22 @@ export KNIGHT_MESSAGE_TTL=3600
 
 ### 使用场景
 
-#### 场景 1: 创建并分配任务
+#### 场景 1: 创建 Agent 并分配给任务
 
 ```python
-# 伪代码
+# 伪代码 - 由 Task Manager 调用
+agent_id = orchestrator.allocate_agent(
+    task_requirements={
+        "agent_type": "coder",
+        "capabilities": ["code_analysis", "writing"],
+        "max_duration": 300
+    }
+)
+
+# 或者先创建 Agent，再使用
 agent_id = orchestrator.create_agent(
     definition=agent_def,
     session_id="abc123"
-)
-
-task_id = orchestrator.submit_task(
-    task={
-        "type": "message",
-        "payload": {"content": "分析代码"}
-    },
-    priority=10
 )
 ```
 
