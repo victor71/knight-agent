@@ -587,6 +587,7 @@ tool:
 | Read | 读取文件 | Workspace 路径检查 |
 | Write | 写入文件 | Workspace 路径检查 |
 | Edit | 编辑文件 | Workspace 路径检查 |
+| Glob | 文件模式匹配 | Workspace 路径检查 |
 | Grep | 搜索文本 | Workspace 路径检查 |
 | Bash | 执行命令 | 命令白名单 |
 
