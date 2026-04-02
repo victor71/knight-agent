@@ -2433,8 +2433,11 @@ stateDiagram-v2
 | `03-module-design/core/bootstrap.md` | 系统启动器详细设计 |
 | `03-module-design/core/session-manager.md` | 会话系统详细设计 |
 | `03-module-design/core/orchestrator.md` | 编排器详细设计 |
+| `03-module-design/core/router.md` | **路由器详细设计** |
+| `03-module-design/core/command.md` | **命令系统详细设计** |
 | `03-module-design/core/event-loop.md` | 事件循环详细设计 |
 | `03-module-design/core/hook-engine.md` | Hook 引擎详细设计 |
+| `03-module-design/core/monitor.md` | **监控模块详细设计** |
 | **Agent 运行模块** | | |
 | `03-module-design/agent/agent-runtime.md` | Agent 运行时详细设计 |
 | `03-module-design/agent/agent-variants.md` | Agent 变体系统设计 |
@@ -2447,6 +2450,8 @@ stateDiagram-v2
 | `03-module-design/services/context-compressor.md` | 上下文压缩详细设计 |
 | `03-module-design/services/timer-system.md` | **定时器系统详细设计** |
 | `03-module-design/services/logging-system.md` | **日志系统详细设计** |
+| **工具模块** | | |
+| `03-module-design/tools/tool-system.md` | 工具系统详细设计 |
 | **安全模块** | | |
 | `03-module-design/security/security-manager.md` | 安全管理器详细设计 |
 | `03-module-design/security/sandbox.md` | 沙箱机制详细设计 |
