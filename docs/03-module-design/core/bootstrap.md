@@ -328,23 +328,23 @@ bootstrap:
     - security_manager        # 权限检查能力需尽早可用
 
     # === 阶段 3: 事件系统 (依赖核心服务) ===
-    - timer_system            # 先初始化，向上下文注册 timer 事件
-    - event_loop              # 后初始化，接收来自 timer_system 的事件
+    - event_loop              # 先初始化，建立事件接收机制
+    - timer_system            # 后初始化，向 event_loop 注册并开始发送事件
 
     # === 阶段 4: 核心引擎层 ===
     - hook_engine             # 依赖 event_loop
     - session_manager         # 依赖 storage, logging
-    - router                  # CLI 路由,依赖 session_manager
-    - monitor                 # 监控,依赖所有模块
+    - router                  # CLI 路由,依赖 session_manager (Task Manager 运行时依赖)
+    - monitor                 # 监控,依赖所有模块 (Agent Runtime 运行时依赖)
 
     # === 阶段 5: Agent 层 ===
     - agent_variants          # Agent 变体系统
     - agent_runtime           # 依赖 llm_provider, tool_system, hook_engine, agent_variants
     - external_agent          # 外部 Agent 集成,依赖 agent_runtime
-    - skill_engine            # 依赖 agent_runtime
+    - skill_engine            # 依赖 agent_runtime (循环依赖，运行时解决)
     - orchestrator            # 依赖 agent_runtime, external_agent
-    - task_manager            # 依赖 skill_engine, orchestrator; 被 command 依赖
-    - command                 # 命令执行,依赖 router 和 task_manager (运行时)
+    - task_manager            # 依赖 skill_engine, orchestrator
+    - command                 # 命令执行,依赖 router 和 task_manager
     - workflows_directory     # 工作流目录,依赖 task_manager
 
     # === 阶段 6: 报告和监控 ===
@@ -362,7 +362,26 @@ bootstrap:
     enabled: true
     backup_config: "./config/backup.yaml"
     min_modules_required: 4
+
+  # 依赖说明
+  dependency_notes:
+    router_task_manager_runtime:
+      description: "Router 依赖 Task Manager，但 Router 在 Stage 4 初始化而 Task Manager 在 Stage 5"
+      resolution: "Router 使用懒加载获取 Task Manager 引用，仅在处理 /workflow 命令时才调用"
+
+    monitor_agent_runtime_runtime:
+      description: "Monitor 依赖 Agent Runtime，但 Monitor 在 Stage 4 初始化而 Agent Runtime 在 Stage 5"
+      resolution: "Monitor 使用懒加载获取 Agent Runtime 引用，仅在监控 Agent 状态时才调用"
+
+    skill_engine_agent_runtime_circular:
+      description: "Skill Engine 和 Agent Runtime 存在循环依赖"
+      detail: |
+        - Skill Engine 的 'agent' 类型步骤需要调用 Agent Runtime
+        - Agent Runtime 的技能触发功能需要调用 Skill Engine
+      resolution: "两个模块使用懒加载互相引用，在首次使用时才建立完整连接"
 ```
+
+---
 
 ---
 
