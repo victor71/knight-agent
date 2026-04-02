@@ -87,6 +87,43 @@ ExternalAgentConfig:
 ```yaml
 # External Agent 接口定义
 ExternalAgent:
+  # ========== Agent 发现 ==========
+  discover:
+    description: 发现可用的外部 Agent
+    inputs:
+      none
+    outputs:
+      agents:
+        type: array<DiscoveredAgent>
+
+  check_availability:
+    description: 检查特定外部 Agent 是否可用
+    inputs:
+      agent_type:
+        type: string
+        required: true
+        description: Agent 类型 (如 "claude-code")
+    outputs:
+      available:
+        type: boolean
+      reason:
+        type: string
+        description: 不可用时的原因
+      version:
+        type: string
+        description: 已安装版本
+
+  install:
+    description: 指导用户安装外部 Agent
+    inputs:
+      agent_type:
+        type: string
+        required: true
+    outputs:
+      instructions:
+        type: string
+        description: 安装指导
+
   # ========== 生命周期 ==========
   spawn:
     description: 启动外部 Agent
@@ -203,6 +240,40 @@ ExternalAgent:
 ---
 
 ## 数据结构
+
+### DiscoveredAgent
+
+```yaml
+DiscoveredAgent:
+  type:
+    type: string
+    description: Agent 类型 (如 "claude-code")
+  name:
+    type: string
+    description: 显示名称
+  available:
+    type: boolean
+    description: 是否可用
+  installed:
+    type: boolean
+    description: 是否已安装
+  version:
+    type: string
+    nullable: true
+    description: 已安装版本
+  path:
+    type: string
+    nullable: true
+    description: 可执行文件路径
+  reason:
+    type: string
+    nullable: true
+    description: 不可用原因
+  install_url:
+    type: string
+    nullable: true
+    description: 安装链接
+```
 
 ### ExternalAgentStatus
 
@@ -598,6 +669,310 @@ claude --agent code
 
 ---
 
+## Agent 发现机制
+
+### 发现流程
+
+```
+外部 Agent 发现
+        │
+        ▼
+┌──────────────────────────────┐
+│ 1. 扫描已知 Agent 类型        │
+│    - claude-code             │
+│    - codex                   │
+│    - github-copilot          │
+└──────────────────────────────┘
+        │
+        ▼
+┌──────────────────────────────┐
+│ 2. 检查每个 Agent 是否安装    │
+│    - 查找 PATH               │
+│    - 检查已知安装位置         │
+│    - 尝试验证版本            │
+└──────────────────────────────┘
+        │
+        ▼
+┌──────────────────────────────┐
+│ 3. 返回发现结果              │
+│    - installed: true/false   │
+│    - version: "x.x.x"        │
+│    - path: "/usr/bin/claude" │
+│    - install_url: "..."      │
+└──────────────────────────────┘
+```
+
+### 发现实现
+
+```rust
+// 外部 Agent 发现器
+pub struct ExternalAgentDiscoverer {
+    agent_definitions: HashMap<String, AgentDefinition>,
+}
+
+pub struct AgentDefinition {
+    agent_type: String,
+    name: String,
+    command: String,
+    version_flags: Vec<String>,
+    install_url: String,
+    install_instructions: String,
+}
+
+impl ExternalAgentDiscoverer {
+    /// 发现所有外部 Agent
+    pub async fn discover(&self) -> Vec<DiscoveredAgent> {
+        let mut results = Vec::new();
+
+        for (_, def) in &self.agent_definitions {
+            let discovered = self.check_agent(&def).await;
+            results.push(discovered);
+        }
+
+        results
+    }
+
+    /// 检查单个 Agent 是否可用
+    pub async fn check_agent(&self, def: &AgentDefinition) -> DiscoveredAgent {
+        let check_result = self.find_executable(&def.command).await;
+
+        match check_result {
+            Some(path) => {
+                // Agent 已安装，尝试获取版本
+                let version = self.get_version(&path, &def.version_flags).await;
+
+                DiscoveredAgent {
+                    type: def.agent_type.clone(),
+                    name: def.name.clone(),
+                    available: true,
+                    installed: true,
+                    version,
+                    path: Some(path),
+                    reason: None,
+                    install_url: None,
+                }
+            }
+            None => {
+                // Agent 未安装
+                DiscoveredAgent {
+                    type: def.agent_type.clone(),
+                    name: def.name.clone(),
+                    available: false,
+                    installed: false,
+                    version: None,
+                    path: None,
+                    reason: Some("Not found in PATH".to_string()),
+                    install_url: Some(def.install_url.clone()),
+                }
+            }
+        }
+    }
+
+    /// 查找可执行文件
+    async fn find_executable(&self, command: &str) -> Option<String> {
+        // 1. 直接尝试执行（检查是否在 PATH 中）
+        if Command::new(command).arg("--version").output().await.is_ok() {
+            return Some(command.to_string());
+        }
+
+        // 2. Windows 特定位置
+        #[cfg(windows)]
+        {
+            let windows_paths = vec![
+                format!("C:\\Program Files\\Claude\\bin\\{}.exe", command),
+                format!("C:\\Users\\{}\\AppData\\Local\\Programs\\Claude\\{}.exe",
+                    std::env::var("USERNAME").unwrap_or_default(), command),
+            ];
+
+            for path in windows_paths {
+                if std::path::Path::new(&path).exists() {
+                    return Some(path);
+                }
+            }
+        }
+
+        // 3. macOS 特定位置
+        #[cfg(target_os = "macos")]
+        {
+            let macos_paths = vec![
+                format!("/Applications/Claude.app/Contents/MacOS/{}", command),
+                format!("/usr/local/bin/{}", command),
+            ];
+
+            for path in macos_paths {
+                if std::path::Path::new(&path).exists() {
+                    return Some(path);
+                }
+            }
+        }
+
+        // 4. Linux 特定位置
+        #[cfg(target_os = "linux")]
+        {
+            let linux_paths = vec![
+                format!("/usr/bin/{}", command),
+                format!("/usr/local/bin/{}", command),
+                format!("~/.local/bin/{}", command),
+            ];
+
+            for path in linux_paths {
+                let expanded = shellexp::expand(&path).ok()?;
+                if std::path::Path::new(&expanded).exists() {
+                    return Some(expanded);
+                }
+            }
+        }
+
+        None
+    }
+
+    /// 获取版本号
+    async fn get_version(&self, path: &str, version_flags: &[String]) -> Option<String> {
+        let mut cmd = Command::new(path);
+
+        // 尝试不同的版本标志
+        for flag in version_flags {
+            cmd.arg(flag);
+        }
+
+        // 如果没有定义标志，尝试 --version
+        if version_flags.is_empty() {
+            cmd.arg("--version");
+        }
+
+        let output = cmd.output().await.ok()?;
+
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            // 解析版本号
+            Self::parse_version(&stdout)
+        } else {
+            None
+        }
+    }
+
+    /// 解析版本号
+    fn parse_version(output: &str) -> Option<String> {
+        // 尝试匹配 "x.y.z" 格式
+        let re = Regex::new(r"(\d+\.\d+\.\d+)").ok()?;
+        re.captures(output)
+            .map(|c| c.get(1).unwrap().as_str().to_string())
+    }
+
+    /// 获取安装指导
+    pub fn get_install_instructions(&self, agent_type: &str) -> Option<String> {
+        self.agent_definitions
+            .get(agent_type)
+            .map(|def| def.install_instructions.clone())
+    }
+}
+```
+
+### Agent 定义注册表
+
+```rust
+impl Default for ExternalAgentDiscoverer {
+    fn default() -> Self {
+        let mut definitions = HashMap::new();
+
+        // Claude Code
+        definitions.insert("claude-code".to_string(), AgentDefinition {
+            agent_type: "claude-code".to_string(),
+            name: "Claude Code".to_string(),
+            command: "claude".to_string(),
+            version_flags: vec!["--version".to_string()],
+            install_url: "https://docs.anthropic.com/en/docs/claude-code".to_string(),
+            install_instructions: r#"
+Claude Code 安装指南:
+
+macOS:
+  brew install anthropic/claude-code/claude-code
+
+Linux:
+  npm install -g @anthropic-ai/claude-code
+
+Windows:
+  npm install -g @anthropic-ai/claude-code
+
+安装后验证:
+  claude --version
+"#.to_string(),
+        });
+
+        // GitHub Copilot
+        definitions.insert("github-copilot".to_string(), AgentDefinition {
+            agent_type: "github-copilot".to_string(),
+            name: "GitHub Copilot".to_string(),
+            command: "copilot".to_string(),
+            version_flags: vec!["--version".to_string()],
+            install_url: "https://github.com/features/copilot".to_string(),
+            install_instructions: r#"
+GitHub Copilot CLI 安装指南:
+
+# 使用 npm 安装
+npm install -g @githubnext/copilot-cli
+
+安装后验证:
+  copilot --version
+"#.to_string(),
+        });
+
+        Self {
+            agent_definitions: definitions,
+        }
+    }
+}
+```
+
+### 调用前检查
+
+```rust
+impl ExternalAgentManager {
+    /// 确保 Agent 可用（调用前检查）
+    pub async fn ensure_available(&self, agent_type: &str) -> Result<()> {
+        let discoverer = ExternalAgentDiscoverer::default();
+        let check = discoverer.check_agent_by_type(agent_type).await;
+
+        if !check.available {
+            match &check.install_url {
+                Some(url) => {
+                    return Err(Error::AgentNotInstalled {
+                        agent_type: agent_type.to_string(),
+                        install_url: url.clone(),
+                        install_instructions: discoverer
+                            .get_install_instructions(agent_type)
+                            .unwrap_or_default(),
+                    });
+                }
+                None => {
+                    return Err(Error::AgentNotFound {
+                        agent_type: agent_type.to_string(),
+                        reason: check.reason.unwrap_or_default(),
+                    });
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// 启动前自动检查
+    pub async fn spawn_with_check(
+        &self,
+        config: &ExternalAgentConfig,
+        task: &str,
+    ) -> Result<String> {
+        // 调用前检查
+        self.ensure_available(&config.agent_type).await?;
+
+        // 执行启动
+        self.spawn(config, task).await
+    }
+}
+```
+
+---
+
 ## 配置
 
 ### 外部 Agent 注册
@@ -672,7 +1047,7 @@ claude_code:
 ### /invoke 命令
 
 ```bash
-# 调用外部 Agent
+# 调用外部 Agent（自动检查安装状态）
 knight> /invoke claude-code --task "审查 src 目录代码"
 
 正在启动 Claude Code...
@@ -681,6 +1056,17 @@ knight> /invoke claude-code --task "审查 src 目录代码"
 
 ✅ Claude Code 执行完成 (退出码: 0)
 执行时间: 45s
+
+# 如果未安装
+knight> /invoke claude-code --task "审查代码"
+❌ Claude Code 未安装
+
+   安装指南:
+   macOS:  brew install anthropic/claude-code/claude-code
+   Linux:  npm install -g @anthropic-ai/claude-code
+   Windows: npm install -g @anthropic-ai/claude-code
+
+   文档: https://docs.anthropic.com/en/docs/claude-code
 
 # 指定 Agent 类型
 knight> /invoke claude-code --agent reviewer --task "代码审查"
@@ -692,7 +1078,7 @@ knight> /invoke claude-code --task "重构" --workspace ./project
 ### /agents 命令扩展
 
 ```bash
-# 列出所有 Agent（包括外部）
+# 列出所有 Agent（包括外部，显示安装状态）
 knight> /list-agents
 
 内置 Agent:
@@ -701,8 +1087,9 @@ knight> /list-agents
   - planner       [idle]
 
 外部 Agent:
-  - claude-code   [available]
-  - codex         [available]
+  ✅ claude-code       (v1.2.3)  [available]
+  ❌ codex             [not installed]
+  ⚠️  github-copilot   (v0.3.1)  [available]
 
 # 查看 Agent 详情
 knight> /agent claude-code --info
@@ -710,8 +1097,26 @@ knight> /agent claude-code --info
 Claude Code:
   Type: external
   Command: claude --print --agent code
-  Timeout: 600s
+  Version: 1.2.3
+  Path: /usr/local/bin/claude
   Status: available
+
+# 查看未安装 Agent 的安装指导
+knight> /agent codex --info
+
+Codex:
+  Type: external
+  Status: not installed
+  Install: npm install -g @openai/codex
+  Docs: https://platform.openai.com/docs/codex
+
+# 检查外部 Agent 可用性
+knight> /check-external-agents
+
+外部 Agent 检查:
+  ✅ claude-code: 1.2.3 (/usr/local/bin/claude)
+  ❌ codex: 未安装
+  ⚠️  github-copilot: 可用但版本较旧
 ```
 
 ---
@@ -752,6 +1157,18 @@ ExternalAgentError:
     code: "E006"
     message: "外部 Agent 权限不足"
     action: "检查安全配置"
+
+  AgentNotInstalled:
+    code: "E007"
+    message: "外部 Agent 未安装"
+    details: agent_type, install_url, install_instructions
+    action: "按照安装指南安装后再使用"
+
+  AgentNotFound:
+    code: "E008"
+    message: "未知的外部 Agent 类型"
+    details: agent_type, reason
+    action: "检查 Agent 类型名称是否正确"
 ```
 
 ### 错误恢复策略
@@ -852,6 +1269,7 @@ async fn test_process_timeout() {
 
 ## 未来扩展
 
+- [x] Agent 发现能力 - 检查外部 Agent 是否安装
 - [ ] MCP 协议深度集成
 - [ ] 远程 Agent 支持（SSH）
 - [ ] Agent 池管理
