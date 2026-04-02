@@ -663,9 +663,6 @@ event_loop:
     git_watcher:
       enabled: true
       poll_interval: 30
-    scheduler:
-      enabled: true
-      timezone: UTC
 
   # 监控
   monitoring:
