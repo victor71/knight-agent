@@ -38,4 +38,5 @@ yarn-error.log*
 
 # Claude Code local settings
 .claude/settings.local.json
+settings.local.json
 .claude/memory/
