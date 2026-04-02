@@ -316,33 +316,46 @@ bootstrap:
     interval_ms: 30000
     timeout_ms: 5000
 
-  # 模块依赖
+  # 模块依赖 (共 25 个模块)
   module_order:
-    # 核心层 - 最先初始化
-    - logging_system
-    - storage_service
+    # === 阶段 1: 基础设施 (无依赖) ===
+    - logging_system          # 最先初始化,记录所有日志
+    - storage_service         # 数据持久化基础
 
-    # 基础服务层
-    - llm_provider
-    - tool_system
+    # === 阶段 2: 基础服务 (依赖基础设施) ===
+    - llm_provider            # 依赖 storage (缓存)
+    - tool_system             # 无其他依赖
     - security_manager        # 权限检查能力需尽早可用
 
-    # 事件层
-    - event_loop
-    - timer_system
+    # === 阶段 3: 事件系统 (依赖核心服务) ===
+    - event_loop              # 依赖 logging, tool_system
+    - timer_system            # 依赖 event_loop
 
-    # 核心引擎层
-    - hook_engine
-    - session_manager
+    # === 阶段 4: 核心引擎层 ===
+    - hook_engine             # 依赖 event_loop
+    - session_manager         # 依赖 storage, logging
+    - router                  # CLI 路由,依赖 session_manager
+    - command                 # 命令执行,依赖 router
+    - monitor                 # 监控,依赖所有模块
 
-    # Agent 层
-    - agent_runtime
-    - skill_engine
-    - orchestrator
-    - task_manager
+    # === 阶段 5: Agent 层 ===
+    - agent_variants          # Agent 变体系统
+    - agent_runtime           # 依赖 llm_provider, tool_system, hook_engine, agent_variants
+    - external_agent          # 外部 Agent 集成,依赖 agent_runtime
+    - skill_engine            # 依赖 agent_runtime
+    - orchestrator            # 依赖 agent_runtime, external_agent
+    - task_manager            # 依赖 skill_engine, orchestrator
+    - workflows_directory     # 工作流目录,依赖 task_manager
 
-    # 安全层
-    - sandbox                  # 依赖 session_manager, tool_system
+    # === 阶段 6: 报告和监控 ===
+    - report_skill            # 报告生成,依赖 timer_system
+
+    # === 阶段 7: 上下文优化 (可选) ===
+    - context_compressor      # 上下文压缩,依赖 llm_provider
+
+    # === 阶段 8: 安全层 (最后初始化) ===
+    - sandbox                 # 依赖 session_manager, tool_system
+    - ipc_contract            # 进程间通信契约
 
   # 故障恢复
   recovery:
@@ -409,7 +422,15 @@ Bootstrap::start()
     │
     ▼
 ┌──────────────────────────────┐
-│ 7. 系统就绪                  │
+│ 7. 工作流恢复（可选）        │
+│    - 恢复未完成的后台工作流  │
+│    - if config.task.background. │
+│         auto_resume: true      │
+└──────────────────────────────┘
+    │
+    ▼
+┌──────────────────────────────┐
+│ 8. 系统就绪                  │
 │    - 等待用户输入/请求       │
 └──────────────────────────────┘
 ```
@@ -421,7 +442,7 @@ Bootstrap::start()
 ├── logging_system      # 最先初始化,记录所有日志
 └── storage_service      # 数据持久化基础
 
-阶段 2: 核心服务 (依赖基础设施)
+阶段 2: 基础服务 (依赖基础设施)
 ├── llm_provider         # 依赖 storage (缓存)
 ├── tool_system          # 无其他依赖
 └── security_manager     # 权限检查能力需尽早可用
@@ -430,19 +451,34 @@ Bootstrap::start()
 ├── event_loop           # 依赖 logging, tool_system
 └── timer_system         # 依赖 event_loop
 
-阶段 4: 引擎层 (依赖事件系统)
+阶段 4: 核心引擎层 (依赖事件系统)
 ├── hook_engine          # 依赖 event_loop
-└── session_manager      # 依赖 storage, logging, compress
+├── session_manager      # 依赖 storage, logging
+├── router               # CLI 路由,依赖 session_manager
+├── command              # 命令执行,依赖 router
+└── monitor              # 监控,依赖所有模块
 
 阶段 5: Agent 层 (依赖引擎层)
-├── agent_runtime        # 依赖 llm_provider, tool_system, hook_engine
+├── agent_variants       # Agent 变体系统
+├── agent_runtime        # 依赖 llm_provider, tool_system, hook_engine, agent_variants
+├── external_agent       # 外部 Agent 集成,依赖 agent_runtime
 ├── skill_engine         # 依赖 agent_runtime
-├── orchestrator         # 依赖 agent_runtime
-└── task_manager         # 依赖 skill_engine, orchestrator (调用 Agent 分配)
+├── orchestrator         # 依赖 agent_runtime, external_agent
+├── task_manager         # 依赖 skill_engine, orchestrator
+└── workflows_directory  # 工作流目录,依赖 task_manager
 
-阶段 6: 安全层 (可选,最后初始化)
-└── sandbox              # 依赖 session_manager, tool_system
+阶段 6: 报告和监控
+└── report_skill          # 报告生成,依赖 timer_system
+
+阶段 7: 上下文优化 (可选)
+└── context_compressor    # 上下文压缩,依赖 llm_provider
+
+阶段 8: 安全层 (最后初始化)
+├── sandbox              # 依赖 session_manager, tool_system
+└── ipc_contract         # 进程间通信契约
 ```
+
+**模块统计**: 25 个模块 (8 核心 + 6 Agent + 7 服务 + 1 工具 + 1 基础设施 + 2 安全)
 
 ### 优雅关闭流程
 
@@ -678,22 +714,62 @@ bootstrap:
       enabled: true
       config: "./config/session-manager.yaml"
 
+    # === 核心引擎层 (新增) ===
+    router:
+      enabled: true
+      config: "./config/router.yaml"
+
+    command:
+      enabled: true
+      config: "./config/command.yaml"
+
+    monitor:
+      enabled: true
+      config: "./config/monitor.yaml"
+
+    # === Agent 层 ===
+    agent_variants:
+      enabled: true
+      config: "./config/agent-variants.yaml"
+
     agent_runtime:
       enabled: true
       config: "./config/agent-runtime.yaml"
+
+    external_agent:
+      enabled: true
+      config: "./config/external-agent.yaml"
 
     skill_engine:
       enabled: true
       config: "./config/skill-engine.yaml"
 
-    task_manager:
-      enabled: true
-      config: "./config/task-manager.yaml"
-
     orchestrator:
       enabled: true
       config: "./config/orchestrator.yaml"
 
+    task_manager:
+      enabled: true
+      config: "./config/task-manager.yaml"
+      # 工作流恢复配置
+      background:
+        auto_resume: true
+        checkpoint_interval: 60
+
+    workflows_directory:
+      enabled: true
+      config: "./config/workflows.yaml"
+      # 工作流目录路径
+      directories:
+        - "./workflows"
+        - "~/.knight-agent/workflows"
+
+    # === 服务层 (新增) ===
+    report_skill:
+      enabled: true
+      config: "./config/report-skill.yaml"
+
+    # === 可选模块 ===
     mcp_client:
       enabled: false
       config: "./config/mcp-client.yaml"
@@ -702,10 +778,7 @@ bootstrap:
       enabled: true
       config: "./config/compressor.yaml"
 
-    agent_variants:
-      enabled: true
-      config: "./config/agent-variants.yaml"
-
+    # === 安全层 ===
     security_manager:
       enabled: true
       config: "./config/security.yaml"
@@ -713,6 +786,11 @@ bootstrap:
     sandbox:
       enabled: true
       config: "./config/sandbox.yaml"
+
+    # === 基础设施层 ===
+    ipc_contract:
+      enabled: true
+      config: "./config/ipc-contract.yaml"
 
   # 故障恢复
   recovery:
