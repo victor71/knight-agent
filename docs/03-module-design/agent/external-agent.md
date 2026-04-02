@@ -62,6 +62,30 @@ External Agent 模块负责集成和调用外部 Agent 服务，包括：
 | Monitor | 依赖 | 执行统计 |
 | Security Manager | 协作 | 权限验证、安全检查 |
 | Sandbox | 协作 | 沙箱隔离、资源限制 |
+| Orchestrator | 协作 | External Agent 作为特殊 Agent 类型注册到 Orchestrator 池 |
+
+### 与 Orchestrator 的集成
+
+External Agent 通过以下方式与 Orchestrator 集成：
+
+1. **Agent 类型识别**: Orchestrator 识别 `AgentType.external` 类型的 Agent
+2. **注册流程**: External Agent 创建后，Agent Runtime 将其注册到 Orchestrator
+3. **分配流程**: Task Manager 调用 `Orchestrator.allocate_agent` 时，可指定 `agent_type: external`
+4. **生命周期映射**: Orchestrator 的 `list_agents` 包含外部 Agent，状态通过进程监控获取
+
+```yaml
+# 外部 Agent 分配示例
+task_requirements:
+  agent_type: "external"  # 请求外部 Agent
+  capabilities: ["code_review", "file_analysis"]
+  preferred_external: "claude-code"  # 优先使用 Claude Code
+
+# Orchestrator 处理流程
+# 1. 查找已注册的外部 Agent
+# 2. 检查可用性（进程是否存活）
+# 3. 返回外部 Agent ID
+# 4. Task Manager 通过 External Agent Manager 发送任务
+```
 
 ---
 

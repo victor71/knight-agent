@@ -228,8 +228,13 @@ EventSource:
     type: string
   type:
     type: enum
-    values: [file_watcher, git_watcher, scheduler, custom]
-    description: 事件源类型
+    values: [file_watcher, git_watcher, custom, timer]
+    description: |
+      事件源类型
+      - file_watcher: 文件系统监控
+      - git_watcher: Git 仓库监控
+      - custom: 自定义事件源
+      - timer: 来自 Timer System 的定时器事件（仅接收）
   enabled:
     type: boolean
     default: true
@@ -266,14 +271,18 @@ EventSource:
         type: integer
         description: 轮询间隔（秒）
 
-  # 定时器
-  scheduler:
+  # 定时器事件 (来自 Timer System)
+  timer:
     type: object
     properties:
-      timezone:
+      source:
         type: string
-      cron:
-        type: string
+        enum: [timer_system]
+        description: 固定为 timer_system
+    description: |
+      定时器事件源配置
+      注意: Event Loop 仅接收来自 Timer System 的 timer_triggered 事件，
+      不负责定时任务的调度和管理。
 
   # 自定义源
   custom:
@@ -448,10 +457,10 @@ event_loop:
       enabled: true
       poll_interval: 30
 
-  # 定时器
-  scheduler:
+  # 定时器事件 (来自 Timer System)
+  timer:
     enabled: true
-    timezone: UTC
+    description: 接收来自 Timer System 的 timer_triggered 事件
 ```
 
 ---
@@ -468,7 +477,7 @@ event_loop:
 │ 1. 初始化事件源              │
 │    - 启动文件监控            │
 │    - 启动 Git 监控           │
-│    - 启动定时器              │
+│    - 注册定时器事件监听器    │
 └──────────────────────────────┘
         │
         ▼
@@ -557,35 +566,31 @@ event_loop:
     发送到队列
 ```
 
-### 定时任务流程
+### 定时器事件接收流程
 
 ```
-Cron 触发
-        │
-        ▼
-┌──────────────────────────────┐
-│ 1. 解析 Cron 表达式          │
-│    - 计算下次执行时间        │
-└──────────────────────────────┘
-        │
-        ▼
-┌──────────────────────────────┐
-│ 2. 等待触发时间              │
-└──────────────────────────────┘
-        │
-        ▼
-┌──────────────────────────────┐
-│ 3. 生成调度事件              │
-│    type: schedule            │
-│    data: {                   │
-│      task_id: xxx            │
-│      scheduled_time: xxx     │
-│    }                         │
-└──────────────────────────────┘
-        │
-        ▼
-    发送到队列
+┌─────────────────────────────────────────┐
+│            Timer System                  │
+│  (独立运行，管理所有定时任务)            │
+│                                         │
+│  1. 定时器到期                           │
+│  2. 生成 timer_triggered 事件            │
+│  3. 发送到 Event Loop                    │
+└─────────────────────────────────────────┘
+                  │
+                  │ emit(timer_triggered_event)
+                  ▼
+┌─────────────────────────────────────────┐
+│            Event Loop                   │
+│                                         │
+│  1. 接收 timer_triggered 事件            │
+│  2. 加入事件队列                         │
+│  3. 匹配注册的监听器                     │
+│  4. 分发到 Hook/Skill/Callback          │
+└─────────────────────────────────────────┘
 ```
+
+**注意**: Event Loop 仅负责接收和分发定时器事件，不管理定时任务的调度。定时任务的创建、取消、调度由 Timer System 负责。
 
 ---
 
@@ -714,10 +719,6 @@ error_codes:
     message: "监听器执行失败"
     action: "查看监听器日志"
 
-  SCHEDULE_ERROR:
-    code: 400
-    message: "调度配置错误"
-    action: "检查 Cron 表达式"
 ```
 
 ### 内置事件源
@@ -726,7 +727,7 @@ error_codes:
 |--------|------|------|
 | file_watcher | 文件监控 | 监控文件系统变化 |
 | git_watcher | Git 监控 | 监控 Git 仓库变化 |
-| scheduler | 定时器 | Cron 定时任务 |
+| timer | 定时器事件 | 接收来自 Timer System 的 timer_triggered 事件 |
 | http_source | HTTP 轮询 | HTTP 端点轮询 |
 | webhook_source | Webhook | 接收 Webhook |
 
@@ -736,4 +737,5 @@ error_codes:
 |------|------|------|
 | 1.0.0 | 2026-03-30 | 初始版本 |
 | 1.1.0 | 2026-04-01 | 添加与 Timer System 的集成说明 |
+| 1.2.0 | 2026-04-02 | 移除 scheduler 事件源，明确 Event Loop 仅接收定时器事件 |
 

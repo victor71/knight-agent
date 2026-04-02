@@ -25,9 +25,8 @@ Skill Engine 负责管理和执行技能（Skills），包括：
 | 依赖模块 | 依赖类型 | 说明 |
 |---------|---------|------|
 | Tool System | 依赖 | 工具调用 |
-| Agent Runtime | 依赖 | AI 处理 |
+| Agent Runtime | 依赖 | AI 处理（agent 步骤直接调用） |
 | Event Loop | 依赖 | 事件监听 |
-| Orchestrator | 依赖 | 任务调度 |
 
 ---
 

@@ -47,8 +47,11 @@ Orchestrator 负责**多 Agent 编排和资源管理**，包括：
 | 模块 | 依赖类型 | 说明 |
 |------|---------|------|
 | Task Manager | 被依赖 | 调用 Agent 分配接口 |
+| External Agent | 被依赖 | 外部 Agent 通过 Agent Runtime 注册到 Orchestrator 池 |
 
-**注意**: Orchestrator 不定义自己的 Task 数据结构，Task 相关类型由 Task Manager 统一定义。
+**注意**:
+- Orchestrator 不定义自己的 Task 数据结构，Task 相关类型由 Task Manager 统一定义。
+- 外部 Agent (external 类型) 通过 Agent Runtime 创建并注册到 Orchestrator 池中。
 
 ---
 
