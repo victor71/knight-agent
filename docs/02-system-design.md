@@ -594,6 +594,159 @@ tool:
 
 ---
 
+### Event Loop (事件循环)
+
+**职责**: 事件驱动调度、异步任务处理、事件分发
+
+Event Loop 是系统的核心事件驱动引擎，负责监听和分发各类事件。
+
+```yaml
+event_loop:
+  # 事件监听
+  start_listening:
+    inputs:
+      - sources: array          # 事件源列表
+    outputs:
+      - success: boolean
+
+  # 事件分发
+  dispatch_event:
+    inputs:
+      - event: object           # 事件对象
+    outputs:
+      - result: object
+
+  # 停止监听
+  stop:
+    outputs:
+      - success: boolean
+```
+
+**事件类型**:
+```yaml
+events:
+  file_event:
+    type: file_created | file_modified | file_deleted
+    path: string
+    session_id: string
+
+  git_event:
+    type: git_commit | git_push
+    branch: string
+    hash: string
+
+  schedule_event:
+    type: schedule
+    cron: string
+
+  message_event:
+    type: message
+    content: string
+    session_id: string
+```
+
+**事件源**:
+```yaml
+sources:
+  file_watcher:
+    enabled: true
+    debounce: 500ms
+
+  git_watcher:
+    enabled: true
+    branches: [main, develop]
+
+  scheduler:
+    enabled: true
+    timezone: UTC
+```
+
+详细设计参见: [`03-module-design/core/event-loop.md`](03-module-design/core/event-loop.md)
+
+---
+
+### Security Manager (安全管理器)
+
+**职责**: 权限控制、资源限制、安全策略执行
+
+Security Manager 负责系统的安全控制，包括权限验证和沙箱管理。
+
+```yaml
+security_manager:
+  # 权限检查
+  check_permission:
+    inputs:
+      - agent: string           # Agent ID
+      - resource: string        # 资源类型
+      - action: string          # 操作类型
+      - context: object         # 上下文信息
+    outputs:
+      - allowed: boolean        # 是否允许
+      - reason: string          # 拒绝原因（如果拒绝）
+
+  # 资源限制检查
+  check_resource_limits:
+    inputs:
+      - agent: string
+      - resource_type: string   # memory/cpu/file_size
+    outputs:
+      - within_limit: boolean
+      - current_usage: object
+      - limit: object
+
+  # 沙箱执行
+  sandbox_execute:
+    inputs:
+      - command: string
+      - args: array
+      - session_id: string
+    outputs:
+      - result: object
+      - error: string | null
+```
+
+**权限模型**:
+```yaml
+permission:
+  agent: string
+  resource:
+    type: string            # file/command/mcp
+    value: string
+  actions:
+    - read | write | execute | delete
+```
+
+**沙箱机制**:
+```yaml
+sandbox:
+  # 路径限制
+  allowed_paths:
+    - ${workspace}/**
+
+  denied_patterns:
+    - "**/.git/**"
+    - "**/node_modules/**"
+    - "**/.env"
+
+  # 命令白名单
+  allowed_commands:
+    - git
+    - npm
+    - node
+    - cargo
+    - python
+
+  # 资源限制
+  resource_limits:
+    max_memory: 1GB
+    max_cpu_time: 300s
+    max_file_size: 10MB
+```
+
+详细设计参见: [`03-module-design/security/security-manager.md`](03-module-design/security/security-manager.md)
+
+---
+
 ## 会话系统
 
 ### 在架构中的位置
