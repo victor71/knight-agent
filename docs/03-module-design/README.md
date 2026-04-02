@@ -16,9 +16,10 @@
 │   ├── router.md                # 路由器
 │   ├── command.md               # 命令系统
 │   └── monitor.md               # 监控模块
-├── agent/                       # Agent 运行模块 (4个)
+├── agent/                       # Agent 运行模块 (5个)
 │   ├── agent-runtime.md         # Agent 运行时
 │   ├── agent-variants.md        # Agent 变体系统
+│   ├── external-agent.md        # 外部 Agent 集成
 │   ├── skill-engine.md          # 技能引擎
 │   └── task-manager.md          # 任务管理器
 ├── services/                    # 基础服务模块 (7个)
@@ -98,6 +99,7 @@
 - [x] [timer-system](services/timer-system.md) - 定时器系统
 - [x] [logging-system](services/logging-system.md) - 日志系统
 - [x] [agent-variants](agent/agent-variants.md) - Agent 变体系统
+- [x] [external-agent](agent/external-agent.md) - 外部 Agent 集成
 - [x] [router](core/router.md) - 路由器
 - [x] [command](core/command.md) - 命令系统
 - [x] [monitor](core/monitor.md) - 监控模块
@@ -124,3 +126,4 @@
 |------|------|------|
 | 1.0.0 | 2026-03-30 | 初始版本，创建目录结构 |
 | 1.1.0 | 2026-04-02 | 添加 report-skill.md；更新 Monitor 历史数据持久化；更新 Storage Service 统计表 |
+| 1.2.0 | 2026-04-02 | 添加 external-agent.md 外部 Agent 集成设计（Claude Code） |
