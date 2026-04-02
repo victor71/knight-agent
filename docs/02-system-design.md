@@ -14,10 +14,10 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                        核心引擎层                                │
 ├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐       │
-│  │Bootstrap │  │Orchestrat│  │  Router  │  │Scheduler │       │
-│  │          │  │   or     │  │          │  │          │       │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘       │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐                     │
+│  │Bootstrap │  │Orchestrat│  │  Router  │                     │
+│  │          │  │   or     │  │          │                     │
+│  └──────────┘  └──────────┘  └──────────┘                     │
 │                                                                  │
 │  ┌──────────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
 │  │  Session     │  │  Event   │  │  Hook    │  │ Security │   │
@@ -68,7 +68,7 @@
 | 层级 | 职责 | 核心组件 |
 |------|------|----------|
 | 用户接口层 | 用户交互 | CLI、Web UI、API |
-| 核心引擎层 | 系统启动、编排调度、事件处理 | Bootstrap、Orchestrator、Router、Scheduler |
+| 核心引擎层 | 系统启动、编排调度、请求路由 | Bootstrap、Orchestrator、Router |
 | 核心引擎层 | 会话与运行时管理 | Session Manager、Event Loop、Hook Engine、Security Manager |
 | 核心引擎层 | 监控与安全 | Timer System、Monitor、Logging System、Sandbox |
 | Agent 运行层 | Agent 执行 | Agent、Context、Skill、Tool |
@@ -303,6 +303,67 @@ flowchart LR
     F --> B
 ```
 
+### Router (路由器)
+
+**职责**: CLI 命令处理、请求分发
+
+Router 处理 Knight Agent CLI 中的斜杠命令（`/command`），非命令输入传递给会话的 main agent 处理。
+
+```yaml
+router:
+  # 命令识别与执行
+  handle_input:
+    inputs:
+      - input: string          # 用户输入
+      - session: object        # 当前会话
+    outputs:
+      - response: string
+      - to_agent: boolean      # 是否传递给 agent
+
+  # 会话的 main agent
+  get_main_agent:
+    inputs:
+      - session_id: string
+    outputs:
+      - agent_id: string       # 会话的默认 agent
+```
+
+**处理流程**:
+```
+用户输入
+    ↓
+Router: 检测是否以 / 开头
+    ↓
+    ├─→ 是命令 (/command) → 直接执行 → 返回结果
+    │
+    └─→ 不是命令 → 传递给会话的 main agent → LLM 处理
+```
+
+**内置命令**:
+```yaml
+# 会话管理
+/new-session [--name <名称>] [--workspace <路径>]
+/switch-session <会话ID>
+/list-sessions
+/current-session
+/delete-session <会话ID>
+
+# Agent 管理
+/list-agents
+/use-agent <Agent名称>[:<变体>]
+/current-agent
+
+# 上下文控制
+/clear
+/history [--limit <数量>]
+/compress
+
+# 系统控制
+/status
+/help
+/exit
+```
+
 ### Agent (代理)
 
 **职责**: 执行指令、调用 LLM、管理上下文、调用工具
@@ -513,7 +574,7 @@ compression:
 ### 会话持久化
 
 ```
-storage/sessions/
+~/.knight-agent/sessions/
 ├── {session-id}/
 │   ├── session.json          # 会话元数据
 │   ├── messages.jsonl        # 消息历史 (追加写入)
@@ -1376,6 +1437,50 @@ timer_system:
 
 ## 监控与可观测性
 
+### Monitor (监控模块)
+
+**职责**: 实时统计、状态查询、资源监控
+
+Monitor 模块负责收集和暴露系统的实时状态信息，与 Logging System（记录历史事件）互补。
+
+```yaml
+monitor:
+  # 统计查询
+  get_stats:
+    outputs:
+      - token_usage: object     # Token 使用统计
+      - session_count: int      # 会话数量
+      - agent_status: array     # Agent 状态列表
+      - uptime_seconds: int     # 运行时长
+
+  # 当前状态
+  get_status:
+    inputs:
+      - scope: string           # all/session/agent
+      - id: string | null       # 具体ID
+    outputs:
+      - status: object
+
+  # 实时监控
+  watch:
+    inputs:
+      - interval: int           # 刷新间隔（秒）
+    outputs:
+      - stream: status_updates
+```
+
+**监控指标**:
+| 类别 | 指标 | 说明 |
+|------|------|------|
+| Token | total_used | 总消耗 Token 数 |
+| Token | by_model | 各模型消耗统计 |
+| Session | active_count | 活跃会话数 |
+| Session | total_count | 总会话数 |
+| Agent | active_count | 活跃 Agent 数 |
+| Agent | state | 各 Agent 状态 |
+| System | uptime | 运行时长 |
+| System | memory_usage | 内存占用 |
+
 ### 核心指标
 
 ```yaml
@@ -1818,39 +1923,137 @@ session:
 
 ## CLI 接口
 
-### 命令结构
+### 两层 CLI 架构
+
+Knight Agent 有两层 CLI 接口：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  系统 CLI (System CLI)                                      │
+│  - 在系统 shell 中执行                                       │
+│  - 用于进程管理、快速询问、监控查看                          │
+│  - 命令格式: knight <command> [args]                        │
+└─────────────────────────────────────────────────────────────┘
+                          ↓ 启动后进入
+┌─────────────────────────────────────────────────────────────┐
+│  内部 CLI (Internal CLI)                                    │
+│  - 在 Knight Agent REPL 中执行                              │
+│  - 用于会话管理、Agent 交互                                 │
+│  - 命令格式: /command [args] 或直接输入自然语言              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 系统 CLI (System CLI)
+
+在系统 shell 中执行的命令。
 
 ```bash
-# Agent 管理
-knight agent list
-knight agent create <name>
-knight agent info <name> [--variant <variant>]
+# 启动 Knight Agent（进入 REPL）
+knight start [--config <路径>] [--workspace <路径>]
 
-# 会话管理
-knight session create --name <name> --workspace <path>
-knight session list
-knight session use <id>
-knight session info
-knight session delete <id>
-knight session search "<query>"
-
-# 交互
-knight chat <agent>[:<variant>]
-knight ask <agent>[:<variant>] "<message>"
-
-# 任务管理
-knight task run <workflow>
-knight task status <id>
+# 快速询问（不进入 REPL，直接返回结果）
+knight ask <Agent名称>[:<变体>] "<消息>"
 
 # 监控
-knight monitor
-knight logs <session>
+knight monitor [--session <会话ID>]
+
+# 日志
+knight logs [--session <会话ID>] [--follow] [--tail <行数>]
+
+# 系统管理
+knight status
+knight stop
+
+# 配置
+knight config get <键>
+knight config set <键> <值>
+knight config list
+
+# 帮助
+knight --help
+knight --version
 ```
 
-### 交互模式
+### 内部 CLI (Internal CLI)
 
+在 Knight Agent REPL 中执行的命令。
+
+**会话管理**:
+```bash
+/new-session [--name <名称>] [--workspace <路径>]
+/switch-session <会话ID>
+/list-sessions
+/current-session
+/delete-session <会话ID>
 ```
-$ knight chat code-reviewer:quick
+
+**Agent 管理**:
+```bash
+/list-agents
+/use-agent <Agent名称>[:<变体>]
+/current-agent
+```
+
+**上下文控制**:
+```bash
+/clear
+/history [--limit <数量>]
+/compress
+```
+
+**系统控制**:
+```bash
+/status
+/help
+/exit 或 /quit
+```
+
+**自然语言输入**:
+```bash
+# 直接输入，传递给会话的 main agent
+帮我审查这段代码
+分析项目结构
+```
+
+### 使用示例
+
+```bash
+# 方式 1: 快速询问（系统 CLI）
+$ knight ask code-reviewer "审查 src/main.ts"
+[审查结果...]
+
+# 方式 2: 进入 REPL（系统 CLI + 内部 CLI）
+$ knight start
+knight> /new-session --name "frontend" --workspace ~/frontend
+knight> /use-agent code-reviewer:quick
+knight> 审查这个文件
+[Agent 响应...]
+knight> /exit
+
+# 方式 3: 查看监控（系统 CLI）
+$ knight monitor
+Session: abc123 | Agent: coder | Messages: 5
+Token Usage: 1234 input, 567 output
+
+# 方式 4: 查看日志（系统 CLI）
+$ knight logs --follow
+[2026-04-02 10:30:00] INFO: Agent started: code-reviewer
+[2026-04-02 10:30:05] INFO: Tool call: read(src/main.ts)
+...
+```
+
+### 命令对比
+
+| 操作 | 系统 CLI | 内部 CLI |
+|------|----------|----------|
+| 启动 REPL | `knight start` | - |
+| 快速询问 | `knight ask ...` | - |
+| 查看监控 | `knight monitor` | `/status` |
+| 查看日志 | `knight logs` | - |
+| 创建会话 | - | `/new-session` |
+| 切换会话 | - | `/switch-session` |
+| Agent 交互 | - | 直接输入自然语言 |
+| 退出 | `knight stop` | `/exit` |
 
 ╭────────────────────────────────────────╮
 │  Code Reviewer (quick)                  │
