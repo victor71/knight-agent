@@ -581,12 +581,12 @@ parse_natural_language:
 
 | 需求项 | 描述 | 优先级 |
 |--------|------|--------|
-| Hook 事件点 | 在关键事件点注入逻辑 | P2 |
-| Hook 阶段 | before/after/replace 三种阶段 | P2 |
-| 优先级执行 | 按优先级顺序执行 Hook | P2 |
-| 阻断能力 | Hook 可中断原始操作 | P2 |
-| 修改能力 | Hook 可修改请求数据 | P2 |
-| Hook 处理器 | 支持 command/skill/rpc | P2 |
+| Hook 事件点 | 在关键事件点注入逻辑 | P1 |
+| Hook 阶段 | before/after/replace 三种阶段 | P1 |
+| 优先级执行 | 按优先级顺序执行 Hook | P1 |
+| 阻断能力 | Hook 可中断原始操作 | P1 |
+| 修改能力 | Hook 可修改请求数据 | P1 |
+| Hook 处理器 | 支持 command/skill/rpc | P1 |
 
 **Hook 事件点**:
 ```yaml
