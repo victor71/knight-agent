@@ -824,6 +824,7 @@ hooks:
 │  ○ MCP 集成                - 工具扩展                         │
 │  ○ 权限控制                - 沙箱、白名单                      │
 │  ○ 日志系统                - 结构化日志、审计                  │
+│  ○ **Hook 系统**           - 事件钩子、插件扩展                │
 │  ○ **会话持久化**          - 保存/恢复会话                     │
 │  ○ **上下文压缩**          - 智能压缩长对话                    │
 │  ○ **历史搜索**            - 跨会话搜索记录                    │
@@ -836,7 +837,6 @@ hooks:
 │  ○ 7×24 守护进程           - 自动重启、监控                    │
 │  ○ 配置热更新              - 运行时重载                        │
 │  ○ 插件系统                - 第三方扩展                        │
-│  ○ **Hook 系统**           - 事件钩子、插件扩展                │
 │  ○ 模板库                  - 内置 Agent/Skill 模板             │
 │  ○ 成本监控                - Token 使用统计、预算控制          │
 └─────────────────────────────────────────────────────────────────┘
@@ -1233,7 +1233,7 @@ allowed_commands:
 | REQ-013 | 会话持久化 | P1 | SessionStorage | [03-module-design/services/storage-service.md](03-module-design/services/storage-service.md) | 会话系统 | TC-013 | 设计中 |
 | REQ-014 | 上下文压缩 | P1 | CompressionEngine | [03-module-design/services/context-compressor.md](03-module-design/services/context-compressor.md) | 会话系统 | TC-014 | 设计中 |
 | REQ-015 | 历史搜索 | P1 | HistorySearch | [03-module-design/services/storage-service.md](03-module-design/services/storage-service.md) | 会话系统 | TC-015 | 设计中 |
-| REQ-016 | Hook 系统 | P2 | HookEngine | [03-module-design/core/hook-engine.md](03-module-design/core/hook-engine.md) | 其他 | TC-016 | 设计中 |
+| REQ-016 | Hook 系统 | P1 | HookEngine | [03-module-design/core/hook-engine.md](03-module-design/core/hook-engine.md) | 扩展系统 | TC-016 | 设计中 |
 
 ### 状态说明
 
