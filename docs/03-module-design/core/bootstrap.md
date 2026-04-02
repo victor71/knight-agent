@@ -328,14 +328,13 @@ bootstrap:
     - security_manager        # 权限检查能力需尽早可用
 
     # === 阶段 3: 事件系统 (依赖核心服务) ===
-    - event_loop              # 依赖 logging, tool_system
-    - timer_system            # 依赖 event_loop
+    - timer_system            # 先初始化，向上下文注册 timer 事件
+    - event_loop              # 后初始化，接收来自 timer_system 的事件
 
     # === 阶段 4: 核心引擎层 ===
     - hook_engine             # 依赖 event_loop
     - session_manager         # 依赖 storage, logging
     - router                  # CLI 路由,依赖 session_manager
-    - command                 # 命令执行,依赖 router
     - monitor                 # 监控,依赖所有模块
 
     # === 阶段 5: Agent 层 ===
@@ -344,7 +343,8 @@ bootstrap:
     - external_agent          # 外部 Agent 集成,依赖 agent_runtime
     - skill_engine            # 依赖 agent_runtime
     - orchestrator            # 依赖 agent_runtime, external_agent
-    - task_manager            # 依赖 skill_engine, orchestrator
+    - task_manager            # 依赖 skill_engine, orchestrator; 被 command 依赖
+    - command                 # 命令执行,依赖 router 和 task_manager (运行时)
     - workflows_directory     # 工作流目录,依赖 task_manager
 
     # === 阶段 6: 报告和监控 ===
