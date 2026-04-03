@@ -360,6 +360,25 @@ pub struct UserResponseData {
 }
 ```
 
+### 等待注册表 (Await Registry)
+
+IPC 层内部维护等待注册表，用于路由用户响应到正确的 Agent：
+
+```typescript
+// IPC 层内部数据结构
+interface AwaitRegistry {
+  mappings: Map<string, AwaitInfo>;
+}
+
+interface AwaitInfo {
+  agent_id: string;
+  session_id: string;
+  query_type: QueryType;
+  created_at: number;
+  timeout: number;
+}
+```
+
 ---
 
 ## API 契约定义
@@ -551,7 +570,10 @@ user.respond:
     description: 响应是否成功投递到 Agent
 
 user.cancel:
-  description: 取消等待用户响应
+  description: |
+    取消等待用户响应
+    取消后，Agent 会收到一个被拒绝的响应（accepted: false, value: "cancelled"）
+    并从 AwaitRegistry 中移除
   params:
     await_id:
       type: string
@@ -559,10 +581,15 @@ user.cancel:
       description: 对应的等待 ID
   result:
     success: boolean
-    description: 取消是否成功
+    description: 取消是否成功（如果 await_id 已超时则返回 false）
 
 user.list_pending:
   description: 列出当前等待用户响应的事件
+  params:
+    session_id:
+      type: string
+      required: false
+      description: 过滤特定会话的询问（省略则返回所有）
   result:
     queries: array<PendingQuery>
     description: 待处理的询问列表
@@ -570,10 +597,13 @@ user.list_pending:
 PendingQuery:
   await_id: string
   agent_id: string
+  session_id: string
   query_type: string
   message: string
+  options: array<string> | null
   created_at: string
   timeout: integer
+  context: object | null
 ```
 
 ---
@@ -735,15 +765,90 @@ user_interaction:
 
 #### 多并发询问
 
-Agent 可以同时发起多个用户询问：
+当多个 Agent 并行运行时，可能同时存在多个待处理的用户询问：
 
 ```
 Agent A ─┬─ await_id_1 ──▶ 用户询问 1
-         ├─ await_id_2 ──▶ 用户询问 2
-         └─ await_id_3 ──▶ 用户询问 3
+         └─ await_id_2 ──▶ 用户询问 2
+Agent B ─┬─ await_id_3 ──▶ 用户询问 3
+         └─ await_id_4 ──▶ 用户询问 4
 ```
 
-UI 层通过 `await_id` 区分不同的询问，用户可以按任意顺序响应。
+**IPC 层维护等待表 (Await Registry)**：
+
+```typescript
+interface AwaitRegistry {
+  // await_id -> 映射信息
+  mappings: Map<string, AwaitMapping>;
+}
+
+interface AwaitMapping {
+  agent_id: string;       // 目标 Agent ID
+  session_id: string;      // 会话 ID
+  query_type: QueryType;   // 询问类型
+  created_at: number;       // 创建时间
+  timeout: number;        // 超时时间
+}
+
+interface PendingQuery {
+  await_id: string;
+  agent_id: string;
+  session_id: string;
+  query_type: QueryType;
+  message: string;
+  created_at: number;
+  timeout: number;
+}
+```
+
+**消息路由流程**：
+
+```
+1. Agent Runtime 调用 user.query()
+   └─> IPC 层创建 await_id，注册到 AwaitRegistry
+   └─> 发送 UserQuery 消息到 UI
+
+2. UI 收到 UserQuery 消息
+   └─> 显示给用户
+   └─> 用户选择响应（选择对应的 await_id）
+
+3. UI 调用 user.respond(await_id, response)
+   └─> IPC 层查询 AwaitRegistry[await_id]
+   └─> 获取目标 agent_id
+   └─> 调用 Agent Runtime.handle_user_response(agent_id, await_id, response)
+
+4. Agent 收到响应，恢复执行
+```
+
+**用户响应匹配**：
+
+用户响应时，`await_id` 必须精确匹配。IPC 层会验证：
+- `await_id` 是否存在
+- 是否已超时
+- 响应格式是否正确
+
+**超时处理**：
+
+当某个 `await_id` 超时：
+```
+超时检查器
+    │
+    ▼
+检测到 await_id_2 超时
+    │
+    ▼
+查询 AwaitRegistry[await_id_2] → agent_id = "Agent A"
+    │
+    ▼
+调用 AgentRuntime.handle_user_response(
+    agent_id = "Agent A",
+    await_id = "await_id_2",
+    response = { accepted: false, value: "timeout" }
+)
+    │
+    ▼
+Agent A 继续执行（收到拒绝/超时响应）
+```
 
 ---
 
