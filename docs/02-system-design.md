@@ -132,16 +132,16 @@ bootstrap:
 **模块初始化顺序**:
 ```
 1. 日志系统 (Logging System)     ← 最先初始化，记录所有日志
-2. 存储服务 (Storage Service)
-3. LLM Provider
-4. Tool System
-5. Event Loop
-6. Timer System
-7. Hook Engine
-8. Session Manager
-9. Agent Runtime
-10. Skill Engine
-11. Security Manager
+2. Security Manager              ← 位置 2，确保启动期间安全检查已激活
+3. 存储服务 (Storage Service)
+4. LLM Provider
+5. Tool System
+6. Event Loop
+7. Timer System
+8. Hook Engine
+9. Session Manager
+10. Agent Runtime
+11. Skill Engine
 12. Sandbox
 ```
 

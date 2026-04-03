@@ -441,12 +441,16 @@ compression:
     summary:
       model: claude-haiku
       temperature: 0.3
+      max_tokens: 5000        # 与 max_summary_tokens 对齐
     semantic:
       model: claude-sonnet-4-6
       temperature: 0.2
+      max_tokens: 8000
     hybrid:
       summary_model: claude-haiku
+      summary_max_tokens: 5000
       semantic_model: claude-sonnet-4-6
+      semantic_max_tokens: 8000
 ```
 
 **配置说明**:
@@ -586,7 +590,15 @@ return "text"
         │
         ▼
 ┌──────────────────────────────┐
-│ 2. 提取关键信息              │
+│ 2. 语义分块 (可选)           │
+│    - 如果内容超过阈值        │
+│    - 按主题/话题分组         │
+│    - 保持对话连贯性          │
+└──────────────────────────────┘
+        │
+        ▼
+┌──────────────────────────────┐
+│ 3. 提取关键信息              │
 │    - 识别用户意图            │
 │    - 提取关键决策            │
 │    - 记录工具调用结果        │
@@ -594,13 +606,13 @@ return "text"
         │
         ▼
 ┌──────────────────────────────┐
-│ 3. 调用 LLM 生成摘要          │
+│ 4. 调用 LLM 生成摘要          │
 │    prompt: "请将以下对话...  │
 └──────────────────────────────┘
         │
         ▼
 ┌──────────────────────────────┐
-│ 4. 创建压缩点                │
+│ 5. 创建压缩点                │
 │    - 保存摘要                │
 │    - 记录元数据              │
 └──────────────────────────────┘
@@ -713,6 +725,160 @@ return "text"
 
 ---
 
+## 语义分块 (Semantic Chunking)
+
+### 为什么需要语义分块
+
+当对话历史超过 `max_input_tokens_per_call` (30,000 tokens) 时，如果简单地按 Token 数量切分，可能会在话题中间切断对话，导致生成的摘要失去上下文连贯性。
+
+**问题示例**：
+```
+[消息 1-15] 讨论数据库设计方案
+[消息 16-20] 讨论 API 接口设计  ← 在这里切分
+[消息 21-35] 继续讨论 API 接口设计
+[消息 36-50] 讨论前端实现
+```
+
+如果按 Token 数量切分，第二个 chunk 可能从消息 16 开始，导致 API 设计的讨论被分割到两个不相关的摘要中。
+
+### 语义分块策略
+
+```yaml
+semantic_chunking:
+  # 启用语义分块
+  enabled: true
+
+  # 分块策略
+  strategy: theme_based      # theme_based | conversation_turn | hybrid
+
+  # 主题边界检测
+  theme_detection:
+    method: llm              # llm | embedding | heuristic
+    min_messages_per_chunk: 10
+    max_messages_per_chunk: 50
+    max_tokens_per_chunk: 30000
+
+  # 对话回合检测
+  conversation_turn:
+    detect_by: user_message  # user_message | tool_call | time_gap
+    max_turns_per_chunk: 10
+```
+
+### 主题分块流程
+
+```
+选择待压缩的消息范围
+        │
+        ▼
+┌──────────────────────────────┐
+│ 1. 检测是否需要分块          │
+│    - token_count > 25000    │
+│    - message_count > 30     │
+└──────────────────────────────┘
+        │
+        ▼
+    ┌───┴────┐
+    │ 需要分块？│
+    └───┬────┘
+        │ 否                    │ 是
+        ▼                       ▼
+    直接压缩              ┌──────────────────────┐
+                          │ 2. 识别主题边界      │
+                          │ - 使用 LLM 分析话题  │
+                          │ - 检测话题转换点    │
+                          └──────────────────────┘
+                                   │
+                                   ▼
+                          ┌──────────────────────┐
+                          │ 3. 按边界分组消息    │
+                          │ - 每组保持话题完整   │
+                          │ - 每组 < 30K tokens  │
+                          └──────────────────────┘
+                                   │
+                                   ▼
+                          ┌──────────────────────┐
+                          │ 4. 为每块生成摘要    │
+                          │ - 并行/串行处理      │
+                          │ - 保留块间关联      │
+                          └──────────────────────┘
+                                   │
+                                   ▼
+                          ┌──────────────────────┐
+                          │ 5. 合并摘要          │
+                          │ - 添加时间戳        │
+                          │ - 添加主题标签      │
+                          └──────────────────────┘
+                                   │
+                                   ▼
+                          创建压缩点
+```
+
+### 主题检测 Prompt
+
+```
+你是一个对话分析专家。请分析以下对话历史，识别主题转换点。
+
+对话消息:
+{{ messages }}
+
+请输出 JSON 格式:
+{
+  "themes": [
+    {
+      "name": "主题名称",
+      "start_index": 0,
+      "end_index": 15,
+      "description": "简短描述",
+      "token_count": 12000
+    }
+  ],
+  "transitions": [5, 15, 28]
+}
+
+要求:
+1. 每个主题内的消息应该围绕同一话题
+2. 主题大小不超过 30000 tokens
+3. 在话题自然转换处分割
+```
+
+### 分块策略对比
+
+| 策略 | 优点 | 缺点 | 适用场景 |
+|------|------|------|----------|
+| **theme_based** | 保持话题完整性 | 需要 LLM 调用 | 长对话、多主题 |
+| **conversation_turn** | 简单快速 | 可能跨主题 | 短对话、单任务 |
+| **hybrid** | 平衡效果和成本 | 实现复杂 | 通用场景 |
+
+### 配置示例
+
+```yaml
+# config/compression.yaml
+compression:
+  chunking:
+    # 启用语义分块
+    semantic_chunking: true
+
+    # 分块阈值
+    chunk_threshold:
+      min_tokens: 25000      # 超过此值启用分块
+      min_messages: 30       # 超过此值启用分块
+
+    # 主题检测配置
+    theme_detection:
+      model: claude-haiku    # 使用轻量模型检测
+      temperature: 0.1
+      max_themes: 10         # 最多识别 10 个主题
+
+    # 分块后处理
+    post_chunking:
+      merge_small_chunks: true      # 合并小块
+      min_chunk_tokens: 5000        # 小块阈值
+      add_theme_labels: true        # 添加主题标签
+      add_timestamps: true          # 添加时间戳
+```
+
+---
+
 ## 模块交互
 
 ### 依赖关系图
@@ -792,11 +958,11 @@ compression:
     summary:
       model: claude-haiku
       temperature: 0.3
-      max_tokens: 2000
+      max_tokens: 5000
     semantic:
       model: claude-sonnet-4-6
       temperature: 0.2
-      max_tokens: 4000
+      max_tokens: 8000
     hybrid:
       summary_model: claude-haiku
       semantic_model: claude-sonnet-4-6

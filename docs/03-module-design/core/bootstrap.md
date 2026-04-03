@@ -326,12 +326,14 @@ bootstrap:
   module_order:
     # === 阶段 1: 基础设施 (无依赖) ===
     - logging_system          # 最先初始化,记录所有日志
+
+    # === 阶段 2: 安全与存储 (安全优先，防止启动时绕过安全检查) ===
+    - security_manager        # 权限检查能力需尽早可用（位置 2）
     - storage_service         # 数据持久化基础
 
-    # === 阶段 2: 基础服务 (依赖基础设施) ===
+    # === 阶段 3: 基础服务 (依赖基础设施) ===
     - llm_provider            # 依赖 storage (缓存)
     - tool_system             # 无其他依赖
-    - security_manager        # 权限检查能力需尽早可用
 
     # === 阶段 3: 事件系统 (依赖核心服务) ===
     - event_loop              # 先初始化，建立事件接收机制
@@ -466,13 +468,15 @@ Bootstrap::start()
 
 ```
 阶段 1: 基础设施 (无依赖)
-├── logging_system      # 最先初始化,记录所有日志
+└── logging_system      # 最先初始化,记录所有日志
+
+阶段 2: 安全与存储 (安全优先，防止启动时绕过安全检查)
+├── security_manager     # 权限检查能力需尽早可用（位置 2）
 └── storage_service      # 数据持久化基础
 
-阶段 2: 基础服务 (依赖基础设施)
+阶段 3: 基础服务 (依赖基础设施)
 ├── llm_provider         # 依赖 storage (缓存)
-├── tool_system          # 无其他依赖
-└── security_manager     # 权限检查能力需尽早可用
+└── tool_system          # 无其他依赖
 
 阶段 3: 事件系统 (依赖核心服务)
 ├── event_loop           # 依赖 logging, tool_system
