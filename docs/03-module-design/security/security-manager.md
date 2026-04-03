@@ -751,6 +751,83 @@ security:
 └─────────────────┘         └─────────────────┘
 ```
 
+### 安全执行机制
+
+Knight-Agent 使用 **Hook 系统**作为主要的安全执行机制。安全检查通过 `before` Hook 在操作执行前进行拦截和验证。
+
+**Hook 集成架构**：
+
+```
+操作请求（如 tool_call, file_access）
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Hook Engine - before hooks (priority: 1 → N)              │
+│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐              │
+│  │ Hook 1 │→│ Hook 2 │→│ Hook N │→│ 检查阻断│              │
+│  └────────┘ └────────┘ └────────┘ │        │              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │ Security Hooks (priority: 100)                        │ │
+│  │ - tool_call_before → SecurityManager.check_permission │ │
+│  │ - file_access_before → SecurityManager.check_path      │ │
+│  │ - command_execute_before → SecurityManager.check_cmd   │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                                  └───┬────┘              │
+│                                      │                     │
+│                           ┌──────────┴──────────┐          │
+│                           │ no block          │          │
+│                           ▼                   │          │
+│                    ┌────────────────┐         │          │
+│                    │  执行原始操作   │         │          │
+│                    └────────────────┘         │          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**关键安全 Hook 事件**：
+
+| Hook 事件 | 触发时机 | 安全检查 |
+|-----------|----------|----------|
+| `tool_call.before` | 工具调用前 | `SecurityManager.check_permission(tool, action)` |
+| `file_access.before` | 文件访问前 | `SecurityManager.check_path(path, operation)` |
+| `command_execute.before` | 命令执行前 | `SecurityManager.check_command(command)` |
+| `llm_request.before` | LLM 请求前 | `SecurityManager.check_llm_access(model)` |
+
+**Hook 配置示例**：
+
+```yaml
+# config/hooks.yaml
+hooks:
+  - name: security_tool_call
+    event: tool_call
+    phase: before
+    priority: 100
+    handler:
+      type: rpc
+      target: "security_manager"
+      method: "check_tool_permission"
+    control:
+      can_block: true
+      continue_on_error: false  # 安全检查失败时阻止操作
+
+  - name: security_file_access
+    event: file_access
+    phase: before
+    priority: 100
+    handler:
+      type: rpc
+      target: "security_manager"
+      method: "check_file_permission"
+    control:
+      can_block: true
+      continue_on_error: false
+```
+
+**设计原则**：
+- **默认拒绝**: 所有操作必须通过安全检查才能执行
+- **不可绕过**: 安全 Hook 设置 `continue_on_error: false`，失败时阻止操作
+- **审计追踪**: 所有安全检查结果记录到审计日志
+- **优先级最高**: 安全 Hook 使用 `priority: 100`，确保最先执行
+
 ---
 
 ## 配置与部署

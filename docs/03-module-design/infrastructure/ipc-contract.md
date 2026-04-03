@@ -1174,6 +1174,17 @@ ipc:
       sound_enabled: true            # 收到询问时播放提示音
       desktop_notification: true     # 发送桌面通知
 
+    # CLI 模式串行队列（REPL 是顺序的）
+    cli_mode:
+      serial_queue: true             # CLI 模式下串行处理询问
+      queue_priority:
+        - permission                 # 权限询问优先级最高
+        - confirmation
+        - clarification
+        - information
+      show_pending_count: true       # 显示等待中的询问数量
+      allow_batch_approve: false     # 是否允许批量批准（相同操作）
+
   # 危险操作确认配置
   dangerous_operation:
     auto_confirm_on_ci: false       # CI 环境下自动确认
@@ -1187,7 +1198,49 @@ ipc:
 | `user_interaction.max_timeout` | 最大等待超时 | 3600000ms (1小时) |
 | `user_interaction.max_concurrent_queries` | 最大并发询问数 | 10 |
 | `user_interaction.auto_reject_on_timeout` | 超时后自动拒绝 | false |
+| `user_interaction.cli_mode.serial_queue` | CLI 串行队列模式 | true |
+| `user_interaction.cli_mode.show_pending_count` | 显示等待中的询问数量 | true |
 | `dangerous_operation.auto_confirm_on_ci` | CI 环境自动确认 | false |
+
+### CLI 模式串行队列
+
+CLI 模式（stdio/JSON-RPC）使用串行队列处理用户询问，因为 REPL 本质上是顺序的：
+
+```
+多个 Agent 同时发起询问
+         │
+         ▼
+┌────────────────────────────────┐
+│  CLI 串行队列                   │
+│  - 按优先级排序                 │
+│  - permission > confirmation   │
+│    > clarification > info      │
+└────────────────────────────────┘
+         │
+         ▼
+┌────────────────────────────────┐
+│  显示当前询问                  │
+│  "[1/3] code-reviewer 询问:   │
+│   是否允许删除文件？            │
+│   (还有 2 个等待中的询问)"     │
+└────────────────────────────────┘
+         │
+         ▼
+┌────────────────────────────────┐
+│  等待用户输入                  │
+│  - y/n/选项                    │
+│  - 或 "batch" 批量处理         │
+└────────────────────────────────┘
+         │
+         ▼
+┌────────────────────────────────┐
+│  处理响应                      │
+│  - 发送 UserResponse           │
+│  - 取出下一个询问              │
+└────────────────────────────────┘
+```
+
+**批量处理**: 用户可输入 `batch` 批量批准相同类型的询问（如多个 "删除文件" 的权限询问）。
 
 ---
 

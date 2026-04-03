@@ -314,6 +314,23 @@ CompressionStats:
   compression_history:
     type: array<CompressionHistoryEntry>
 
+  # Token 预算追踪
+  tokens_used:
+    type: integer
+    description: 当前会话累计消耗的压缩 Token 数
+  budget_limit:
+    type: integer
+    description: Token 预算上限 (max_total_cost)
+  budget_remaining:
+    type: integer
+    description: 剩余预算 (budget_limit - tokens_used)
+  compression_paused_until:
+    type: datetime | null
+    description: 压缩暂停截止时间（预算耗尽时设置）
+  last_budget_reset:
+    type: datetime | null
+    description: 上次预算重置时间
+
 # 压缩历史条目
 CompressionHistoryEntry:
   point_id:
@@ -407,10 +424,23 @@ compression:
 
   # Token 预算保护
   token_budget:
-    max_summary_tokens: 5000     # 单个摘要最大长度
+    max_summary_tokens: 5000     # 单个摘要最大长度（与模型 max_tokens 对齐）
     max_input_tokens_per_call: 30000  # 单次 LLM 调用输入上限
     max_total_cost: 100000       # 会话累计压缩 Token 上限
     stop_on_limit: true          # 达到上限后停止压缩
+
+    # 预算重置策略
+    reset_strategy:
+      enabled: true              # 启用预算重置
+      mode: periodic             # periodic | session | manual
+      reset_interval_hours: 24   # 周期性重置间隔（小时）
+      reset_on_session_start: false  # 会话开始时重置
+
+    # 暂停机制
+    pause:
+      pause_on_limit: true       # 预算耗尽时暂停压缩
+      pause_duration_hours: 1    # 暂停持续时间（达到限制后）
+      auto_resume: true          # 暂停后自动恢复
 
   # 重试限制
   retry:
@@ -482,21 +512,28 @@ compression:
 
 **内容类型检测**:
 
-消息的内容类型通过以下方式检测：
+消息的内容类型通过以下优先级检测：
 
 ```
 消息内容
     │
     ▼
 ┌──────────────────────────────┐
-│ 1. 检测消息角色              │
+│ 1. 检查 metadata.content_type│
+│    - 如果工具已设置          │
+│    - 直接使用该值            │
+└──────────────────────────────┘
+    │
+    ▼ 未设置
+┌──────────────────────────────┐
+│ 2. 检测消息角色              │
 │    - system → system         │
 │    - tool → 工具输出         │
 └──────────────────────────────┘
     │
     ▼
 ┌──────────────────────────────┐
-│ 2. 分析消息格式              │
+│ 3. 分析消息格式（启发式）    │
 │    - 包含代码块 → code        │
 │    - 日志格式 → log          │
 │    - JSON/配置 → config     │
@@ -505,7 +542,7 @@ compression:
     │
     ▼
 ┌──────────────────────────────┐
-│ 3. 应用压缩规则              │
+│ 4. 应用压缩规则              │
 │    - code: preserve         │
 │    - log: prune            │
 │    - text: summary          │
@@ -513,10 +550,28 @@ compression:
 └──────────────────────────────┘
 ```
 
-**代码块检测示例**：
+**工具应设置 content_type**:
+
+工具在生成输出时应设置 `metadata.content_type`，避免依赖启发式检测：
+
+```yaml
+# 工具输出示例
+tool_result:
+  content: "..."
+  metadata:
+    content_type: "code"     # 明确标记为代码
+    file_path: "src/main.rs"
+```
+```
+
+**代码块检测示例**（启发式方法，仅当未设置 content_type 时使用）：
 
 ```python
-# 检测代码块的特征
+# 优先检查工具设置的 content_type
+if message.metadata.get("content_type"):
+    return message.metadata["content_type"]
+
+# 回退到启发式检测
 if "```" in content or "def " in content or "class " in content:
     return "code"
 if "[LOG]" in content or re.match(r"\d{4}-\d{2}-\d{2}.*DEBUG", content):
@@ -1164,6 +1219,23 @@ error_codes:
 ```
 
 **重要**: 当 `COMPRESSION_RETRY_EXHAUSTED` 或 `COMPRESSION_TOKEN_LIMIT` 发生时，**不会无限重试**，系统会继续使用原始上下文，Agent 可以继续工作（虽然上下文较长）。
+
+### 预算重置机制
+
+当预算耗尽后，系统自动重置预算以避免干扰用户：
+
+**自动重置条件**（满足任一即触发）:
+1. **时间间隔**: 距离上次压缩超过 `reset_interval_minutes`
+2. **会话重启**: 新会话创建时
+
+```yaml
+# 配置示例
+token_budget:
+  reset_strategy:
+    auto_reset: true
+    reset_interval_minutes: 60   # 60 分钟无压缩活动后自动重置
+    reset_on_new_session: false  # 新会话是否重置
+```
 
 ### 压缩策略对比
 

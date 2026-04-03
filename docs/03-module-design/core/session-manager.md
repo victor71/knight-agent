@@ -438,7 +438,12 @@ Message:
     type: datetime
   metadata:
     type: map<string, any>
-    description: 附加元数据
+    description: |
+      附加元数据，支持以下字段：
+      - content_type: string (code|log|text|config|system) - 内容类型，供压缩器使用
+      - tool_name: string - 生成此消息的工具名称
+      - file_path: string - 相关文件路径
+      - tokens: integer - 消息 Token 数量（估算）
 
 # ContentBlock 数据结构（多模态支持）
 ContentBlock:
