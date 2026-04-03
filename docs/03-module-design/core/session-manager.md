@@ -1081,8 +1081,10 @@ impl CompressionEngine {
         let prompt = self.build_summary_prompt(to_compress)?;
 
         // 调用 LLM 生成摘要
+        // 使用配置中的压缩模型，默认为 claude-haiku（轻量级模型节省成本）
+        let compression_model = self.config.compression.llm_model.clone();
         let response = self.llm.chat(LLMRequest {
-            model: "claude-haiku".to_string(),
+            model: compression_model,
             messages: vec![
                 LLMMessage {
                     role: LLMRole::System,
@@ -1401,29 +1403,31 @@ impl FileSystemSessionStorage {
 impl SessionStorage for FileSystemSessionStorage {
     async fn save_session(&self, session: &Session) -> Result<()> {
         let session_dir = self.base_dir.join(&session.metadata.id);
-        std::fs::create_dir_all(&session_dir)?;
+        tokio::fs::create_dir_all(&session_dir).await?;
 
         // 保存会话元数据
         let session_path = self.session_path(&session.metadata.id);
         let json = serde_json::to_string_pretty(&session)?;
-        std::fs::write(session_path, json)?;
+        tokio::fs::write(session_path, json).await?;
 
         // 保存消息历史 (JSONL 格式)
         let messages_path = self.messages_path(&session.metadata.id);
-        let mut file = std::fs::File::create(messages_path)?;
+        let mut file = tokio::fs::File::create(messages_path).await?;
 
         for msg in &session.history.messages {
             let line = serde_json::to_string(&msg)?;
-            writeln!(file, "{}", line)?;
+            tokio::io::write_all(file, format!("{}\n", line).as_bytes()).await?;
+            file = tokio::io::BufWriter::into_parts(file).0;
         }
 
         // 保存压缩点
         let compression_path = self.compression_path(&session.metadata.id);
-        let mut comp_file = std::fs::File::create(compression_path)?;
+        let mut comp_file = tokio::fs::File::create(compression_path).await?;
 
         for point in &session.history.compression_points {
             let line = serde_json::to_string(&point)?;
-            writeln!(comp_file, "{}", line)?;
+            tokio::io::write_all(comp_file, format!("{}\n", line).as_bytes()).await?;
+            comp_file = tokio::io::BufWriter::into_parts(comp_file).0;
         }
 
         Ok(())
@@ -1438,17 +1442,18 @@ impl SessionStorage for FileSystemSessionStorage {
             return Ok(None);
         }
 
-        let json = std::fs::read_to_string(session_path)?;
+        let json = tokio::fs::read_to_string(session_path).await?;
         let mut session: Session = serde_json::from_str(&json)?;
 
         // 加载消息历史
         let messages_path = self.messages_path(id);
         if messages_path.exists() {
-            let file = std::fs::File::open(messages_path)?;
-            let reader = std::io::BufReader::new(file);
+            let file = tokio::fs::File::open(messages_path).await?;
+            let reader = tokio::io::BufReader::new(file);
+            let mut lines = tokio::io::BufRead::lines(reader);
 
-            for line in std::io::BufRead::lines(reader) {
-                let msg: HistoricalMessage = serde_json::from_str(&line?)?;
+            while let Some(line) = lines.next_line().await? {
+                let msg: HistoricalMessage = serde_json::from_str(&line)?;
                 session.history.messages.push(msg);
             }
         }
@@ -1456,11 +1461,12 @@ impl SessionStorage for FileSystemSessionStorage {
         // 加载压缩点
         let compression_path = self.compression_path(id);
         if compression_path.exists() {
-            let file = std::fs::File::open(compression_path)?;
-            let reader = std::io::BufReader::new(file);
+            let file = tokio::fs::File::open(compression_path).await?;
+            let reader = tokio::io::BufReader::new(file);
+            let mut lines = tokio::io::BufRead::lines(reader);
 
-            for line in std::io::BufRead::lines(reader) {
-                let point: CompressionPoint = serde_json::from_str(&line?)?;
+            while let Some(line) = lines.next_line().await? {
+                let point: CompressionPoint = serde_json::from_str(&line)?;
                 session.history.compression_points.push(point);
             }
         }
@@ -1473,11 +1479,11 @@ impl SessionStorage for FileSystemSessionStorage {
     {
         let mut sessions = Vec::new();
 
-        for entry in std::fs::read_dir(&self.base_dir)? {
-            let entry = entry?;
+        let mut entries = tokio::fs::read_dir(&self.base_dir).await?;
+        while let Some(entry) = entries.next_entry().await? {
             let session_path = entry.path().join("session.json");
 
-            if let Ok(json) = std::fs::read_to_string(session_path) {
+            if let Ok(json) = tokio::fs::read_to_string(session_path).await {
                 if let Ok(session) = serde_json::from_str::<Session>(&json) {
                     if self.matches_filter(&session.metadata, &filter) {
                         sessions.push(session.metadata);

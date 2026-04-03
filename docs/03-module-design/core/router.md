@@ -106,10 +106,10 @@ Router:
         type: boolean
 ```
 
-### RouterResponse 结构
+### RouterResult 结构
 
 ```yaml
-RouterResponse:
+RouterResult:
   type: object
   properties:
     success:
@@ -124,6 +124,8 @@ RouterResponse:
     error:
       type: string
       description: 错误信息（失败时）
+
+# 注意：命名遵循 XxxResult 模式（与 HookResult, CommandResult 等保持一致）
 ```
 
 ### CommandHandler 结构

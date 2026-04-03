@@ -177,7 +177,13 @@ StartupOptions:
   parallel_init:
     type: boolean
     default: false
-    description: 是否并行初始化无依赖的模块
+    description: |
+      是否并行初始化无依赖的模块。
+      默认禁用原因：
+      1. 简化调试：串行初始化可以精确定位哪个模块初始化失败
+      2. 依赖确定性：某些模块可能在初始化时记录依赖关系
+      3. 日志清晰：初始化顺序与模块依赖顺序一致，便于追踪
+      生产环境可启用以加速启动。
 
   # 失败重试
   retry_on_failure:
