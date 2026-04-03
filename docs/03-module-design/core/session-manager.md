@@ -300,6 +300,60 @@ SessionManager:
         description: 索引的文件数量
 ```
 
+### Context Compressor 接口
+
+```yaml
+# Context Compressor 调用 Session Manager 的接口
+SessionManagerForContextCompressor:
+  # 获取会话上下文
+  get_context:
+    description: 获取会话上下文用于压缩
+    inputs:
+      session_id:
+        type: string
+        required: true
+    outputs:
+      messages:
+        type: array<Message>
+        description: 会话消息列表
+      token_count:
+        type: integer
+        description: 当前 Token 总数
+    errors:
+      - SESSION_NOT_FOUND (404)
+
+  # 更新会话上下文（压缩后回调）
+  update_context:
+    description: 用压缩后的上下文更新会话
+    inputs:
+      session_id:
+        type: string
+        required: true
+      compressed_messages:
+        type: array<Message>
+        required: true
+        description: 压缩后的消息列表
+    outputs:
+      success:
+        type: boolean
+    errors:
+      - SESSION_NOT_FOUND (404)
+      - INVALID_CONTEXT
+
+  # 获取压缩点
+  get_compression_point:
+    description: 获取指定压缩点详情
+    inputs:
+      point_id:
+        type: string
+        required: true
+    outputs:
+      point:
+        type: CompressionPoint | null
+    errors:
+      - POINT_NOT_FOUND
+```
+
 ### 数据结构
 
 #### YAML 数据结构

@@ -396,6 +396,60 @@ StorageService:
         type: boolean
 ```
 
+### Context Compressor 接口
+
+```yaml
+# Context Compressor 调用 Storage Service 的接口
+StorageServiceForContextCompressor:
+  # 保存压缩点
+  save_compression_point:
+    description: 保存压缩点数据
+    inputs:
+      session_id:
+        type: string
+        required: true
+        description: 会话 ID
+      point:
+        type: CompressionPoint
+        required: true
+        description: 压缩点数据
+    outputs:
+      success:
+        type: boolean
+      point_id:
+        type: string
+        description: 压缩点 ID
+    errors:
+      - STORAGE_WRITE_FAILED (513)
+      - SESSION_NOT_FOUND
+
+  # 获取压缩点列表
+  get_compression_points:
+    description: 获取会话的所有压缩点
+    inputs:
+      session_id:
+        type: string
+        required: true
+    outputs:
+      points:
+        type: array<CompressionPoint>
+    errors:
+      - SESSION_NOT_FOUND
+
+  # 删除压缩点
+  delete_compression_point:
+    description: 删除指定压缩点
+    inputs:
+      point_id:
+        type: string
+        required: true
+    outputs:
+      success:
+        type: boolean
+    errors:
+      - POINT_NOT_FOUND
+```
+
 ### 共享类型引用
 
 Storage Service 使用以下由其他模块定义的数据类型：

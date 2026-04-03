@@ -87,6 +87,26 @@ ContextCompressor:
     outputs:
       job_id:
         type: string
+    errors:
+      - COMPRESSION_CONFLICT
+
+  get_compression_job_status:
+    description: 查询异步压缩任务状态
+    inputs:
+      job_id:
+        type: string
+        required: true
+    outputs:
+      status:
+        type: string
+        enum: [pending, running, completed, failed]
+      progress:
+        type: float
+        description: 进度 0-1
+      result:
+        type: CompressionPoint | null
+      error:
+        type: string | null
 
   # ========== 压缩点管理 ==========
   get_compression_points:
@@ -230,9 +250,17 @@ CompressionAfter:
 # 压缩选项
 CompressionOptions:
   keep_recent:
-    type: integer
-    description: 保留最近消息数
-    default: 20
+    type: object
+    description: 最近消息保持不变
+    properties:
+      messages:
+        type: integer
+        description: 最近 N 条消息不压缩
+        default: 20
+      tokens:
+        type: integer
+        description: 最近 N tokens 不压缩
+        default: 10000
   keep_system:
     type: boolean
     description: 保留系统消息
@@ -298,6 +326,33 @@ CompressionHistoryEntry:
     type: integer
   compression_ratio:
     type: float
+
+# 压缩任务状态
+CompressionJob:
+  job_id:
+    type: string
+  session_id:
+    type: string
+  status:
+    type: string
+    enum: [pending, running, completed, failed]
+  progress:
+    type: float
+  created_at:
+    type: datetime
+  started_at:
+    type: datetime | null
+  completed_at:
+    type: datetime | null
+  error:
+    type: string | null
+
+# 依赖模块接口要求
+#
+# 注意: 各模块必须实现的接口定义在对应模块文档中
+# - LLM Provider 接口: 见 [LLM Provider - Context Compressor 接口](../services/llm-provider.md#context-compressor-接口)
+# - Storage Service 接口: 见 [Storage Service - Context Compressor 接口](../services/storage-service.md#context-compressor-接口)
+# - Session Manager 接口: 见 [Session Manager - Context Compressor 接口](../core/session-manager.md#context-compressor-接口)
 ```
 
 ### 配置选项
@@ -363,7 +418,20 @@ compression:
     backoff: exponential
     initial_delay_ms: 1000
     max_delay_ms: 10000
+    max_total_duration_ms: 40000  # 最大重试总时间
     fail_on_max_retries: true
+
+  # 并发控制
+  concurrency:
+    enabled: true
+    lock_timeout_ms: 30000        # 等待锁超时
+    max_concurrent_per_session: 1 # 每会话最多一个压缩任务
+
+  # 历史记录管理
+  history:
+    max_entries: 100              # 最大历史条目数
+    ttl_days: 30                   # 保留天数
+    cleanup_on_startup: true      # 启动时清理过期记录
 
   # 默认策略
   default_strategy: summary
@@ -391,6 +459,13 @@ compression:
 | `token_budget.max_summary_tokens` | 单个摘要最大长度 | 5000 |
 | `token_budget.max_input_tokens_per_call` | 单次 LLM 调用输入上限 | 30000 |
 | `token_budget.max_total_cost` | 累计压缩 Token 上限 | 100000 |
+| `retry.max_attempts` | 最大重试次数 | 3 |
+| `retry.max_total_duration_ms` | 最大重试总时间 | 40000 |
+| `concurrency.enabled` | 启用并发控制 | true |
+| `concurrency.lock_timeout_ms` | 等待锁超时 | 30000 |
+| `concurrency.max_concurrent_per_session` | 每会话最大并发数 | 1 |
+| `history.max_entries` | 最大历史条目数 | 100 |
+| `history.ttl_days` | 历史记录保留天数 | 30 |
 
 **压缩模式说明**:
 
@@ -598,6 +673,44 @@ return "text"
     完成
 ```
 
+### 并发控制流程
+
+```
+压缩请求
+        │
+        ▼
+┌──────────────────────────────┐
+│ 1. 检查会话锁                │
+│    - 尝试获取会话锁          │
+└──────────────────────────────┘
+        │
+        ▼
+    ┌───┴────┐
+    │ 获取成功？│
+    └───┬────┘
+        │ 否
+        ▼
+┌──────────────────────────────┐
+│ 2. 等待锁或返回冲突          │
+│    - lock_timeout_ms 内等待 │
+│    - 超时返回 COMPRESSION_CONFLICT │
+└──────────────────────────────┘
+        │ 是
+        ▼
+┌──────────────────────────────┐
+│ 3. 执行压缩                  │
+│    - 记录压缩开始            │
+│    - 执行压缩逻辑            │
+└──────────────────────────────┘
+        │
+        ▼
+┌──────────────────────────────┐
+│ 4. 释放会话锁                │
+│    - 无论成功或失败         │
+│    - 允许后续压缩请求        │
+└──────────────────────────────┘
+```
+
 ---
 
 ## 模块交互
@@ -695,12 +808,31 @@ compression:
 # 触发条件
 export KNIGHT_COMPRESS_MESSAGE_COUNT=50
 export KNIGHT_COMPRESS_TOKEN_COUNT=100000
+export KNIGHT_COMPRESS_AUTO=true
+
+# 最近消息保持
+export KNIGHT_COMPRESS_KEEP_RECENT_MESSAGES=20
+export KNIGHT_COMPRESS_KEEP_RECENT_TOKENS=10000
+
+# Token 预算
+export KNIGHT_COMPRESS_MAX_SUMMARY_TOKENS=5000
+export KNIGHT_COMPRESS_MAX_INPUT_TOKENS=30000
+export KNIGHT_COMPRESS_MAX_TOTAL_COST=100000
+
+# 重试配置
+export KNIGHT_COMPRESS_MAX_RETRIES=3
+export KNIGHT_COMPRESS_MAX_TOTAL_DURATION_MS=40000
+
+# 并发控制
+export KNIGHT_COMPRESS_CONCURRENCY_ENABLED=true
+export KNIGHT_COMPRESS_LOCK_TIMEOUT_MS=30000
+
+# 历史记录
+export KNIGHT_COMPRESS_HISTORY_MAX_ENTRIES=100
+export KNIGHT_COMPRESS_HISTORY_TTL_DAYS=30
 
 # 默认策略
 export KNIGHT_COMPRESS_DEFAULT_STRATEGY="summary"
-
-# 保留选项
-export KNIGHT_COMPRESS_KEEP_RECENT=20
 ```
 
 ---
@@ -758,6 +890,31 @@ error_codes:
     code: 511
     message: "压缩 Token 消耗超出预算"
     action: "停止压缩，使用原始上下文"
+    retryable: false
+
+  LLM_UNAVAILABLE:
+    code: 512
+    message: "LLM 服务不可用"
+    action: "检查 LLM Provider 配置和网络连接"
+    retryable: true
+
+  STORAGE_WRITE_FAILED:
+    code: 513
+    message: "存储写入失败"
+    action: "检查 Storage Service 可用性"
+    retryable: true
+
+  COMPRESSION_CONFLICT:
+    code: 514
+    message: "压缩冲突"
+    action: "等待其他压缩任务完成"
+    retryable: true
+
+  COMPRESSION_INEFFECTIVE:
+    code: 515
+    message: "压缩无效"
+    description: "压缩后消息反而增多或压缩比过低"
+    action: "跳过压缩，使用原始上下文"
     retryable: false
 
   INSUFFICIENT_CONTEXT:

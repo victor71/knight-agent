@@ -156,6 +156,56 @@ LLMProvider:
         type: map<string, ProviderStatus>
 ```
 
+### Context Compressor 接口
+
+```yaml
+# Context Compressor 调用 LLM Provider 的接口
+LLMProviderForContextCompressor:
+  # 生成文本摘要
+  generate_summary:
+    description: 为压缩生成文本摘要
+    inputs:
+      messages:
+        type: array<Message>
+        required: true
+        description: 待摘要的消息列表
+      max_tokens:
+        type: integer
+        required: true
+        description: 摘要最大长度
+      model:
+        type: string
+        required: false
+        default: "claude-haiku"
+        description: 使用的模型
+    outputs:
+      summary:
+        type: string
+        description: 生成的摘要
+      tokens_used:
+        type: integer
+        description: 消耗的 Token 数
+    errors:
+      - LLM_UNAVAILABLE (512)
+      - LLM_TIMEOUT
+      - RATE_LIMIT_EXCEEDED
+
+  # 生成语义嵌入
+  generate_embeddings:
+    description: 生成语义嵌入（用于语义压缩聚类）
+    inputs:
+      texts:
+        type: array<string>
+        required: true
+        description: 待嵌入的文本列表
+    outputs:
+      embeddings:
+        type: array<array<float>>
+        description: 嵌入向量数组
+    errors:
+      - LLM_UNAVAILABLE (512)
+```
+
 ### 数据结构
 
 ```yaml
