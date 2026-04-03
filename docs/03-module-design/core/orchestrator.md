@@ -53,6 +53,78 @@ Orchestrator 负责**多 Agent 编排和资源管理**，包括：
 - Orchestrator 不定义自己的 Task 数据结构，Task 相关类型由 Task Manager 统一定义。
 - 外部 Agent (external 类型) 通过 Agent Runtime 创建并注册到 Orchestrator 池中。
 
+### 解耦双向依赖
+
+Agent Runtime 和 Orchestrator 存在双向依赖：
+- Agent Runtime 创建 Agent 后调用 `Orchestrator.register_agent()`
+- Task Manager 调用 `Orchestrator.allocate_agent()`，需要 Agent Runtime 配合
+
+**解耦方案**：引入 `AgentRegistry` 接口作为中介
+
+```yaml
+# Agent 注册接口（由 Orchestrator 实现）
+AgentRegistry:
+  register:
+    description: 注册 Agent 到池中
+    inputs:
+      - agent_info: AgentInfo
+    outputs:
+      - registration_id: string
+
+  unregister:
+    description: 从池中注销 Agent
+    inputs:
+      - agent_id: string
+    outputs:
+      - success: boolean
+
+  get_available:
+    description: 获取可用的 Agent 列表
+    inputs:
+      - requirements: TaskRequirements
+    outputs:
+      - agents: array<AgentInfo>
+
+# Agent 分配接口（由 Agent Runtime 实现）
+AgentAllocator:
+  allocate:
+    description: 分配 Agent 执行任务
+    inputs:
+      - agent_id: string
+      - task: Task
+    outputs:
+      - success: boolean
+      - reason: string | null
+```
+
+**调用流程**：
+
+```
+Task Manager 需要分配 Agent
+        │
+        ▼
+┌──────────────────────────────┐
+│ Orchestrator.get_available() │
+│ - 返回可用 Agent 列表        │
+└──────────────────────────────┘
+        │
+        ▼
+Task Manager 选择 Agent
+        │
+        ▼
+┌──────────────────────────────┐
+│ Agent Runtime.allocate()     │
+│ - 检查 Agent 状态            │
+│ - 分配任务给 Agent           │
+└──────────────────────────────┘
+```
+
+**实现要点**：
+1. Orchestrator 实现 `AgentRegistry` 接口
+2. Agent Runtime 实现 `AgentAllocator` 接口
+3. 两个模块通过接口交互，而非直接依赖
+4. 便于独立测试和未来演进
+
 ---
 
 ## 接口定义

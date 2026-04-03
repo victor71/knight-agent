@@ -1237,6 +1237,74 @@ token_budget:
     reset_on_new_session: false  # 新会话是否重置
 ```
 
+### 可观测性指标
+
+当压缩失败时（达到重试限制或 Token 预算），系统发出以下指标供监控：
+
+```yaml
+# 压缩失败指标
+compression_failure:
+  # 重试耗尽
+  retry_exhausted:
+    metric: "compression_retry_exhausted_total"
+    type: counter
+    labels:
+      - session_id
+      - strategy          # summary/semantic/hybrid
+      - attempts          # 尝试次数
+    description: "压缩重试次数耗尽"
+
+  # Token 预算超限
+  token_limit_exceeded:
+    metric: "compression_token_limit_exceeded_total"
+    type: counter
+    labels:
+      - session_id
+      - budget_limit      # 预算上限
+      - tokens_used       # 已使用 Token
+    description: "压缩 Token 预算超限"
+
+  # 每次压缩成本
+  compression_cost:
+    metric: "compression_compression_cost_tokens"
+    type: histogram
+    labels:
+      - session_id
+      - strategy
+      - success           # true/false
+    buckets: [1000, 5000, 10000, 20000, 50000]
+    description: "每次压缩消耗的 Token 数"
+
+  # 压缩执行时间
+  compression_duration:
+    metric: "compression_duration_seconds"
+    type: histogram
+    labels:
+      - strategy
+      - success
+    buckets: [1, 5, 10, 30, 60]
+    description: "压缩执行耗时"
+```
+
+**告警规则示例**（Prometheus）:
+
+```yaml
+# 压缩失败率告警
+alerts:
+  - alert: HighCompressionFailureRate
+    expr: rate(compression_retry_exhausted_total[5m]) > 0.1
+    for: 10m
+    annotations:
+      summary: "压缩失败率过高"
+      description: "5分钟内压缩重试耗尽率超过 10%"
+
+  - alert: CompressionBudgetExhausted
+    expr: compression_token_limit_exceeded_total > 0
+    annotations:
+      summary: "压缩 Token 预算耗尽"
+      description: "会话 {{ $labels.session_id }} 的压缩预算已耗尽"
+```
+
 ### 压缩策略对比
 
 | 策略 | 速度 | Token 节省 | 信息保留 | 适用场景 |

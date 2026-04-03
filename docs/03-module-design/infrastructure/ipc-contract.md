@@ -283,6 +283,15 @@ interface UserQueryMessage extends BaseMessage {
     action?: string;       // 正在执行的操作
     reason?: string;       // 询问原因
   };
+  // 跨 Agent 依赖检测
+  dependencies?: {
+    // 此询问依赖的其他 Agent
+    depends_on_agents?: string[];     // 依赖的 Agent ID 列表
+    // 此询问依赖的其他查询的回答
+    depends_on_queries?: string[];    // 依赖的 await_id 列表
+    // 等待其他 Agent 完成工作
+    waiting_for_agent?: string;       // 等待哪个 Agent 的输出
+  };
   timeout: number;         // 超时时间（毫秒），0 表示不超时
   created_at: number;      // 创建时间戳
 }
@@ -1241,6 +1250,77 @@ CLI 模式（stdio/JSON-RPC）使用串行队列处理用户询问，因为 REPL
 ```
 
 **批量处理**: 用户可输入 `batch` 批量批准相同类型的询问（如多个 "删除文件" 的权限询问）。
+
+### 跨 Agent 依赖检测
+
+当多个 Agent 同时询问用户时，系统检测可能的依赖关系并发出警告：
+
+```
+多个 Agent 同时发起询问
+         │
+         ▼
+┌────────────────────────────────┐
+│  检查依赖关系                  │
+│  - 查询间的依赖               │
+│  - Agent 间的依赖             │
+└────────────────────────────────┘
+         │
+         ▼
+┌────────────────────────────────┐
+│  检测到循环依赖？              │
+│  Agent A 等待 Agent B          │
+│  Agent B 等待 Agent A          │
+└────────────────────────────────┘
+         │
+    ┌────┴────┐
+    │         │
+   是         否
+    │         │
+    ▼         ▼
+发出警告    正常处理
+```
+
+**依赖示例**：
+
+```yaml
+# Agent A 的询问
+agent_a_query:
+  agent_id: "agent_a"
+  message: "是否批准 API 设计方案？"
+  dependencies:
+    waiting_for_agent: "agent_b"      # 等待 Agent B 的技术分析
+    depends_on_agents: ["agent_b"]
+
+# Agent B 的询问
+agent_b_query:
+  agent_id: "agent_b"
+  message: "使用哪个数据库？"
+  dependencies:
+    waiting_for_agent: "agent_a"      # 等待 Agent A 的架构决策
+    depends_on_agents: ["agent_a"]
+
+# 检测结果：循环依赖警告
+warning: "检测到循环依赖：agent_a ↔ agent_b"
+recommendation: "先回答架构决策，再回答技术选型"
+```
+
+**警告 UI 示例**：
+
+```
+⚠️  检测到 Agent 间依赖
+
+当前询问顺序可能导致等待：
+  1. [agent_a] 是否批准 API 设计方案？
+     → 依赖: agent_b 的技术分析
+
+  2. [agent_b] 使用哪个数据库？
+     → 依赖: agent_a 的架构决策
+
+建议：先回答 [agent_a] 的架构决策，
+     然后再回答 [agent_b] 的技术选型。
+
+[按推荐顺序] [保持当前顺序]
+```
 
 ---
 

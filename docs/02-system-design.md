@@ -14,6 +14,7 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                        核心引擎层                                │
 ├─────────────────────────────────────────────────────────────────┤
+│  === 运行时管理 (Runtime Management) ===                       │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐      │
 │  │Bootstrap │  │Orchestrat│  │  Router  │  │   Task   │      │
 │  │          │  │   or     │  │          │  │  Manager │      │
@@ -24,6 +25,7 @@
 │  │   Manager    │  │   Loop   │  │  Engine  │                   │
 │  └──────────────┘  └──────────┘  └──────────┘                   │
 │                                                                  │
+│  === 系统服务 (System Services) ===                             │
 │  ┌──────────────┐  ┌──────────┐  ┌──────────┐                   │
 │  │    Timer     │  │  Monitor │  │  Log     │                   │
 │  │    System    │  │          │  │  System  │                   │
@@ -63,6 +65,7 @@
 │  │ Provider │  │ Client   │  │ Service  │  │Compressor│        │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────┘        │
 └─────────────────────────────────────────────────────────────────┘
+└─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │                        工具层                                    │
@@ -84,10 +87,9 @@
 | 层级 | 职责 | 核心组件 |
 |------|------|----------|
 | 用户接口层 | 用户交互 | CLI、Web UI、API |
-| 核心引擎层 | 系统启动、任务管理、请求路由 | Bootstrap、Task Manager、Router |
-| 核心引擎层 | Agent 编排与调度 | Orchestrator |
-| 核心引擎层 | 会话与运行时管理 | Session Manager、Event Loop、Hook Engine |
-| 核心引擎层 | 监控与日志 | Timer System、Monitor、Logging System |
+| 核心引擎层 - 运行时管理 | 系统启动、Agent 编排、请求路由、任务管理 | Bootstrap、Orchestrator、Router、Task Manager |
+| 核心引擎层 - 运行时管理 | 会话与运行时管理 | Session Manager、Event Loop、Hook Engine |
+| 核心引擎层 - 系统服务 | 监控与日志 | Timer System、Monitor、Logging System |
 | **安全层 (横切)** | **权限控制与资源隔离 (与所有层交互)** | **Security Manager、Sandbox** |
 | Agent 运行层 | Agent 执行 | Agent、Context、Skill、Tool |
 | 基础服务层 | 基础能力 | LLM Provider、MCP Client、Storage、Context Compressor |
