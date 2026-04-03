@@ -47,9 +47,9 @@ Knight-Agent 采用混合架构：
 
 | 依赖模块 | 依赖类型 | 说明 |
 |---------|---------|------|
-| Session Manager | 协作 | 会话状态同步 |
-| Router | 协作 | 请求路由和分发 |
-| Security Manager | 协作 | 权限验证 |
+| Session Manager | 协作 | 会话状态同步。见 [Session Manager 接口](../core/session-manager.md#对外接口) |
+| Router | 协作 | 请求路由和分发。见 [Router 接口](../core/router.md#对外接口) |
+| Security Manager | 协作 | 权限验证。见 [Security Manager 接口](../security/security-manager.md#对外接口) |
 
 ### 被依赖模块
 
@@ -294,7 +294,9 @@ session.create:
       required: false
   result:
     session_id: string
-    created_at: string
+    session: Session
+    description: |
+      会话对象，类型定义见 [Session Manager](../core/session-manager.md#session-数据结构)
 
 session.get:
   description: 获取会话信息
@@ -303,7 +305,9 @@ session.get:
       type: string
       required: true
   result:
-    session: SessionInfo
+    session: Session | null
+    description: |
+      会话对象，类型定义见 [Session Manager](../core/session-manager.md#session-数据结构)
 
 session.destroy:
   description: 销毁会话
@@ -350,6 +354,8 @@ agent.list:
       required: true
   result:
     agents: array<AgentInfo>
+    description: |
+      Agent 信息数组，类型定义见 [Orchestrator](../core/orchestrator.md#agentinfo)
 
 # 工具调用
 tools.call:
@@ -362,7 +368,9 @@ tools.call:
       type: object
       required: true
   result:
-    result: object
+    result: ToolResult
+    description: |
+      工具执行结果，类型定义见 [Tool System](../tools/tool-system.md#工具结果)
 
 # 流式订阅
 stream.subscribe:
@@ -423,6 +431,8 @@ enum ErrorCode {
   ResourceExhausted = 5001,
 }
 ```
+
+**说明**: 以上为 IPC 层的错误码规范。内部模块（如 Session Manager、Security Manager）的错误码在传播到 IPC 层时应映射到上述错误码。各模块的错误码定义仅供参考，实际 IPC 通信统一使用本节定义的错误码。
 
 ### 错误处理策略
 
