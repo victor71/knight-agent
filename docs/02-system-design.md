@@ -2046,28 +2046,7 @@ nlp_parser:
 │  - Send Notifications                                     │
 │  - Update Task Status                                     │
 └─────────────────────────────────────────────────────────────┘
-```
 
-### CLI 接口
-
-```bash
-# 创建定时任务
-knight schedule create "每天早上8点给我发送AI新闻简报"
-knight schedule create --cron "0 8 * * *" --agent news-digester "发送AI新闻"
-
-# 管理任务
-knight schedule list                    # 列出所有任务
-knight schedule info <task-id>         # 查看任务详情
-knight schedule pause <task-id>         # 暂停任务
-knight schedule resume <task-id>       # 恢复任务
-knight schedule cancel <task-id>       # 取消任务
-
-# 查看执行历史
-knight schedule history <task-id>       # 执行历史
-knight schedule logs <task-id>         # 执行日志
-
-# 自然语言支持
-knight schedule create "2小时后提醒我提交代码"
 ```
 
 **定时器配置**:
