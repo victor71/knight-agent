@@ -4,7 +4,6 @@
 
 #![allow(unused)]
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -35,7 +34,6 @@ pub struct SandboxResult {
     pub exit_code: i32,
 }
 
-#[async_trait]
 pub trait Sandbox: Send + Sync {
     fn new(config: SandboxConfig) -> Result<Self, SandboxError>
     where

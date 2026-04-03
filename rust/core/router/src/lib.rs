@@ -4,7 +4,6 @@
 
 #![allow(unused)]
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -25,7 +24,6 @@ pub struct Route {
     pub middleware: Vec<String>,
 }
 
-#[async_trait]
 pub trait Router: Send + Sync {
     fn new() -> Result<Self, RouterError>
     where

@@ -4,7 +4,6 @@
 
 #![allow(unused)]
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -26,7 +25,6 @@ pub struct CompressedContext {
     pub data: Vec<u8>,
 }
 
-#[async_trait]
 pub trait ContextCompressor: Send + Sync {
     fn new() -> Result<Self, ContextCompressorError>
     where

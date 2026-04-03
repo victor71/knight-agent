@@ -4,7 +4,6 @@
 
 #![allow(unused)]
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -26,7 +25,6 @@ pub struct Timer {
     pub repeating: bool,
 }
 
-#[async_trait]
 pub trait TimerSystem: Send + Sync {
     fn new() -> Result<Self, TimerError>
     where

@@ -4,7 +4,6 @@
 
 #![allow(unused)]
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -24,7 +23,6 @@ pub struct ExternalAgentConfig {
     pub auth_token: Option<String>,
 }
 
-#[async_trait]
 pub trait ExternalAgent: Send + Sync {
     fn new(config: ExternalAgentConfig) -> Result<Self, ExternalAgentError>
     where

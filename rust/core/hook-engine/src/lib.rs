@@ -4,7 +4,6 @@
 
 #![allow(unused)]
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -33,7 +32,6 @@ pub enum HookPhase {
     OnSuccess,
 }
 
-#[async_trait]
 pub trait HookEngine: Send + Sync {
     fn new() -> Result<Self, HookEngineError>
     where

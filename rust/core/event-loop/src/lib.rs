@@ -4,7 +4,6 @@
 
 #![allow(unused)]
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -25,7 +24,6 @@ pub struct Event {
     pub payload: serde_json::Value,
 }
 
-#[async_trait]
 pub trait EventLoop: Send + Sync {
     fn new() -> Result<Self, EventLoopError>
     where

@@ -4,7 +4,6 @@
 
 #![allow(unused)]
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -84,7 +83,7 @@ impl KnightAgentSystem {
 
         // Stage 4: Core Engine Layer (hook_engine, session_manager, router, monitor)
         tracing::info!("{}", BootstrapStage::Stage4CoreEngineLayer);
-        self.stage = BootstrapStage::Stage4CoreEngineLayer;
+        self.stage = BootstrapStage:: Stage4CoreEngineLayer;
 
         // Stage 5: Agent Layer (agent_variants, agent_runtime, external_agent, skill_engine, orchestrator, task_manager, command, workflows_directory)
         tracing::info!("{}", BootstrapStage::Stage5AgentLayer);

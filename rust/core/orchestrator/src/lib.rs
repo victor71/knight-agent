@@ -4,7 +4,6 @@
 
 #![allow(unused)]
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -23,7 +22,14 @@ pub struct Task {
     pub payload: serde_json::Value,
 }
 
-#[async_trait]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TaskStatus {
+    Pending,
+    Running,
+    Completed,
+    Failed,
+}
+
 pub trait Orchestrator: Send + Sync {
     fn new() -> Result<Self, OrchestratorError>
     where
@@ -32,14 +38,6 @@ pub trait Orchestrator: Send + Sync {
     fn is_initialized(&self) -> bool;
     async fn submit_task(&self, task: Task) -> Result<String, OrchestratorError>;
     async fn get_task_status(&self, task_id: &str) -> Result<TaskStatus, OrchestratorError>;
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum TaskStatus {
-    Pending,
-    Running,
-    Completed,
-    Failed,
 }
 
 pub struct OrchestratorImpl;

@@ -4,7 +4,6 @@
 
 #![allow(unused)]
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -32,7 +31,6 @@ pub struct SkillParameter {
     pub required: bool,
 }
 
-#[async_trait]
 pub trait SkillEngine: Send + Sync {
     fn new() -> Result<Self, SkillEngineError>
     where

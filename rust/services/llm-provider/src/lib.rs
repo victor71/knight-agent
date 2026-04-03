@@ -4,7 +4,6 @@
 
 #![allow(unused)]
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -40,7 +39,6 @@ pub struct TokenUsage {
     pub total_tokens: u32,
 }
 
-#[async_trait]
 pub trait LLMProvider: Send + Sync {
     fn new() -> Result<Self, LLMProviderError>
     where

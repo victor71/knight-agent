@@ -4,7 +4,6 @@
 
 #![allow(unused)]
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -33,7 +32,12 @@ pub enum LogLevel {
     Error,
 }
 
-#[async_trait]
+#[derive(Debug, Clone, Default)]
+pub struct LogFilter {
+    pub level: Option<LogLevel>,
+    pub since: Option<std::time::SystemTime>,
+}
+
 pub trait LoggingSystem: Send + Sync {
     fn new() -> Result<Self, LoggingError>
     where
@@ -42,12 +46,6 @@ pub trait LoggingSystem: Send + Sync {
     fn is_initialized(&self) -> bool;
     async fn log(&self, entry: LogEntry) -> Result<(), LoggingError>;
     async fn get_logs(&self, filter: LogFilter) -> Result<Vec<LogEntry>, LoggingError>;
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct LogFilter {
-    pub level: Option<LogLevel>,
-    pub since: Option<std::time::SystemTime>,
 }
 
 pub struct LoggingSystemImpl;

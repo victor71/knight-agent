@@ -4,7 +4,6 @@
 
 #![allow(unused)]
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -25,7 +24,6 @@ pub struct Permission {
     pub action: String,
 }
 
-#[async_trait]
 pub trait PermissionService: Send + Sync {
     fn new() -> Result<Self, PermissionError>
     where

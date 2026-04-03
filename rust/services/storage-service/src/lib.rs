@@ -4,7 +4,6 @@
 
 #![allow(unused)]
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -27,7 +26,6 @@ pub struct StorageEntry {
     pub created_at: std::time::SystemTime,
 }
 
-#[async_trait]
 pub trait StorageService: Send + Sync {
     fn new() -> Result<Self, StorageError>
     where

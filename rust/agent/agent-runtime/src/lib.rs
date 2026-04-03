@@ -4,7 +4,6 @@
 
 #![allow(unused)]
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -31,7 +30,6 @@ pub enum AgentState {
     Stopped,
 }
 
-#[async_trait]
 pub trait AgentRuntime: Send + Sync {
     fn new() -> Result<Self, AgentRuntimeError>
     where

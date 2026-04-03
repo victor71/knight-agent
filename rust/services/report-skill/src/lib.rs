@@ -4,7 +4,6 @@
 
 #![allow(unused)]
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -26,7 +25,6 @@ pub struct Report {
     pub created_at: std::time::SystemTime,
 }
 
-#[async_trait]
 pub trait ReportSkill: Send + Sync {
     fn new() -> Result<Self, ReportSkillError>
     where

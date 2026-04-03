@@ -4,7 +4,6 @@
 
 #![allow(unused)]
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -23,7 +22,6 @@ pub struct Metrics {
     pub active_sessions: usize,
 }
 
-#[async_trait]
 pub trait Monitor: Send + Sync {
     fn new() -> Result<Self, MonitorError>
     where

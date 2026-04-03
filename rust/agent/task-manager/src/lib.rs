@@ -4,7 +4,6 @@
 
 #![allow(unused)]
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -34,7 +33,6 @@ pub enum TaskStatus {
     Failed,
 }
 
-#[async_trait]
 pub trait TaskManager: Send + Sync {
     fn new() -> Result<Self, TaskManagerError>
     where

@@ -4,7 +4,6 @@
 
 #![allow(unused)]
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -32,7 +31,6 @@ pub struct WorkflowStep {
     pub parameters: serde_json::Value,
 }
 
-#[async_trait]
 pub trait WorkflowDirectory: Send + Sync {
     fn new() -> Result<Self, WorkflowDirectoryError>
     where

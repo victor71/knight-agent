@@ -4,7 +4,6 @@
 
 #![allow(unused)]
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -23,7 +22,6 @@ pub struct Command {
     pub handler: String,
 }
 
-#[async_trait]
 pub trait CommandRegistry: Send + Sync {
     fn new() -> Result<Self, CommandError>
     where
