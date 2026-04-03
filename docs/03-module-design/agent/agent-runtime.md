@@ -204,6 +204,29 @@ AgentRuntime:
         type: string
         description: 恢复后的状态 (thinking/acting)
 
+  cancel_operation:
+    description: |
+      取消当前操作
+      - 当 Agent 处于 acting 状态时：中断正在执行的工具
+      - 当 Agent 处于 awaiting_user 状态时：取消等待中的用户询问
+      - 取消后 Agent 进入 idle 状态，可接收新消息
+      - 与 stop_agent 的区别：cancel 只取消当前操作，stop_agent 停止整个 Agent
+    inputs:
+      agent_id:
+        type: string
+        required: true
+      reason:
+        type: string
+        required: false
+        description: 取消原因
+    outputs:
+      success:
+        type: boolean
+        description: 是否成功取消
+      cancelled_await_id:
+        type: string | null
+        description: 如果取消了用户询问，返回对应的 await_id
+
   # ========== 工具调用代理 ==========
   call_tool:
     description: Agent 调用工具（内部接口）
@@ -626,6 +649,8 @@ stateDiagram-v2
     Idle --> Stopped: stop()
     Paused --> Stopped: stop()
     AwaitingUser --> Stopped: stop()
+    Acting --> Idle: cancel_operation() ⭐ NEW
+    AwaitingUser --> Idle: cancel_operation() ⭐ NEW
 ```
 
 **状态说明**:
@@ -634,15 +659,25 @@ stateDiagram-v2
 |------|------|---------|
 | `idle` | 空闲，等待消息 | thinking, paused, stopped |
 | `thinking` | 思考中，正在处理消息 | acting, idle, awaiting_user, error |
-| `acting` | 执行中，正在执行工具 | thinking, idle, error |
+| `acting` | 执行中，正在执行工具 | thinking, idle, error, stopped |
 | `awaiting_user` | 等待用户响应 | thinking, idle, stopped |
 | `paused` | 已暂停（用户主动） | idle, stopped |
 | `error` | 错误状态 | idle, stopped |
 | `stopped` | 已停止 | - |
 
+**操作说明**:
+
+| 操作 | 可调用状态 | 行为 |
+|------|----------|------|
+| `pause()` | idle | Agent 进入 paused 状态，等待 resume() |
+| `resume()` | paused | Agent 恢复到 idle 状态 |
+| `stop()` | any | Agent 立即进入 stopped 状态 |
+| `cancel_operation()` | acting, awaiting_user | 中断当前操作，Agent 进入 idle 状态 |
+| `user.response()` | awaiting_user | Agent 继续执行 |
+
 **注意**: `awaiting_user` 与 `paused` 的区别：
 - `paused`: 用户主动暂停，任意时刻可恢复
-- `awaiting_user`: Agent 等待用户响应，必须收到 UserResponse 才能恢复
+- `awaiting_user`: Agent 等待用户响应，必须收到 UserResponse 或 cancel() 才能继续
 
 ### 错误处理与重试
 

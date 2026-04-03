@@ -594,6 +594,29 @@ user.list_pending:
     queries: array<PendingQuery>
     description: 待处理的询问列表
 
+# Agent 操作取消
+agent.cancel_operation:
+  description: |
+    取消 Agent 的当前操作
+    - 当 Agent 处于 acting 状态时：中断正在执行的工具
+    - 当 Agent 处于 awaiting_user 状态时：取消等待中的用户询问
+    - 取消后 Agent 进入 idle 状态，可接收新消息
+    与 stop_agent 的区别：cancel_operation 只取消当前操作，stop_agent 停止整个 Agent
+  params:
+    agent_id:
+      type: string
+      required: true
+      description: Agent ID
+    reason:
+      type: string
+      required: false
+      description: 取消原因
+  result:
+    success: boolean
+    description: 是否成功取消
+    cancelled_await_id: string | null
+    description: 如果取消了用户询问，返回对应的 await_id
+
 PendingQuery:
   await_id: string
   agent_id: string
@@ -962,6 +985,10 @@ permissions:
   user.list_pending:
     level: user
     description: 仅限用户调用
+
+  agent.cancel_operation:
+    level: user
+    description: 仅限用户调用（取消 Agent 当前操作）
 ```
 
 ---
