@@ -44,13 +44,13 @@ agents/code-reviewer/
 **使用方式**:
 ```bash
 # 使用默认变体
-knight ask code-reviewer "审查这段代码"
+> /ask code-reviewer "审查这段代码"
 
 # 使用快速变体
-knight ask code-reviewer:quick "快速检查"
+> /ask code-reviewer:quick "快速检查"
 
 # 使用安全专项变体
-knight ask code-reviewer:security "检查安全问题"
+> /ask code-reviewer:security "检查安全问题"
 ```
 
 **变体定义示例**:
@@ -322,11 +322,11 @@ category: software-development
 会话 B: ~/project-backend (后端项目)
 
 # 两个会话完全隔离，上下文不混淆
-knight session use frontend-session
-knight ask agent "实现 React 组件"
+> /session use frontend-session
+> /ask agent "实现 React 组件"
 
-knight session use backend-session
-knight ask agent "实现 API 接口"
+> /session use backend-session
+> /ask agent "实现 API 接口"
 ```
 
 **场景 2: 长对话项目**
@@ -348,31 +348,40 @@ Day 7:  回顾之前的讨论
 # 所有 Agent 共享会话上下文
 ```
 
-#### CLI 命令
+#### 内部 CLI 命令
+
+```bash
+# 启动 Knight Agent REPL
+$ knight
+Welcome to Knight Agent!
+> _
+```
+
+**Slash 命令**（在 REPL 内执行）：
 
 ```bash
 # 创建会话
-knight session create --name "前端开发" --workspace ~/project-frontend
-# Session created: abc123
+> /session create --name "前端开发" --workspace ~/project-frontend
+Session created: abc123
 
 # 切换会话
-knight session use abc123
-# Now using session: abc123
+> /session use abc123
+Now using session: abc123
 
 # 列出所有会话
-knight session list
+> /session list
 SESSION ID    NAME           WORKSPACE        STATUS    UPDATED
 abc123        前端开发       ~/frontend       Active    2m ago
 def456        后端开发       ~/backend        Paused    1h ago
 
 # 搜索历史
-knight session search "React 组件设计"
+> /session search "React 组件设计"
 
 # 查看会话信息
-knight session info
+> /session info
 
 # 归档会话
-knight session archive abc123
+> /session archive abc123
 ```
 
 #### 上下文压缩策略
@@ -491,22 +500,22 @@ triggers:
 
 ```bash
 # 查看所有定时任务
-knight schedule list
+> /schedule list
 TASK ID    描述                    周期                  下次执行        状态
 task-001   AI新闻简报            每天 08:00          2026-04-02     启用
 task-002   提醒提交代码          2026-04-01 12:00    2026-04-01     启用
 task-003   周报生成              每周五 18:00        2026-04-04     启用
 
 # 取消定时任务
-knight schedule cancel task-002
+> /schedule cancel task-002
 ✅ 任务已取消
 
 # 暂停/恢复任务
-knight schedule pause task-001
-knight schedule resume task-001
+> /schedule pause task-001
+> /schedule resume task-001
 
 # 查看执行历史
-knight schedule history task-001
+> /schedule history task-001
 执行时间              状态      耗时    结果
 2026-04-01 08:00:00  ✅ 成功   45s     已发送邮件
 2026-04-01 08:00:00  ❌ 失败   12s     Agent 超时
@@ -1204,16 +1213,16 @@ hooks:
 **测试步骤**：
 ```bash
 # 1. 创建两个独立会话
-knight session create --name "session-a" --workspace ~/project-a
-knight session create --name "session-b" --workspace ~/project-b
+> /session create --name "session-a" --workspace ~/project-a
+> /session create --name "session-b" --workspace ~/project-b
 
 # 2. 在会话 A 中创建测试文件
-knight session use session-a
-echo "secret data" > ~/project-a/config.json
+> /session use session-a
+> echo "secret data" > ~/project-a/config.json
 
 # 3. 在会话 B 中尝试访问会话 A 的文件
-knight session use session-b
-knight ask agent "读取 ~/project-a/config.json"
+> /session use session-b
+> /ask agent "读取 ~/project-a/config.json"
 
 # 4. 预期结果：返回权限错误，文件读取失败
 ```
@@ -1464,22 +1473,19 @@ allowed_commands:
 
 ---
 
-## 附录 A: CLI 命令完整规范
+## 附录 A: 内部 CLI 命令完整规范
 
 ### 命令结构
 
 ```bash
-knight [全局选项] <命令> [子命令] [参数] [选项]
+# 在 Knight Agent REPL 内执行
+<命令> [子命令] [参数] [选项]
 ```
 
 ### 全局选项
 
 | 选项 | 简写 | 描述 | 默认值 |
 |------|------|------|--------|
-| --config | -c | 指定配置文件路径 | ~/.knight-agent/config.yaml |
-| --workspace | -w | 指定工作目录 | 当前目录 |
-| --verbose | -v | 详细输出 | false |
-| --quiet | -q | 静默模式 | false |
 | --help | -h | 显示帮助 | - |
 | --version | -V | 显示版本 | - |
 
@@ -1489,280 +1495,282 @@ knight [全局选项] <命令> [子命令] [参数] [选项]
 
 ```bash
 # 创建新会话
-knight session create [--name <名称>] [--workspace <路径>]
+> /session create [--name <名称>] [--workspace <路径>]
 
 # 列出所有会话
-knight session list [--active]
+> /session list [--active]
 
 # 切换会话
-knight session switch <会话ID>
+> /session use <会话ID>
 
 # 删除会话
-knight session delete <会话ID>
+> /session delete <会话ID>
 
 # 导出会话
-knight session export <会话ID> [--format json|markdown] [--output <路径>]
+> /session export <会话ID> [--format json|markdown] [--output <路径>]
 
 # 查看会话详情
-knight session info <会话ID>
+> /session info <会话ID>
 ```
 
 #### 2. Agent 管理 (agent)
 
 ```bash
 # 列出所有 Agent
-knight agent list
+> /agent list
 
 # 查看 Agent 详情
-knight agent info <Agent名称>
+> /agent info <Agent名称>
 
 # 运行 Agent
-knight agent run <Agent名称>[:<变体>] [--prompt <提示>]
+> /agent run <Agent名称>[:<变体>] [--prompt <提示>]
 
 # 创建 Agent
-knight agent create <名称> [--template <模板>]
+> /agent create <名称> [--template <模板>]
 
 # 编辑 Agent
-knight agent edit <Agent名称>
+> /agent edit <Agent名称>
 
 # 删除 Agent
-knight agent delete <Agent名称>
+> /agent delete <Agent名称>
 ```
 
 #### 3. Skill 管理 (skill)
 
 ```bash
 # 列出所有 Skill
-knight skill list
+> /skill list
 
 # 查看 Skill 详情
-knight skill info <Skill名称>
+> /skill info <Skill名称>
 
 # 运行 Skill
-knight skill run <Skill名称> [--args <参数>]
+> /skill run <Skill名称> [--args <参数>]
 
 # 创建 Skill
-knight skill create <名称> [--template <模板>]
+> /skill create <名称> [--template <模板>]
 
 # 编辑 Skill
-knight skill edit <Skill名称>
+> /skill edit <Skill名称>
 
 # 删除 Skill
-knight skill delete <Skill名称>
+> /skill delete <Skill名称>
 
 # 创建 Pipeline
-knight skill pipeline create <名称> --skills <技能列表>
+> /skill pipeline create <名称> --skills <技能列表>
 
 # 运行 Pipeline
-knight skill pipeline run <Pipeline名称>
+> /skill pipeline run <Pipeline名称>
 ```
 
 #### 4. 工作流管理 (workflow)
 
 ```bash
 # 列出所有工作流
-knight workflow list [--category <类别>]
+> /workflow list [--category <类别>]
 
 # 查看工作流详情
-knight workflow info <工作流名称>
+> /workflow info <工作流名称>
 
 # 执行工作流（后台运行）
-knight workflow <工作流名称> [参数...]
-knight workflow exec <工作流名称> [参数...]
+> /workflow <工作流名称> [参数...]
+> /workflow exec <工作流名称> [参数...]
 
 # 前台执行工作流
-knight workflow exec --foreground <工作流名称> [参数...]
+> /workflow exec --foreground <工作流名称> [参数...]
 
 # 查询工作流状态
-knight workflow status <workflow-id>
+> /workflow status <workflow-id>
 
 # 暂停工作流
-knight workflow pause <workflow-id>
+> /workflow pause <workflow-id>
 
 # 恢复工作流
-knight workflow resume <workflow-id>
+> /workflow resume <workflow-id>
 
 # 终止工作流
-knight workflow terminate <workflow-id>
+> /workflow terminate <workflow-id>
 
 # 查看工作流日志
-knight workflow logs <workflow-id> [--tail] [--follow]
+> /workflow logs <workflow-id> [--tail] [--follow]
 
 # 列出后台工作流
-knight workflow list [--status <状态>]
+> /workflow list [--status <状态>]
 ```
 
 **交互式工作流命令**:
 ```bash
 # 在交互式 Shell 中
-knight> /workflow list
-knight> /workflow feature-development docs/requirements.md
-knight> /workflow status <workflow-id>
-knight> /workflow pause <workflow-id>
+> /workflow list
+> /workflow feature-development docs/requirements.md
+> /workflow status <workflow-id>
+> /workflow pause <workflow-id>
 ```
 
 #### 5. 定时器管理 (schedule/timer)
 
 ```bash
 # 列出定时任务
-knight schedule list [--active]
+> /schedule list [--active]
 
 # 创建定时任务
-knight schedule create \
+> /schedule create \
   --type <oneshot|interval|cron> \
   --schedule <时间表达式> \
   --callback <回调配置>
 
 # 取消定时任务
-knight schedule cancel <任务ID>
+> /schedule cancel <任务ID>
 
 # 暂停定时任务
-knight schedule pause <任务ID>
+> /schedule pause <任务ID>
 
 # 恢复定时任务
-knight schedule resume <任务ID>
+> /schedule resume <任务ID>
 
 # 查看任务详情
-knight schedule info <任务ID>
+> /schedule info <任务ID>
 
 # 查看执行历史
-knight schedule history <任务ID> [--limit <数量>]
+> /schedule history <任务ID> [--limit <数量>]
 ```
 
 #### 6. 工具管理 (tool)
 
 ```bash
 # 列出所有工具
-knight tool list
+> /tool list
 
 # 查看工具详情
-knight tool info <工具名称>
+> /tool info <工具名称>
 
 # 运行工具
-knight tool run <工具名称> [--args <参数>]
+> /tool run <工具名称> [--args <参数>]
 
 # 安装 MCP 工具
-knight tool install mcp <工具名称>
+> /tool install mcp <工具名称>
 
 # 卸载工具
-knight tool uninstall <工具名称>
+> /tool uninstall <工具名称>
 ```
 
 #### 7. Hook 管理 (hook)
 
 ```bash
 # 列出所有 Hook
-knight hook list
+> /hook list
 
 # 查看 Hook 详情
-knight hook info <Hook名称>
+> /hook info <Hook名称>
 
 # 启用 Hook
-knight hook enable <Hook名称>
+> /hook enable <Hook名称>
 
 # 禁用 Hook
-knight hook disable <Hook名称>
+> /hook disable <Hook名称>
 
 # 测试 Hook
-knight hook test <Hook名称> [--event <事件>]
+> /hook test <Hook名称> [--event <事件>]
 ```
 
 #### 8. 配置管理 (config)
 
 ```bash
 # 查看配置
-knight config get <键>
+> /config get <键>
 
 # 设置配置
-knight config set <键> <值>
+> /config set <键> <值>
 
 # 删除配置
-knight config unset <键>
+> /config unset <键>
 
 # 列出所有配置
-knight config list
+> /config list
 
 # 重置配置
-knight config reset
+> /config reset
 ```
 
 #### 9. 日志管理 (log)
 
 ```bash
 # 查看日志
-knight log [--tail] [--follow] [--level <级别>]
+> /log [--tail] [--follow] [--level <级别>]
 
 # 搜索日志
-knight log search <关键词> [--start <时间>] [--end <时间>]
+> /log search <关键词> [--start <时间>] [--end <时间>]
 
 # 导出日志
-knight log export [--format json|csv] [--output <路径>]
+> /log export [--format json|csv] [--output <路径>]
 
 # 清空日志
-knight log clear
+> /log clear
 ```
 
 #### 10. 协作管理 (orchestrate)
 
 ```bash
 # 创建协作任务
-knight orchestrate create \
+> /orchestrate create \
   --agents <Agent列表> \
   --mode <pipeline|parallel|voting> \
   --prompt <提示>
 
 # 查看协作状态
-knight orchestrate status <任务ID>
+> /orchestrate status <任务ID>
 
 # 取消协作任务
-knight orchestrate cancel <任务ID>
+> /orchestrate cancel <任务ID>
 ```
 
-#### 10. 系统命令
+#### 11. 系统命令
 
 ```bash
 # 健康检查
-knight health
+> /health
 
 # 版本信息
-knight version
+> /version
 
 # 诊断信息
-knight diagnose
+> /diagnose
 
 # 清理缓存
-knight cache clear
+> /cache clear
 
 # 初始化配置
-knight init [--template <模板>]
+> /init [--template <模板>]
 ```
 
 ### 交互式模式
 
 ```bash
-# 进入交互式 Shell
-knight shell
+# 进入交互式 Shell（启动时自动进入）
+$ knight
 
-# 或直接运行
-knight
+Welcome to Knight Agent!
+> _
 ```
 
 在交互式 Shell 中:
 ```bash
-knight> agent run code-reviewer
-knight> skill run test-unit
-knight> schedule list
-knight> exit
+> agent run code-reviewer
+> skill run test-unit
+> schedule list
+> exit
 ```
 
 ### 自然语言命令
 
+在 REPL 中直接输入自然语言，LLM 会解析意图并执行：
+
 ```bash
 # 直接输入自然语言命令
-knight "每天早上8点发送AI新闻简报"
+> 每天早上8点发送AI新闻简报
 
 # LLM 解析并执行对应命令
-# 等价于: knight schedule create --type cron --schedule "0 8 * * *" ...
+# 等价于: /schedule create --type cron --schedule "0 8 * * *" ...
 ```
 
 ---
