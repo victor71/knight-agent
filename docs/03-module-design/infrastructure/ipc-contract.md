@@ -495,6 +495,8 @@ user.query:
   description: |
     Agent 发起用户询问（内部由 Agent Runtime 调用，UI 层订阅此类型消息）
     此方法不会直接返回响应，而是将询问通过 IPC 消息发送，UI 通过 stream.subscribe 接收
+    响应处理：UI 调用 user.respond()，最终由 Agent Runtime.handle_user_response() 处理
+    见 [Agent Runtime 用户交互流程](../agent/agent-runtime.md#tool-调用流程)
   params:
     agent_id:
       type: string

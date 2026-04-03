@@ -179,6 +179,31 @@ AgentRuntime:
       success:
         type: boolean
 
+  # ========== 用户交互 ==========
+  handle_user_response:
+    description: |
+      处理用户响应（由 IPC 层调用）
+      当 Agent 处于 awaiting_user 状态时，接收用户响应并恢复执行
+    inputs:
+      agent_id:
+        type: string
+        required: true
+      await_id:
+        type: string
+        required: true
+        description: 等待 ID，必须与 awaiting_user 状态中的 await_id 匹配
+      response:
+        type: UserResponse
+        required: true
+        description: 用户响应内容，类型定义见 [IPC Contract](../infrastructure/ipc-contract.md#用户响应消息)
+    outputs:
+      success:
+        type: boolean
+        description: 是否成功处理响应
+      resumed_state:
+        type: string
+        description: 恢复后的状态 (thinking/acting)
+
   # ========== 工具调用代理 ==========
   call_tool:
     description: Agent 调用工具（内部接口）
@@ -284,8 +309,16 @@ Agent:
 AgentState:
   status:
     type: enum
-    values: [idle, thinking, acting, paused, error, stopped]
-    description: 状态标识
+    values: [idle, thinking, acting, paused, awaiting_user, error, stopped]
+    description: |
+      状态标识：
+      - idle: 空闲，等待消息
+      - thinking: 思考中，正在处理消息
+      - acting: 执行中，正在执行工具
+      - paused: 已暂停（用户主动暂停）
+      - awaiting_user: 等待用户响应（UserQuery 场景）
+      - error: 错误状态
+      - stopped: 已停止
   current_action:
     type: string | null
     description: 当前执行的动作
@@ -295,6 +328,24 @@ AgentState:
   statistics:
     type: AgentStatistics
     description: 统计信息
+  await_info:
+    type: AwaitInfo | null
+    description: 等待用户响应时的信息（当 status=awaiting_user 时有效）
+
+# 等待用户响应信息
+AwaitInfo:
+  await_id:
+    type: string
+    description: 等待 ID，用于匹配 UserResponse
+  query_type:
+    type: string
+    description: 询问类型 (permission/clarification/confirmation/information)
+  message:
+    type: string
+    description: 询问内容
+  created_at:
+    type: datetime
+    description: 创建时间
 
 # Agent 上下文
 AgentContext:
@@ -490,7 +541,38 @@ Agent 请求调用工具
     └───┬────┘
         │ 否
         ▼
+┌──────────────────────────────┐
+│ 2a. 检查是否可请求用户授权   │
+│    - dangerous 操作         │
+│    - 权限不足但可申请       │
+└──────────────────────────────┘
+        │
+        ▼
+    ┌───┴────┐
+    │ 可申请？│
+    └───┬────┘
+        │ 否
+        ▼
     返回权限错误
+        │ 是
+        ▼
+┌──────────────────────────────┐
+│ 2b. 调用 user.query()        │
+│    - await_id 生成           │
+│    - 状态转换为 awaiting_user │
+└──────────────────────────────┘
+        │
+        ▼
+    Agent 等待用户响应
+        │
+        ▼
+    ┌───┴────┐
+    │ 用户   │
+    │ 授权？ │
+    └───┬────┘
+        │ 否
+        ▼
+    返回权限拒绝
         │ 是
         ▼
 ┌──────────────────────────────┐
@@ -530,6 +612,9 @@ stateDiagram-v2
     Thinking --> Thinking: LLM streaming
     Thinking --> Acting: tool use detected
     Thinking --> Idle: complete
+    Thinking --> AwaitingUser: user.query() ⭐
+    AwaitingUser --> Thinking: user.response() ✅
+    AwaitingUser --> Idle: timeout/cancel ⭐
     Acting --> Thinking: tool result
     Acting --> Idle: tool error (non-retryable)
     Thinking --> Error: execution error
@@ -540,7 +625,24 @@ stateDiagram-v2
     Paused --> Idle: resume()
     Idle --> Stopped: stop()
     Paused --> Stopped: stop()
+    AwaitingUser --> Stopped: stop()
 ```
+
+**状态说明**:
+
+| 状态 | 说明 | 可转换到 |
+|------|------|---------|
+| `idle` | 空闲，等待消息 | thinking, paused, stopped |
+| `thinking` | 思考中，正在处理消息 | acting, idle, awaiting_user, error |
+| `acting` | 执行中，正在执行工具 | thinking, idle, error |
+| `awaiting_user` | 等待用户响应 | thinking, idle, stopped |
+| `paused` | 已暂停（用户主动） | idle, stopped |
+| `error` | 错误状态 | idle, stopped |
+| `stopped` | 已停止 | - |
+
+**注意**: `awaiting_user` 与 `paused` 的区别：
+- `paused`: 用户主动暂停，任意时刻可恢复
+- `awaiting_user`: Agent 等待用户响应，必须收到 UserResponse 才能恢复
 
 ### 错误处理与重试
 
