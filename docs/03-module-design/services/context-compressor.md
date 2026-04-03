@@ -311,28 +311,62 @@ compression:
     token_count: 100000
     auto_compress: true
 
-  # 默认策略
-  default_strategy: summary
+  # 最近消息保持不变（不压缩）
+  keep_recent:
+    messages: 20              # 最近 20 条消息不压缩
+    tokens: 10000             # 最近 10K tokens 不压缩
 
-  # 默认选项
-  default_options:
-    keep_recent: 20
-    keep_system: true
-    min_compression_ratio: 0.3
+  # 内容类型压缩策略
+  content_rules:
+    # 代码文件 - 尽量不压缩
+    code:
+      compression: preserve   # preserve=保留原文
+      priority: highest
+      min_length: 50          # 超过 50 行才考虑压缩
+      truncate: false         # 不截断
 
-  # 重试限制 (防止 Token 消耗过量)
-  retry:
-    max_attempts: 3              # 最大压缩重试次数
-    backoff: exponential         # 退避策略
-    initial_delay_ms: 1000       # 初始延迟
-    max_delay_ms: 10000         # 最大延迟
-    fail_on_max_retries: true   # 达到最大重试后是否放弃压缩
+    # 日志文件 - 去除重复和过多信息
+    log:
+      compression: prune      # prune=修剪
+      priority: low
+      max_entries: 100       # 最多保留 100 条
+      remove_duplicates: true
+      remove_debug: true     # 移除 debug 日志
+
+    # 普通文本 - 正常摘要压缩
+    text:
+      compression: summary    # summary=摘要
+      priority: normal
+      max_length: 5000       # 摘要最大长度
+
+    # 配置/数据文件 - 选择性保留
+    config:
+      compression: preserve
+      priority: high
+      truncate: false
+
+    # 系统消息 - 保留
+    system:
+      compression: preserve
+      priority: highest
 
   # Token 预算保护
   token_budget:
-    max_tokens_per_compression: 5000  # 单次压缩最大消耗 Token 数
-    max_total_compression_tokens: 50000  # 会话累计压缩消耗上限
-    stop_compression_on_limit: true    # 达到上限后停止压缩
+    max_summary_tokens: 5000     # 单个摘要最大长度
+    max_input_tokens_per_call: 30000  # 单次 LLM 调用输入上限
+    max_total_cost: 100000       # 会话累计压缩 Token 上限
+    stop_on_limit: true          # 达到上限后停止压缩
+
+  # 重试限制
+  retry:
+    max_attempts: 3
+    backoff: exponential
+    initial_delay_ms: 1000
+    max_delay_ms: 10000
+    fail_on_max_retries: true
+
+  # 默认策略
+  default_strategy: summary
 
   # 模型配置
   models:
@@ -351,11 +385,67 @@ compression:
 
 | 配置路径 | 说明 | 默认值 |
 |---------|------|--------|
-| `retry.max_attempts` | 压缩失败最大重试次数 | 3 |
-| `retry.fail_on_max_retries` | 达到最大重试后是否放弃 | true |
-| `token_budget.max_tokens_per_compression` | 单次压缩最大 Token 消耗 | 5000 |
-| `token_budget.max_total_compression_tokens` | 会话累计压缩 Token 上限 | 50000 |
-| `token_budget.stop_compression_on_limit` | 达到上限后停止压缩 | true |
+| `keep_recent.messages` | 最近 N 条消息不压缩 | 20 |
+| `keep_recent.tokens` | 最近 N tokens 不压缩 | 10000 |
+| `content_rules.{type}.compression` | 压缩模式 | - |
+| `token_budget.max_summary_tokens` | 单个摘要最大长度 | 5000 |
+| `token_budget.max_input_tokens_per_call` | 单次 LLM 调用输入上限 | 30000 |
+| `token_budget.max_total_cost` | 累计压缩 Token 上限 | 100000 |
+
+**压缩模式说明**:
+
+| 模式 | 说明 | 适用场景 |
+|------|------|---------|
+| `preserve` | 保留原文，不压缩 | 代码、系统消息、高优先级内容 |
+| `summary` | 摘要压缩 | 普通文本消息 |
+| `prune` | 修剪/精简 | 日志、重复内容 |
+| `truncate` | 截断 | 过长且无法有效压缩的内容 |
+
+**内容类型检测**:
+
+消息的内容类型通过以下方式检测：
+
+```
+消息内容
+    │
+    ▼
+┌──────────────────────────────┐
+│ 1. 检测消息角色              │
+│    - system → system         │
+│    - tool → 工具输出         │
+└──────────────────────────────┘
+    │
+    ▼
+┌──────────────────────────────┐
+│ 2. 分析消息格式              │
+│    - 包含代码块 → code        │
+│    - 日志格式 → log          │
+│    - JSON/配置 → config     │
+│    - 普通文本 → text         │
+└──────────────────────────────┘
+    │
+    ▼
+┌──────────────────────────────┐
+│ 3. 应用压缩规则              │
+│    - code: preserve         │
+│    - log: prune            │
+│    - text: summary          │
+│    - system: preserve       │
+└──────────────────────────────┘
+```
+
+**代码块检测示例**：
+
+```python
+# 检测代码块的特征
+if "```" in content or "def " in content or "class " in content:
+    return "code"
+if "[LOG]" in content or re.match(r"\d{4}-\d{2}-\d{2}.*DEBUG", content):
+    return "log"
+if content.strip().startswith("{") and content.strip().endswith("}"):
+    return "config"
+return "text"
+```
 
 ---
 
