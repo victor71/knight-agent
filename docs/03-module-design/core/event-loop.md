@@ -25,6 +25,8 @@ Event Loop 负责系统的事件驱动架构，包括：
 
 | 依赖模块 | 依赖类型 | 说明 |
 |---------|---------|------|
+| Logging System | 依赖 | 事件日志记录。见 [Logging System 接口](./logging-system.md) |
+| Tool System | 依赖 | 文件监控工具实现。见 [Tool System 接口](../tools/tool-system.md) |
 | Hook Engine | 依赖 | 触发 Hook。见 [Hook Engine 接口](./hook-engine.md) |
 | Skill Engine | 依赖 | 触发技能。见 [Skill Engine 接口](../agent/skill-engine.md) |
 | Orchestrator | 依赖 | 分发到 Agent。见 [Orchestrator 接口](./orchestrator.md) |

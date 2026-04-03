@@ -27,6 +27,24 @@ Context Compressor 负责会话上下文的智能压缩，包括：
 | LLM Provider | 依赖 | 生成压缩摘要 |
 | Storage Service | 依赖 | 存储压缩点 |
 
+### 循环依赖说明
+
+Context Compressor 与 Session Manager 存在潜在循环依赖：
+- Session Manager → Context Compressor（会话触发压缩时调用）
+- Context Compressor → Session Manager（压缩完成后需通知会话更新上下文）
+
+**解耦方案**：Context Compressor 仅通过回调接口通知 Session Manager，不直接调用 Session Manager 的管理接口。Session Manager 调用 `ContextCompressor.should_compress()` 和 `ContextCompressor.compress()`，压缩完成后 Context Compressor 通过回调通知。
+
+```yaml
+# 解耦方案
+Session Manager                    Context Compressor
+    │                                    │
+    ├── should_compress() ──────────────►│
+    ├── compress() ─────────────────────►│
+    │                                    │
+    │◄─── 回调: on_compression_complete ──┤
+```
+
 ---
 
 ## 接口定义
