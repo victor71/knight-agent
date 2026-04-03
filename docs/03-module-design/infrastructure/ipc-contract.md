@@ -109,6 +109,8 @@ enum MessageType {
   Notification = "notification",
   StreamChunk = "stream_chunk",
   Error = "error",
+  UserQuery = "user_query",       // Agent 询问用户
+  UserResponse = "user_response", // 用户响应
 }
 ```
 
@@ -136,6 +138,10 @@ pub enum MessageType {
     StreamChunk,
     #[serde(rename = "error")]
     Error,
+    #[serde(rename = "user_query")]
+    UserQuery,       // Agent 询问用户
+    #[serde(rename = "user_response")]
+    UserResponse,    // 用户响应
 }
 ```
 
@@ -258,6 +264,99 @@ pub struct StreamChunkMessage {
     pub sequence: u64,
     pub chunk: String,
     pub done: bool,
+}
+```
+
+### 用户询问消息
+
+```typescript
+interface UserQueryMessage extends BaseMessage {
+  type: MessageType.UserQuery;
+  await_id: string;        // 等待 ID，用于匹配响应
+  query_type: QueryType;   // 询问类型
+  agent_id: string;        // 发起询问的 Agent
+  message: string;          // 询问内容
+  options?: string[];      // 可选的回答选项
+  context: {
+    // 触发询问的上下文信息
+    resource?: string;      // 相关资源路径
+    action?: string;       // 正在执行的操作
+    reason?: string;       // 询问原因
+  };
+  timeout: number;         // 超时时间（毫秒），0 表示不超时
+  created_at: number;      // 创建时间戳
+}
+
+enum QueryType {
+  Permission = "permission",       // 权限询问
+  Clarification = "clarification", // 澄清询问
+  Confirmation = "confirmation",   // 确认询问
+  Information = "information",     // 信息请求
+}
+```
+
+```rust
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserQueryMessage {
+    #[serde(flatten)]
+    pub base: BaseMessage,
+
+    pub await_id: String,
+    pub query_type: QueryType,
+    pub agent_id: String,
+    pub message: String,
+    pub options: Option<Vec<String>>,
+    pub context: serde_json::Value,
+    pub timeout: u64,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum QueryType {
+    #[serde(rename = "permission")]
+    Permission,
+    #[serde(rename = "clarification")]
+    Clarification,
+    #[serde(rename = "confirmation")]
+    Confirmation,
+    #[serde(rename = "information")]
+    Information,
+}
+```
+
+### 用户响应消息
+
+```typescript
+interface UserResponseMessage extends BaseMessage {
+  type: MessageType.UserResponse;
+  await_id: string;        // 对应的等待 ID
+  response: UserResponseData;
+  responded_at: number;    // 响应时间戳
+}
+
+interface UserResponseData {
+  accepted: boolean;        // 用户是否接受
+  value?: string;          // 用户输入的值（当有选项时）
+  custom_input?: string;   // 用户的自定义输入
+}
+```
+
+```rust
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserResponseMessage {
+    #[serde(flatten)]
+    pub base: BaseMessage,
+
+    pub await_id: String,
+    pub response: UserResponseData,
+    pub responded_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserResponseData {
+    pub accepted: bool,
+    pub value: Option<String>,
+    pub custom_input: Option<String>,
 }
 ```
 
@@ -390,6 +489,89 @@ stream.unsubscribe:
       required: true
   result:
     success: boolean
+
+# 用户交互
+user.query:
+  description: |
+    Agent 发起用户询问（内部由 Agent Runtime 调用，UI 层订阅此类型消息）
+    此方法不会直接返回响应，而是将询问通过 IPC 消息发送，UI 通过 stream.subscribe 接收
+  params:
+    agent_id:
+      type: string
+      required: true
+      description: 发起询问的 Agent ID
+    query_type:
+      type: string
+      enum: [permission, clarification, confirmation, information]
+      required: true
+    message:
+      type: string
+      required: true
+      description: 询问内容
+    options:
+      type: array<string>
+      required: false
+      description: 可选的选项列表
+    context:
+      type: object
+      required: false
+      description: 触发询问的上下文信息
+    timeout:
+      type: integer
+      required: false
+      default: 0
+      description: 超时时间（毫秒），0 表示不超时
+  result:
+    await_id: string
+    description: 等待 ID，UI 响应时需要携带此 ID
+
+user.respond:
+  description: 用户响应询问
+  params:
+    await_id:
+      type: string
+      required: true
+      description: 对应的等待 ID
+    accepted:
+      type: boolean
+      required: true
+      description: 用户是否接受
+    value:
+      type: string
+      required: false
+      description: 用户选择的选项值
+    custom_input:
+      type: string
+      required: false
+      description: 用户的自定义输入
+  result:
+    success: boolean
+    description: 响应是否成功投递到 Agent
+
+user.cancel:
+  description: 取消等待用户响应
+  params:
+    await_id:
+      type: string
+      required: true
+      description: 对应的等待 ID
+  result:
+    success: boolean
+    description: 取消是否成功
+
+user.list_pending:
+  description: 列出当前等待用户响应的事件
+  result:
+    queries: array<PendingQuery>
+    description: 待处理的询问列表
+
+PendingQuery:
+  await_id: string
+  agent_id: string
+  query_type: string
+  message: string
+  created_at: string
+  timeout: integer
 ```
 
 ---
@@ -426,6 +608,12 @@ enum ErrorCode {
   Forbidden = 4002,
   PermissionDenied = 4003,
 
+  // 用户交互错误 (6000-6999)
+  AwaitTimeout = 6000,           // 等待用户响应超时
+  AwaitCancelled = 6001,           // 等待被取消
+  InvalidUserResponse = 6002,      // 无效的用户响应
+  AwaitNotFound = 6003,            // 等待 ID 不存在
+
   // 系统错误 (5000-5999)
   InternalError = 5000,
   ResourceExhausted = 5001,
@@ -461,6 +649,99 @@ retry:
     - Unauthorized
     - Forbidden
 ```
+
+### 用户交互流程
+
+当 Agent 需要与用户交互（权限确认、信息补充、危险操作确认等）时，通过以下流程进行：
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Agent Runtime                             │
+│                                                                   │
+│  Agent 执行中遇到需要用户确认的场景                               │
+│        │                                                         │
+│        ▼                                                         │
+│  ┌──────────────────────────────┐                                │
+│  │ 调用 user.query()            │                                │
+│  │ - await_id: 唯一标识         │                                │
+│  │ - query_type: 询问类型       │                                │
+│  │ - message: 询问内容          │                                │
+│  │ - context: 上下文信息        │                                │
+│  └──────────────────────────────┘                                │
+│        │                                                         │
+│        ▼                                                         │
+│  Agent 进入 AwaitingUser 状态                                    │
+│        │                                                         │
+└────────┼─────────────────────────────────────────────────────────┘
+         │
+         ▼ IPC Message (UserQuery)
+┌─────────────────────────────────────────────────────────────────┐
+│                         TypeScript UI                             │
+│                                                                   │
+│  接收 UserQuery 消息                                             │
+│        │                                                         │
+│        ▼                                                         │
+│  显示询问对话框/面板给用户                                       │
+│        │                                                         │
+│        ▼                                                         │
+│  用户输入响应（接受/拒绝/输入值）                                 │
+│        │                                                         │
+└────────┼─────────────────────────────────────────────────────────┘
+         │
+         ▼ IPC Message (UserResponse)
+┌─────────────────────────────────────────────────────────────────┐
+│                         Agent Runtime                             │
+│                                                                   │
+│  接收 UserResponse 消息                                          │
+│        │                                                         │
+│        ▼                                                         │
+│  ┌──────────────────────────────┐                                │
+│  │ 匹配 await_id               │                                │
+│  │ 恢复 Agent 执行              │                                │
+│  └──────────────────────────────┘                                │
+│        │                                                         │
+│        ▼                                                         │
+│  Agent 继续执行流程                                               │
+│                                                                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### 询问类型说明
+
+| QueryType | 触发场景 | 期望响应 |
+|-----------|----------|----------|
+| `permission` | 权限不足，请求用户授权 | `accepted: true/false` |
+| `confirmation` | 危险操作确认 | `accepted: true/false` |
+| `clarification` | 信息不足，需要用户补充 | `value: 补充的信息` |
+| `information` | 一般性信息请求 | `value: 请求的信息` |
+
+#### 超时处理
+
+```yaml
+# 用户交互配置
+user_interaction:
+  default_timeout: 300000  # 默认 5 分钟超时
+  max_timeout: 3600000      # 最大 1 小时超时
+  auto_reject_on_timeout: false  # 超时后自动拒绝
+```
+
+| 超时配置 | 行为 |
+|----------|------|
+| `timeout = 0` | 无限等待 |
+| `auto_reject_on_timeout = true` | 超时后自动拒绝 |
+| `auto_reject_on_timeout = false` | 超时后返回 AwaitTimeout 错误 |
+
+#### 多并发询问
+
+Agent 可以同时发起多个用户询问：
+
+```
+Agent A ─┬─ await_id_1 ──▶ 用户询问 1
+         ├─ await_id_2 ──▶ 用户询问 2
+         └─ await_id_3 ──▶ 用户询问 3
+```
+
+UI 层通过 `await_id` 区分不同的询问，用户可以按任意顺序响应。
 
 ---
 
@@ -557,6 +838,23 @@ permissions:
     level: restricted
     description: 需要 Security Manager 验证
     validator: security_manager.check_tool_permission
+
+  # 用户交互 API
+  user.query:
+    level: agent
+    description: 仅限 Agent 调用（由 Agent Runtime 内部使用）
+
+  user.respond:
+    level: user
+    description: 仅限用户调用
+
+  user.cancel:
+    level: user
+    description: 仅限用户调用
+
+  user.list_pending:
+    level: user
+    description: 仅限用户调用
 ```
 
 ---
@@ -725,6 +1023,37 @@ ipc:
 | `session.limits.max_message_count` | 单会话最大消息数 | Session Manager (见 session-manager.md) |
 
 **说明**: IPC 层配置负责传输层限制，Session Manager 配置负责应用层限制。两者作用域不同，但共同影响系统性能和资源使用。
+
+### 用户交互配置
+
+```yaml
+# config/ipc.yaml
+ipc:
+  # 用户交互配置
+  user_interaction:
+    enabled: true                    # 是否启用用户交互功能
+    default_timeout: 300000         # 默认超时（毫秒），5 分钟
+    max_timeout: 3600000             # 最大超时（毫秒），1 小时
+    max_concurrent_queries: 10       # 最大并发询问数
+    auto_reject_on_timeout: false   # 超时后自动拒绝
+    notification:
+      sound_enabled: true            # 收到询问时播放提示音
+      desktop_notification: true     # 发送桌面通知
+
+  # 危险操作确认配置
+  dangerous_operation:
+    auto_confirm_on_ci: false       # CI 环境下自动确认
+    require_reason_on_deny: false   # 拒绝时是否需要填写原因
+```
+
+| 配置路径 | 说明 | 默认值 |
+|---------|------|--------|
+| `user_interaction.enabled` | 启用用户交互功能 | true |
+| `user_interaction.default_timeout` | 默认等待超时 | 300000ms (5分钟) |
+| `user_interaction.max_timeout` | 最大等待超时 | 3600000ms (1小时) |
+| `user_interaction.max_concurrent_queries` | 最大并发询问数 | 10 |
+| `user_interaction.auto_reject_on_timeout` | 超时后自动拒绝 | false |
+| `dangerous_operation.auto_confirm_on_ci` | CI 环境自动确认 | false |
 
 ---
 
