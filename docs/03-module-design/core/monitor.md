@@ -23,10 +23,10 @@ Monitor 模块负责系统的实时状态收集和统计，包括：
 
 | 依赖模块 | 依赖类型 | 说明 |
 |---------|---------|------|
-| Session Manager | 依赖 | 获取会话状态 |
-| Agent Runtime | 依赖 | 获取 Agent 状态 |
-| LLM Provider | 依赖 | 获取 Token 使用 |
-| Logging System | 依赖 | 记录监控日志 |
+| Session Manager | 依赖 | 获取会话状态。见 [Session Manager 接口](./session-manager.md) |
+| Agent Runtime | 依赖 | 获取 Agent 状态。见 [Agent Runtime 接口](../agent/agent-runtime.md) |
+| LLM Provider | 依赖 | 获取 Token 使用。见 [LLM Provider 接口](./llm-provider.md) |
+| Logging System | 依赖 | 记录监控日志。见 [Logging System 接口](./logging-system.md) |
 
 ### 与 Logging System 的区别
 

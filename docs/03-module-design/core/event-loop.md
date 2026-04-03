@@ -25,10 +25,15 @@ Event Loop 负责系统的事件驱动架构，包括：
 
 | 依赖模块 | 依赖类型 | 说明 |
 |---------|---------|------|
-| Hook Engine | 依赖 | 触发 Hook |
-| Skill Engine | 依赖 | 触发技能 |
-| Orchestrator | 依赖 | 分发到 Agent |
-| **Timer System** | **被依赖** | **Timer System 向 Event Loop 发送 timer_triggered 事件** |
+| Hook Engine | 依赖 | 触发 Hook。见 [Hook Engine 接口](./hook-engine.md) |
+| Skill Engine | 依赖 | 触发技能。见 [Skill Engine 接口](../agent/skill-engine.md) |
+| Orchestrator | 依赖 | 分发到 Agent。见 [Orchestrator 接口](./orchestrator.md) |
+
+### 被依赖模块
+
+| 模块 | 依赖类型 | 说明 |
+|------|---------|------|
+| Timer System | 被依赖 | Timer System 向 Event Loop 发送 timer_triggered 事件。见 [Timer System 接口](../services/timer-system.md) |
 
 ---
 

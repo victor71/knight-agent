@@ -41,12 +41,12 @@ Command 采用**声明式 + LLM 驱动**的设计，类似 Claude Code：
 
 | 依赖模块 | 依赖类型 | 说明 |
 |---------|---------|------|
-| Skill Engine | 委托 | Command 委托给 Skill 执行步骤 |
-| Agent Runtime | 委托 | Command 可直接调用 Agent |
-| Session Manager | 依赖 | 会话上下文获取 |
-| Task Manager | 委托 | Workflow 命令委托给 Task Manager 执行 |
-| LLM Provider | 依赖 | Workflow 命令需要 LLM 解析自然语言定义 |
-| Storage Service | 依赖 | 加载 workflows/ 目录中的定义文件 |
+| Skill Engine | 委托 | Command 委托给 Skill 执行步骤。见 [Skill Engine 接口](../agent/skill-engine.md) |
+| Agent Runtime | 委托 | Command 可直接调用 Agent。见 [Agent Runtime 接口](../agent/agent-runtime.md) |
+| Session Manager | 依赖 | 会话上下文获取。见 [Session Manager 接口](./session-manager.md) |
+| Task Manager | 委托 | Workflow 命令委托给 Task Manager 执行。见 [Task Manager 接口](../agent/task-manager.md) |
+| LLM Provider | 依赖 | Workflow 命令需要 LLM 解析自然语言定义。见 [LLM Provider 接口](./llm-provider.md) |
+| Storage Service | 依赖 | 加载 workflows/ 目录中的定义文件。见 [Storage Service 接口](./storage-service.md) |
 
 ---
 

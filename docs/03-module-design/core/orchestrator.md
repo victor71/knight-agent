@@ -36,18 +36,18 @@ Orchestrator 负责**多 Agent 编排和资源管理**，包括：
 
 | 依赖模块 | 依赖类型 | 说明 |
 |---------|---------|------|
-| Session Manager | 依赖 | 会话信息获取 |
-| Agent Runtime | 依赖 | Agent 执行 |
-| Event Loop | 依赖 | 事件通知 |
-| Hook Engine | 协作 | Agent 生命周期 Hook |
-| Task Manager | 协作 | 使用 Task Manager 的 Task 数据结构定义 |
+| Session Manager | 依赖 | 会话信息获取。见 [Session Manager 接口](./session-manager.md) |
+| Agent Runtime | 依赖 | Agent 执行。见 [Agent Runtime 接口](../agent/agent-runtime.md) |
+| Event Loop | 依赖 | 事件通知。见 [Event Loop 接口](./event-loop.md) |
+| Hook Engine | 协作 | Agent 生命周期 Hook。见 [Hook Engine 接口](./hook-engine.md) |
+| Task Manager | 协作 | 使用 Task Manager 的 Task 数据结构定义。见 [Task Manager 接口](../agent/task-manager.md) |
 
 ### 被依赖模块
 
 | 模块 | 依赖类型 | 说明 |
 |------|---------|------|
-| Task Manager | 被依赖 | 调用 Agent 分配接口 |
-| External Agent | 被依赖 | 外部 Agent 通过 Agent Runtime 注册到 Orchestrator 池 |
+| Task Manager | 被依赖 | 调用 Agent 分配接口。见 [Task Manager 接口](../agent/task-manager.md) |
+| External Agent | 被依赖 | 外部 Agent 通过 Agent Runtime 注册到 Orchestrator 池。见 [External Agent 接口](../agent/external-agent.md) |
 
 **注意**:
 - Orchestrator 不定义自己的 Task 数据结构，Task 相关类型由 Task Manager 统一定义。

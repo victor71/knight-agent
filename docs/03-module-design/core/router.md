@@ -40,10 +40,10 @@ Router 采用**识别与执行分离**的设计：
 
 | 依赖模块 | 依赖类型 | 说明 |
 |---------|---------|------|
-| Command 模块 | 委托 | 用户自定义命令和工作流命令执行 |
-| Session Manager | 委托 | 会话管理命令执行 |
-| Agent Runtime | 委托 | Agent 管理命令执行 |
-| Task Manager | 委托 | 工作流状态查询命令执行 |
+| Command 模块 | 委托 | 用户自定义命令和工作流命令执行。见 [Command 接口](./command.md) |
+| Session Manager | 委托 | 会话管理命令执行。见 [Session Manager 接口](./session-manager.md) |
+| Agent Runtime | 委托 | Agent 管理命令执行。见 [Agent Runtime 接口](../agent/agent-runtime.md) |
+| Task Manager | 委托 | 工作流状态查询命令执行。见 [Task Manager 接口](../agent/task-manager.md) |
 
 ---
 
