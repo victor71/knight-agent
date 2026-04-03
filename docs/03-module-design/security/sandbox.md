@@ -418,42 +418,6 @@ Violation:
 | high | high | 高风险 |
 | critical | critical | 严重风险 |
 
-### 配置选项
-
-```yaml
-# config/sandbox.yaml
-sandbox:
-  # 默认沙箱级别
-  default_level: basic
-
-  # 文件系统
-  filesystem:
-    denied_patterns:
-      - "**/.git/**"
-      - "**/node_modules/**"
-      - "**/.env"
-    max_file_size: 10485760
-    max_total_size: 104857600
-
-  # 命令执行
-  command:
-    max_execution_time: 300
-    max_concurrent: 5
-
-  # 网络
-  network:
-    enabled: true
-    max_connections: 10
-
-  # 资源限制
-  resources:
-    max_memory_mb: 1024
-    max_cpu_percent: 80
-
-  # 违规处理
-  violation_action: warn
-```
-
 ---
 
 ## 核心流程
@@ -1198,14 +1162,17 @@ full:
 1. Security Manager 检查权限
    ├─ 用户 → 允许
    └─ Agent → 检查授权
+   调用接口: SecurityManager.check_permission()
 
 2. Sandbox 执行隔离
    ├─ 路径检查
    ├─ 命令检查
    └─ 资源限制
+   调用接口: Sandbox.check_file_access(), Sandbox.check_command_access()
 
 3. 违规处理
-   ├─ 记录到 Security Manager
+   ├─ 调用: Sandbox.report_violation()
+   │        └─ 内部实现: SecurityManager.log_event()
    ├─ 触发威胁检测
    └─ 执行响应动作
 ```
