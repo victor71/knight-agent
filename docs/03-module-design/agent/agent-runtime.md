@@ -348,7 +348,13 @@ ErrorInfo:
 Message:
   role:
     type: enum
-    values: [user, assistant, system]
+    values: [user, assistant, system, tool]
+    description: |
+      角色类型：
+      - user: 用户消息
+      - assistant: AI 助手消息
+      - system: 系统消息
+      - tool: 工具调用结果消息
   content:
     type: string | array<ContentBlock>
   timestamp:

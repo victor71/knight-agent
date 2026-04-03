@@ -692,11 +692,11 @@ ipc:
       protocol: stdio
       format: json_rpc
 
-  # 消息配置
+  # 消息配置 (传输层限制)
   message:
-    max_size: 10485760  # 10MB
-    timeout: 300000     # 5 分钟
-    queue_size: 1000
+    max_size: 10485760  # 10MB - 单条消息最大大小
+    timeout: 300000     # 5 分钟 - 消息处理超时
+    queue_size: 1000    # 消息队列大小
 
   # 安全配置
   security:
@@ -712,6 +712,19 @@ ipc:
     min_compatible: "1.0.0"
     max_compatible: "2.0.0"
 ```
+
+**配置说明**:
+
+| 配置路径 | 说明 | 作用域 |
+|---------|------|--------|
+| `message.max_size` | 单条消息最大大小 | IPC 传输层 |
+| `message.timeout` | 消息处理超时时间 | IPC 传输层 |
+| `message.queue_size` | 消息队列大小 | IPC 传输层 |
+| `security.max_message_depth` | 消息最大嵌套深度 | IPC 传输层 |
+| `session.limits.max_sessions` | 最大会话数 | Session Manager (见 session-manager.md) |
+| `session.limits.max_message_count` | 单会话最大消息数 | Session Manager (见 session-manager.md) |
+
+**说明**: IPC 层配置负责传输层限制，Session Manager 配置负责应用层限制。两者作用域不同，但共同影响系统性能和资源使用。
 
 ---
 
@@ -764,6 +777,17 @@ async function callIPC<T>(
   }
 
   throw new Error('Max retries exceeded');
+}
+
+// 判断错误码是否可重试
+function isRetryableError(code: ErrorCode): boolean {
+  const retryableCodes: ErrorCode[] = [
+    ErrorCode.Timeout,
+    ErrorCode.InternalError,
+    ErrorCode.ResourceExhausted,
+  ];
+  return retryableCodes.includes(code);
+}
 }
 ```
 
