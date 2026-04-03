@@ -196,6 +196,84 @@ mcp_servers:
 | 代码操作 | AST 解析、语法检查 | P1 |
 | Git 操作 | status, diff, commit, push | P1 |
 
+### CLI 交互系统
+
+Knight Agent CLI 分为两层：**系统 CLI** 和 **REPL Slash Commands**。
+
+#### 架构概述
+
+```
+┌─────────────────────────────────────────┐
+│           knight (系统 CLI)              │  ← Shell 中执行
+│  - 启动/停止守护进程                     │
+│  - 状态查询                             │
+└─────────────────┬───────────────────────┘
+                  │ IPC (Unix Socket/TCP)
+                  ▼
+┌─────────────────────────────────────────┐
+│       knight-agent (守护进程)             │  ← 后台运行
+│  - 会话管理                             │
+│  - 工作流调度                           │
+│  - Agent 生命周期                       │
+└─────────────────────────────────────────┘
+                  │ 进程隔离
+        ┌─────────┼─────────┐
+        ▼         ▼         ▼
+   [会话A进程] [会话B进程] [会话C进程]
+```
+
+#### 1. 系统 CLI
+
+在 Shell 中直接执行，用于管理守护进程。
+
+```bash
+knight                          # 启动 REPL（自动启动守护进程）
+knight daemon start/stop/status/restart   # 守护进程管理
+knight health                            # 健康检查
+knight version                            # 版本信息
+```
+
+#### 2. REPL Slash Commands
+
+启动 REPL 后，在 `>` 提示符下执行。
+
+| 命令 | 说明 | 操作 |
+|------|------|------|
+| `/session` | 会话管理 | create, use, list, delete, info, export, search |
+| `/workflow` | 工作流管理 | list, info, exec, status, pause, resume, terminate, logs |
+| `/schedule` | 定时任务 | list, info, history |
+| `/ask` | Agent 交互 | 直接发送自然语言请求 |
+| `/log` | 日志查看 | view, search |
+| `/config` | 配置管理 | get, set, list |
+| `/health` | 健康检查 | - |
+| `/diagnose` | 诊断 | - |
+| `/cache` | 缓存管理 | clear |
+| `/exit` `/quit` | 退出 | - |
+
+#### 3. 自然语言命令
+
+在 REPL 中直接输入自然语言，无需 slash 前缀：
+
+```bash
+> 每天早上8点发送AI新闻简报
+> 实现用户登录功能
+> 帮我审查这段代码
+```
+
+LLM 会解析意图并调用相应的 Agent、Skill 或 Workflow。
+
+#### 4. 资源管理
+
+Agent、Skill、Hook 等的定义通过**文件编辑**而非 CLI 命令管理：
+
+| 资源 | 管理方式 | 存储位置 |
+|------|---------|---------|
+| Agent | 编辑 Markdown 文件 | `~/.knight-agent/agents/` |
+| Skill | 编辑 Markdown 文件 | `~/.knight-agent/skills/` |
+| Hook | 编辑 YAML 配置 | `~/.knight-agent/config/hooks.yaml` |
+| Command | 编辑 Markdown 文件 | `~/.knight-agent/commands/` |
+| Workflow | 编辑 Markdown 文件 | `~/.knight-agent/workflows/` |
+
 ### 多 Agent 协作
 
 | 需求项 | 描述 | 优先级 |
@@ -1470,241 +1548,6 @@ allowed_commands:
 - [ ] 配置热更新
 - [ ] 模板库
 - [ ] 文档完善
-
----
-
-## 附录 A: CLI 命令规范
-
-Knight Agent CLI 分为两层：**系统 CLI** 和 **REPL Slash Commands**。
-
-### 架构概述
-
-```
-┌─────────────────────────────────────────┐
-│           knight (系统 CLI)              │  ← Shell 中执行
-│  - 启动/停止守护进程                     │
-│  - 状态查询                             │
-└─────────────────┬───────────────────────┘
-                  │ IPC (Unix Socket/TCP)
-                  ▼
-┌─────────────────────────────────────────┐
-│       knight-agent (守护进程)             │  ← 后台运行
-│  - 会话管理                             │
-│  - 工作流调度                           │
-│  - Agent 生命周期                       │
-└─────────────────────────────────────────┘
-                  │ 进程隔离
-        ┌─────────┼─────────┐
-        ▼         ▼         ▼
-   [会话A进程] [会话B进程] [会话C进程]
-```
-
----
-
-### 1. 系统 CLI
-
-在 Shell 中直接执行，用于管理守护进程。
-
-```bash
-# 启动 REPL（自动启动守护进程或连接已运行的）
-knight
-
-# 启动守护进程（后台运行）
-knight daemon start
-
-# 停止守护进程
-knight daemon stop
-
-# 查看守护进程状态
-knight daemon status
-
-# 重启守护进程
-knight daemon restart
-
-# 健康检查
-knight health
-
-# 版本信息
-knight version
-
-# 帮助
-knight help
-```
-
----
-
-### 2. REPL Slash Commands
-
-启动 REPL 后，在 `>` 提示符下执行。
-
-```bash
-$ knight
-Welcome to Knight Agent!
-> _
-```
-
-#### 2.1 会话管理 (session)
-
-```bash
-# 创建新会话
-> /session create [--name <名称>] [--workspace <路径>]
-
-# 列出所有会话
-> /session list [--active]
-
-# 切换会话
-> /session use <会话ID>
-
-# 删除会话
-> /session delete <会话ID>
-
-# 导出会话
-> /session export [--format json|markdown] [--output <路径>]
-
-# 查看会话详情
-> /session info
-
-# 搜索会话历史
-> /session search <关键词>
-```
-
-#### 2.2 工作流管理 (workflow)
-
-```bash
-# 列出所有工作流
-> /workflow list
-
-# 查看工作流详情
-> /workflow info <工作流名称>
-
-# 执行工作流（后台运行）
-> /workflow <工作流名称> [参数...]
-
-# 前台执行工作流
-> /workflow exec --foreground <工作流名称> [参数...]
-
-# 查询工作流状态
-> /workflow status [<workflow-id>]
-
-# 暂停工作流
-> /workflow pause <workflow-id>
-
-# 恢复工作流
-> /workflow resume <workflow-id>
-
-# 终止工作流
-> /workflow terminate <workflow-id>
-
-# 查看工作流日志
-> /workflow logs <workflow-id> [--tail <行数>]
-```
-
-#### 2.3 定时任务管理 (schedule)
-
-```bash
-# 列出定时任务
-> /schedule list [--active]
-
-# 查看任务详情
-> /schedule info <任务ID>
-
-# 查看执行历史
-> /schedule history <任务ID> [--limit <数量>]
-```
-
-#### 2.4 Agent 交互 (ask)
-
-```bash
-# 直接向 Agent 发送请求
-> /ask <Agent名称>[:<变体>] <自然语言请求>
-```
-
-#### 2.5 日志管理 (log)
-
-```bash
-# 查看日志
-> /log [--tail <行数>] [--level <级别>]
-
-# 搜索日志
-> /log search <关键词> [--since <时间>]
-```
-
-#### 2.6 配置管理 (config)
-
-```bash
-# 查看配置
-> /config get <键>
-
-# 设置配置
-> /config set <键> <值>
-
-# 列出所有配置
-> /config list
-```
-
-#### 2.7 系统命令
-
-```bash
-# 健康检查
-> /health
-
-# 诊断信息
-> /diagnose
-
-# 清理缓存
-> /cache clear
-
-# 退出 REPL
-> /exit
-> /quit
-```
-
----
-
-### 3. 自然语言命令
-
-在 REPL 中直接输入自然语言，无需 slash 前缀：
-
-```bash
-> 每天早上8点发送AI新闻简报
-> 实现用户登录功能
-> 帮我审查这段代码
-```
-
-LLM 会解析意图并调用相应的 Agent、Skill 或 Workflow。
-
----
-
-### 4. 关于 Agent/Skill/Hook 的管理
-
-Agent、Skill、Hook 等的定义通过**文件编辑**而非 CLI 命令管理：
-
-| 资源 | 管理方式 | 存储位置 |
-|------|---------|---------|
-| Agent | 编辑 Markdown 文件 | `~/.knight-agent/agents/` |
-| Skill | 编辑 Markdown 文件 | `~/.knight-agent/skills/` |
-| Hook | 编辑 YAML 配置 | `~/.knight-agent/config/hooks.yaml` |
-| Command | 编辑 Markdown 文件 | `~/.knight-agent/commands/` |
-| Workflow | 编辑 Markdown 文件 | `~/.knight-agent/workflows/` |
-
----
-
-### 5. Slash Commands 完整列表
-
-| 命令 | 说明 | 操作 |
-|------|------|------|
-| `/session` | 会话管理 | create, use, list, delete, info, export, search |
-| `/workflow` | 工作流管理 | list, info, exec, status, pause, resume, terminate, logs |
-| `/schedule` | 定时任务 | list, info, history |
-| `/ask` | Agent 交互 | 直接发送自然语言请求 |
-| `/log` | 日志查看 | view, search |
-| `/config` | 配置管理 | get, set, list |
-| `/health` | 健康检查 | - |
-| `/diagnose` | 诊断 | - |
-| `/cache` | 缓存管理 | clear |
-| `/exit` `/quit` | 退出 | - |
-
----
 
 ## 术语表
 
