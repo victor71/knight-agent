@@ -2672,7 +2672,7 @@ Knight Agent 有两层 CLI 接口：
 
 ```bash
 # 启动 Knight Agent（进入 REPL）
-knight start [--config <路径>] [--workspace <路径>]
+knight [--config <路径>] [--workspace <路径>]
 
 # 快速询问（不进入 REPL，直接返回结果）
 knight ask <Agent名称>[:<变体>] "<消息>"
