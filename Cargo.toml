@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
 members = [
+    # CLI (1)
+    "rust/cli",
     # Core (8)
     "rust/core/event-loop",
     "rust/core/hook-engine",
