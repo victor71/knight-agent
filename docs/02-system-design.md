@@ -14,10 +14,10 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                        核心引擎层                                │
 ├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐                     │
-│  │Bootstrap │  │Orchestrat│  │  Router  │                     │
-│  │          │  │   or     │  │          │                     │
-│  └──────────┘  └──────────┘  └──────────┘                     │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐      │
+│  │Bootstrap │  │Orchestrat│  │  Router  │  │   Task   │      │
+│  │          │  │   or     │  │          │  │  Manager │      │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘      │
 │                                                                  │
 │  ┌──────────────┐  ┌──────────┐  ┌──────────┐                   │
 │  │  Session     │  │  Event   │  │  Hook    │                   │
@@ -84,7 +84,8 @@
 | 层级 | 职责 | 核心组件 |
 |------|------|----------|
 | 用户接口层 | 用户交互 | CLI、Web UI、API |
-| 核心引擎层 | 系统启动、编排调度、请求路由 | Bootstrap、Orchestrator、Router |
+| 核心引擎层 | 系统启动、任务管理、请求路由 | Bootstrap、Task Manager、Router |
+| 核心引擎层 | Agent 编排与调度 | Orchestrator |
 | 核心引擎层 | 会话与运行时管理 | Session Manager、Event Loop、Hook Engine |
 | 核心引擎层 | 监控与日志 | Timer System、Monitor、Logging System |
 | **安全层 (横切)** | **权限控制与资源隔离 (与所有层交互)** | **Security Manager、Sandbox** |
@@ -228,6 +229,61 @@ session_manager:
       - id: string
     outputs:
       session: object
+
+  # 崩溃恢复
+  get_checkpoint:
+    inputs:
+      - session_id: string
+    outputs:
+      checkpoint: Checkpoint | null
+
+  create_checkpoint:
+    inputs:
+      - session_id: string
+      - force: boolean (optional)
+    outputs:
+      checkpoint_id: string
+
+  recover_session:
+    inputs:
+      - session_id: string
+      - checkpoint_id: string (optional, default: last)
+    outputs:
+      success: boolean
+      recovered_messages: array
+```
+
+```yaml
+# 状态持久化配置
+state_persistence:
+  # 自动保存策略
+  auto_save:
+    enabled: true
+    interval: 30s                    # 定期保存间隔
+    on_message: true                  # 每条消息后保存
+    on_state_change: true             # 状态变化时保存
+
+  # 保存内容
+  save_content:
+    session_metadata: true           # 会话元数据
+    messages: true                   # 消息历史
+    compression_points: true          # 压缩点
+    agent_state: true                # Agent 状态
+    variables: true                  # 会话变量
+
+  # 崩溃恢复配置
+  crash_recovery:
+    enabled: true
+    checkpoint:
+      interval: 60s                  # Checkpoint 创建间隔
+      on_state_change: true          # 状态变化时创建
+    heartbeat:
+      timeout: 120s                  # 心跳超时认定崩溃
+      reconnect_window: 5min         # 允许的重连窗口
+    recovery:
+      auto_restore: true             # 自动恢复
+      restore_from: last_checkpoint  # last_checkpoint | last_save | manual
+      notify_on_recovery: true        # 恢复后通知用户
 ```
 
 ```yaml
@@ -248,6 +304,20 @@ session:
   status: string             # active/paused/archived
   created_at: datetime
   last_active_at: datetime
+
+# Checkpoint 数据结构
+Checkpoint:
+  id: string
+  session_id: string
+  timestamp: datetime
+  message_count: integer
+  token_count: integer
+  agent_state:
+    agent_id: string
+    status: string
+    current_task: string | null
+    variables: map
+  created_by: string          # manual | auto | system
 ```
 
 **会话隔离机制**:
@@ -874,9 +944,63 @@ compression:
 ├── {session-id}/
 │   ├── session.json          # 会话元数据
 │   ├── messages.jsonl        # 消息历史 (追加写入)
+│   ├── checkpoints/          # Checkpoint 缓存
+│   │   ├── checkpoint_001.json
+│   │   └── checkpoint_002.json
 │   └── compression/          # 压缩点缓存
 │       ├── point_001.json
 │       └── point_002.json
+```
+
+### 崩溃恢复流程
+
+```
+正常运行时
+        │
+        ▼
+┌──────────────────────────────┐
+│ 1. 心跳监控                  │
+│    - Agent 定期发送心跳      │
+│    - 超时则认为崩溃          │
+└──────────────────────────────┘
+        │
+        ▼
+┌──────────────────────────────┐
+│ 2. 崩溃检测                  │
+│    - heartbeat_timeout 触发  │
+│    - 标记会话为 disconnected │
+└──────────────────────────────┘
+        │
+        ▼
+┌──────────────────────────────┐
+│ 3. 重连窗口 (5min)           │
+│    - 等待客户端重新连接      │
+│    - 用户可选择恢复或新建     │
+└──────────────────────────────┘
+        │
+        ├─── 超时 ───┐
+        │            │
+        ▼            ▼
+┌──────────────┐  ┌──────────────┐
+│ 自动恢复     │  │ 归档会话     │
+│ 从 checkpoint│  │ 用户手动恢复 │
+│ 恢复上下文   │  │              │
+└──────────────┘  └──────────────┘
+```
+
+### 崩溃恢复消息格式
+
+```yaml
+# 恢复通知消息
+recovery_notification:
+  type: session_recovery
+  session_id: string
+  available_checkpoints:
+    - id: string
+      timestamp: datetime
+      message_count: integer
+  recommended_action: "auto_restore" | "manual_select" | "new_session"
+  message: "会话已中断，可选择恢复或开始新会话"
 ```
 
 ---
@@ -1059,6 +1183,96 @@ context_manager:
       memory: array
       temp_files: array
       state: map
+```
+
+### Agent 消息总线
+
+```yaml
+# Agent 消息总线配置
+agent_message_bus:
+  # 消息格式定义
+  message_format:
+    id: string                    # 消息唯一 ID (UUID)
+    from: string                  # 发送方 Agent ID
+    to: string | broadcast        # 接收方 ID 或广播
+    type: request | response | event | stream
+    payload: any                  # 消息内容
+    correlation_id: string        # 用于关联请求和响应
+    reply_to: string | null       # 回复目标
+    timestamp: datetime
+    ttl: duration | null          # 消息过期时间
+
+  # 通信模式
+  communication:
+    sync: true                    # 请求-响应模式
+    async: true                   # 事件驱动模式
+    stream: true                  # 流式响应
+    publish_subscribe: true        # 发布-订阅模式
+
+  # 路由机制
+  routing:
+    direct: true                  # 直接发送
+    topic: true                   # 主题订阅 (agent.*.status)
+    fanout: true                  # 广播
+
+  # 队列配置
+  queue:
+    max_size: 1000                # 队列最大消息数
+    overflow_policy: drop_oldest   # drop_oldest | drop_newest | block
+    default_ttl: 5min             # 默认消息过期时间
+
+  # 内置主题
+  built_in_topics:
+    - agent.status                 # Agent 状态变化
+    - agent.error                 # Agent 错误
+    - task.status                 # 任务状态变化
+    - session.event               # 会话事件
+    - system.heartbeat            # 系统心跳
+```
+
+**消息类型说明**:
+
+| 类型 | 说明 | 使用场景 |
+|------|------|----------|
+| `request` | 请求消息，需要响应 | Agent 间调用 |
+| `response` | 响应消息 | 请求的回复 |
+| `event` | 事件消息，无需响应 | 状态变化通知 |
+| `stream` | 流式消息 | LLM 响应流 |
+
+**消息示例**:
+
+```yaml
+# Agent A 向 Agent B 发送任务请求
+message:
+  id: "msg_001"
+  from: "agent_a"
+  to: "agent_b"
+  type: request
+  payload:
+    action: "analyze_code"
+    code: "def hello(): pass"
+  correlation_id: "req_001"
+
+# Agent B 的响应
+message:
+  id: "msg_002"
+  from: "agent_b"
+  to: "agent_a"
+  type: response
+  payload:
+    result: "Code analysis complete"
+    issues: []
+  correlation_id: "req_001"
+
+# 广播事件
+message:
+  id: "msg_003"
+  from: "agent_a"
+  to: "broadcast"
+  type: event
+  payload:
+    event: "task_completed"
+    task_id: "task_123"
 ```
 
 ---
@@ -2127,6 +2341,54 @@ model_router:
     enabled: true
     max_attempts: 10            # LLM 失败重试次数
     retry_delay: 1s
+
+  # 服务降级策略
+  degradation:
+    # 服务降级：当主服务不可用或延迟过高时自动降级
+    service_fallback:
+      enabled: true
+      rules:
+        - name: anthropic_sonnet_to_haiku
+          condition:
+            provider: anthropic
+            model: claude-sonnet-4-6
+            trigger: error_rate > 10% or latency > 30s
+          fallback:
+            provider: anthropic
+            model: claude-haiku-4-6
+
+        - name: anthropic_to_openai
+          condition:
+            provider: anthropic
+            trigger: error_rate > 30% or unavailable > 60s
+          fallback:
+            provider: openai
+            model: gpt-4o-mini
+
+        - name: openai_to_local
+          condition:
+            provider: openai
+            trigger: error_rate > 30% or unavailable > 60s
+          fallback:
+            provider: local
+            model: llama-3.1-8b
+
+    # 离线模式：当所有 LLM 都不可用时的降级方案
+    offline_mode:
+      enabled: true
+      allow_local_execution: true    # 允许执行本地工具（不依赖 LLM）
+      cache_enabled: true            # 启用响应缓存
+      cached_responses_ttl: 24h      # 缓存有效期
+      fallback_message: |
+        当前 AI 服务暂时不可用。Agent 可以继续使用本地工具执行任务，
+        但无法进行复杂的 AI 推理。请稍后重试。
+
+    # 降级触发条件
+    trigger_conditions:
+      error_rate_threshold: 0.1      # 错误率 > 10% 触发
+      latency_threshold: 30s         # 延迟 > 30s 触发
+      unavailable_threshold: 60s     # 不可用 > 60s 触发
+      consecutive_errors: 5           # 连续错误次数触发
 ```
 
 ---
@@ -2671,6 +2933,100 @@ stateDiagram-v2
     Active --> [*]: delete()
     Paused --> [*]: delete()
     Archived --> [*]: delete()
+```
+
+### 错误传播机制
+
+```yaml
+# 错误传播配置
+error_propagation:
+  # 错误级别定义
+  levels:
+    recoverable:
+      description: "可恢复错误，Agent 可以重试"
+      examples: ["network_timeout", "llm_rate_limit", "tool_temporary_failure"]
+      action: retry_with_backoff
+
+    partial:
+      description: "部分失败，任务部分完成"
+      examples: ["some_tools_failed", "partial_context"]
+      action: continue_with_available
+
+    fatal:
+      description: "致命错误，无法继续"
+      examples: ["security_violation", "session_corrupted", "unrecoverable_state"]
+      action: stop_and_report
+
+  # 错误传播规则
+  propagation_rules:
+    # Agent 错误 → Session
+    agent_to_session:
+      on_error: log_and_notify
+      max_errors_per_session: 100
+      error_threshold_for_pause: 10  # 连续错误数超过此值暂停 Agent
+
+    # Session 错误 → Orchestrator
+    session_to_orchestrator:
+      on_error: log_and_alert
+      escalate_after: 3_consecutive_failures
+
+    # Tool 错误 → Agent
+    tool_to_agent:
+      on_error: retry_or_skip
+      max_retries: 3
+      fallback: skip_and_log
+
+  # 错误恢复策略
+  recovery_strategies:
+    network_error:
+      retry: true
+      max_attempts: 3
+      backoff: exponential
+      initial_delay: 1s
+
+    llm_error:
+      retry: true
+      fallback_to_cache: true
+      fallback_to_simpler_model: true
+
+    tool_error:
+      retry: false
+      skip_and_notify: true
+      log_for_review: true
+
+    security_error:
+      retry: false
+      escalate_immediately: true
+      block_operation: true
+```
+
+**错误传播流程**:
+
+```
+Agent 执行出错
+        │
+        ▼
+┌──────────────────────────────┐
+│ 1. 错误分类                  │
+│    - recoverable             │
+│    - partial                │
+│    - fatal                  │
+└──────────────────────────────┘
+        │
+        ├─── recoverable ──┬─── retry ──→ 继续执行
+        │                  └─── max_retries ──→ partial
+        │
+        ├─── partial ────── continue_with_available
+        │
+        └─── fatal ──────── stop_and_report
+                              │
+                              ▼
+                        ┌──────────────┐
+                        │ 错误上报     │
+                        │ - Session    │
+                        │ - Orchestrator│
+                        │ - Monitor    │
+                        └──────────────┘
 ```
 
 ---
