@@ -640,6 +640,134 @@ handler:
 
 ## Hook 事件点
 
+### 事件类型注册表
+
+以下为系统所有 Hook 事件点的完整注册表：
+
+```yaml
+# 事件注册表
+EventRegistry:
+  # ========== Agent 事件 ==========
+  agent:
+    category: agent
+    description: Agent 生命周期事件
+    events:
+      - name: agent_create
+        phase: [before]
+        can_block: true
+        description: Agent 创建前
+      - name: agent_created
+        phase: [after]
+        can_block: false
+        description: Agent 创建后
+      - name: agent_execute
+        phase: [before]
+        can_block: true
+        description: Agent 执行前
+      - name: agent_executed
+        phase: [after]
+        can_block: false
+        description: Agent 执行后
+      - name: agent_error
+        phase: [after]
+        can_block: false
+        description: Agent 执行错误
+      - name: agent_destroy
+        phase: [before]
+        can_block: true
+        description: Agent 销毁前
+
+  # ========== Session 事件 ==========
+  session:
+    category: session
+    description: 会话生命周期事件
+    events:
+      - name: session_create
+        phase: [before]
+        can_block: true
+        description: 会话创建前
+      - name: session_created
+        phase: [after]
+        can_block: false
+        description: 会话创建后
+      - name: session_switch
+        phase: [after]
+        can_block: false
+        description: 会话切换后
+      - name: session_close
+        phase: [before]
+        can_block: true
+        description: 会话关闭前
+      - name: context_compress
+        phase: [before]
+        can_block: true
+        description: 上下文压缩前
+      - name: context_compressed
+        phase: [after]
+        can_block: false
+        description: 上下文压缩后
+
+  # ========== Tool 事件 ==========
+  tool:
+    category: tool
+    description: 工具调用事件
+    events:
+      - name: tool_call
+        phase: [before]
+        can_block: true
+        description: 工具调用前
+      - name: tool_result
+        phase: [after]
+        can_block: false
+        description: 工具返回后
+      - name: file_access
+        phase: [before]
+        can_block: true
+        description: 文件访问前
+      - name: command_execute
+        phase: [before]
+        can_block: true
+        description: 命令执行前
+
+  # ========== LLM 事件 ==========
+  llm:
+    category: llm
+    description: LLM 调用事件
+    events:
+      - name: llm_request
+        phase: [before]
+        can_block: true
+        description: LLM 请求前
+      - name: llm_response
+        phase: [after]
+        can_block: false
+        description: LLM 响应后
+      - name: prompt_build
+        phase: [before]
+        can_block: true
+        can_modify: true
+        description: Prompt 构建时（可修改）
+
+  # ========== Message 事件 ==========
+  message:
+    category: message
+    description: 消息事件
+    events:
+      - name: message_send
+        phase: [before]
+        can_block: true
+        description: 消息发送前
+      - name: message_received
+        phase: [after]
+        can_block: false
+        description: 消息接收后
+      - name: message_modify
+        phase: [before]
+        can_block: true
+        can_modify: true
+        description: 消息修改时
+```
+
 ### Agent 生命周期事件
 
 ```yaml

@@ -37,6 +37,22 @@ Monitor 模块负责系统的实时状态收集和统计，包括：
 | **保留时间** | 运行时 | 持久化（30天） |
 | **典型用途** | 当前状态查询 | 问题排查、审计 |
 
+### 与 Session Manager 的重叠说明
+
+Monitor 和 Session Manager 在会话相关功能上有部分重叠，但职责不同：
+
+| 功能 | Session Manager | Monitor |
+|------|----------------|---------|
+| 会话列表 | ✅ `list_sessions()` - 会话 CRUD | ⚠️ `get_status(scope: "session")` - 仅状态概览 |
+| 会话详情 | ✅ `get_session()` - 完整会话数据 | ❌ 不提供 |
+| 会话统计 | ❌ 不提供 | ✅ `get_stats(scope: "session")` - Token/消息统计 |
+| 实时监控 | ❌ 不提供 | ✅ `watch()` - 流式状态更新 |
+
+**设计原则**：
+- **Session Manager 是会话数据的真实来源**（Source of Truth）
+- **Monitor 是统计和监控数据的聚合者**
+- Monitor 从 Session Manager 获取会话信息用于统计，但不替代 Session Manager 的功能
+
 ### 历史数据持久化
 
 Monitor 除了实时内存查询外，还支持将统计数据持久化到数据库用于历史报告生成：

@@ -223,11 +223,15 @@ CommandHandler:
 | `/list-agents` | Agent | Agent Runtime | 列出可用 Agent |
 | `/use-agent` | Agent | Agent Runtime | 切换 Agent |
 | `/current-agent` | Agent | Agent Runtime | 显示当前 Agent |
-| `/clear` | 上下文 | Agent Runtime | 清空上下文 |
-| `/history` | 上下文 | Agent Runtime | 显示历史 |
-| `/compress` | 上下文 | Agent Runtime | 压缩上下文 |
+| `/clear` | 会话 | Session Manager | 清空上下文（会话操作） |
+| `/history` | 会话 | Session Manager | 显示历史（会话操作） |
+| `/compress` | 会话 | Session Manager | 压缩上下文（会话操作） |
 | `/workflow` | 工作流 | Command 模块 | 工作流命令 |
 | `/invoke` | 外部 Agent | Command 模块 | 调用外部 Agent |
+
+**说明**：
+- `/clear`, `/history`, `/compress` 是**会话上下文操作**，由 Session Manager 处理，不是 Agent 操作
+- HandlerType 中的 `session` 类型用于会话管理命令，`agent` 类型用于 Agent 生命周期管理
 
 ### 命令注册
 
