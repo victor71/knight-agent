@@ -24,8 +24,12 @@ Sandbox 负责系统资源的隔离和限制，包括：
 | 依赖模块 | 依赖类型 | 说明 |
 |---------|---------|------|
 | Session Manager | 依赖 | 获取 Workspace 配置 |
-| Security Manager | 依赖 | 权限检查 |
+| Security Manager | 依赖 | 权限检查、审计日志 |
 | Tool System | 依赖 | 工具调用拦截 |
+
+**依赖关系说明**:
+- Sandbox 依赖 Security Manager：调用 `SecurityManager.check_permission` 进行权限验证，调用 `SecurityManager.log_event` 记录安全事件
+- Security Manager 不依赖 Sandbox：Security Manager 通过 `sandbox:bypass` checkpoint 验证绕过沙箱的权限，但不直接调用 Sandbox 接口
 
 ---
 
@@ -73,6 +77,7 @@ Sandbox:
       status:
         type: string
         description: 状态过滤
+        enum: [active, paused, terminated]
         required: false
     outputs:
       sandboxes:
@@ -183,7 +188,11 @@ Sandbox:
         type: array<Violation>
 
   report_violation:
-    description: 报告违规行为
+    description: |
+      报告违规行为
+      内部实现：将 Violation 转换为 SecurityEvent 并调用 Security Manager.log_event
+      - Violation.violation_type 映射到 SecurityEvent.event_type (见下方映射表)
+      - Violation.severity 映射到 SecurityEvent.details.severity
     inputs:
       sandbox_id:
         type: string
@@ -389,6 +398,25 @@ Violation:
   details:
     type: map<string, any>
 ```
+
+### Violation → SecurityEvent 映射
+
+当 Sandbox 调用 `report_violation` 时，内部实现将 Violation 映射到 Security Manager 的 SecurityEvent：
+
+| Violation.violation_type | SecurityEvent.event_type | 说明 |
+|-------------------------|-------------------------|------|
+| file_access_denied | policy_violation | 文件访问被拒绝 |
+| command_denied | policy_violation | 命令执行被拒绝 |
+| network_denied | policy_violation | 网络访问被拒绝 |
+| resource_exceeded | policy_violation | 资源使用超限 |
+| malicious_behavior | threat_detected | 检测到恶意行为 |
+
+| Violation.severity | SecurityEvent.details.severity | 说明 |
+|-------------------|-------------------------------|------|
+| low | low | 低风险 |
+| medium | medium | 中风险 |
+| high | high | 高风险 |
+| critical | critical | 严重风险 |
 
 ### 配置选项
 

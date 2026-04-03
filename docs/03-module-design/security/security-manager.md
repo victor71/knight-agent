@@ -994,7 +994,9 @@ agent_permissions:
 | **Logging System** | `log:write` | 写入日志 | 验证日志写入权限 |
 | | `log:read` | 读取日志 | 验证日志读取权限 |
 | **Sandbox** | `sandbox:create` | 创建沙箱 | 验证沙箱创建权限 |
-| | `sandbox:bypass` | 绕过沙箱 | 验证沙箱绕过权限 |
+| | `sandbox:bypass` | 绕过沙箱 | 验证沙箱绕过权限（高风险操作，仅管理员可执行） |
+
+**注意**: `sandbox:bypass` 权限允许完全绕过沙箱限制，包括文件访问、命令执行、网络访问和资源限制。此权限仅授予需要完全系统访问权限的可信组件（如系统管理员）。
 
 ### 详细检查点说明
 
