@@ -7,6 +7,8 @@
 ```
 03-module-design/
 ├── README.md                    # 本文件 - 模块设计索引
+├── cli/                         # CLI 模块 (1个)
+│   └── cli.md                   # 命令行接口 (System CLI + REPL)
 ├── core/                        # 核心引擎模块 (8个)
 │   ├── session-manager.md       # 会话管理器
 │   ├── orchestrator.md          # 编排器
@@ -89,6 +91,7 @@
 - [x] [agent-runtime](agent/agent-runtime.md) - Agent 运行时
 - [x] [llm-provider](services/llm-provider.md) - LLM 提供者抽象
 - [x] [tool-system](tools/tool-system.md) - 工具框架
+- [x] [cli](cli/cli.md) - 命令行接口 (System CLI + REPL)
 
 ### P1 - 扩展模块 (已完成)
 - [x] [orchestrator](core/orchestrator.md) - 编排器
@@ -133,3 +136,4 @@
 | 1.2.0 | 2026-04-02 | 添加 external-agent.md 外部 Agent 集成设计（Claude Code） |
 | 1.3.0 | 2026-04-02 | 添加 ipc-contract.md 进程间通信契约设计（Rust/TS） |
 | 1.4.0 | 2026-04-02 | 添加 workflows-directory.md 工作流目录设计；更新 Command/Task Manager/Orchestrator 支持工作流命令 |
+| 1.5.0 | 2026-04-03 | 添加 cli.md CLI 模块设计（System CLI + REPL） |
