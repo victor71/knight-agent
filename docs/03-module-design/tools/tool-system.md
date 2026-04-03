@@ -23,10 +23,10 @@ Tool System 提供统一的工具调用框架，包括：
 
 | 依赖模块 | 依赖类型 | 说明 |
 |---------|---------|------|
-| Session Manager | 依赖 | 路径权限检查 |
-| Security Manager | 依赖 | 沙箱执行 |
-| MCP Client | 依赖 | MCP 工具集成 |
-| Hook Engine | 依赖 | 工具调用钩子 |
+| Session Manager | 依赖 | 路径权限检查。见 [Session Manager 接口](../core/session-manager.md) |
+| Security Manager | 依赖 | 沙箱执行、权限验证。见 [Security Manager 接口](../security/security-manager.md) |
+| MCP Client | 依赖 | MCP 工具集成。见 [MCP Client 接口](../services/mcp-client.md) |
+| Hook Engine | 依赖 | 工具调用钩子。见 [Hook Engine 接口](../core/hook-engine.md) |
 
 ---
 
@@ -113,7 +113,12 @@ ToolSystem:
 
   # ========== 权限检查 ==========
   check_permission:
-    description: 检查工具调用权限
+    description: |
+      检查工具调用权限
+      内部实现：调用 Security Manager.check_permission() 进行权限验证
+      - 将 agent_id 映射到 principal
+      - 将 tool_name 映射到 resource
+      - 将 args 中的操作映射到 action
     inputs:
       agent_id:
         type: string
@@ -132,17 +137,24 @@ ToolSystem:
 
   # ========== MCP 工具 ==========
   register_mcp_tools:
-    description: 注册 MCP 服务器暴露的工具
+    description: |
+      注册 MCP 服务器暴露的工具
+      工具来源：由 MCP Client 通过 discover_tools 发现并调用此接口注册
+      内部实现：MCP Client.discover_tools() → ToolSystem.register_mcp_tools()
+      inputSchema 格式：遵循 MCP 协议规范，与 JSONSchema 格式兼容
     inputs:
       server_name:
         type: string
+        description: MCP 服务器名称
         required: true
       tools:
         type: array<MCPToolDefinition>
+        description: MCP 服务器暴露的工具列表
         required: true
     outputs:
       registered:
         type: integer
+        description: 已注册的工具数量
 
   # ========== 工具分类 ==========
   get_categories:
@@ -213,9 +225,22 @@ ToolHandler:
   type:
     type: enum
     values: [builtin, command, skill, mcp, wasm]
+    description: |
+      处理器类型：
+      - builtin: 内置处理器（Tool System 直接实现）
+      - command: 命令处理器（target 为要执行的命令字符串或脚本路径）
+      - skill: Skill 处理器（target 为 skill_id）
+      - mcp: MCP 工具（由 MCP Client 提供）
+      - wasm: WebAssembly 处理器
   target:
     type: string
-    description: 处理器目标
+    description: |
+      处理器目标，根据 type 不同含义不同：
+      - builtin: 不使用
+      - command: 要执行的命令字符串或脚本路径（支持模板变量，如 {{file_path}}）
+      - skill: skill_id
+      - mcp: MCP 服务器名称
+      - wasm: WASM 模块路径
   timeout:
     type: integer
     description: 超时时间（秒）
