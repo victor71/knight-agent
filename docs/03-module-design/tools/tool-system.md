@@ -63,7 +63,7 @@ ToolSystem:
     inputs:
       category:
         type: string
-        description: 工具类别过滤
+        description: 工具类别过滤（省略时返回所有类别）
         required: false
     outputs:
       tools:
@@ -332,8 +332,25 @@ tools:
   # 权限配置
   permissions:
     default_deny: false
+    # default_deny: false = 默认允许所有工具调用（白名单模式）
+    # default_deny: true = 默认拒绝所有工具调用（黑名单模式）
     log_denied: true
+    # log_denied: true = 记录被拒绝的工具调用到审计日志
 ```
+
+**配置说明**:
+
+| 配置项 | 说明 |
+|--------|------|
+| `builtin.enabled` | 启用的内置工具列表 |
+| `custom.enabled` | 是否允许加载自定义工具 |
+| `custom.directory` | 自定义工具目录路径 |
+| `mcp.enabled` | 是否启用 MCP 工具集成 |
+| `mcp.auto_discover` | 是否自动发现 MCP 服务器工具 |
+| `execution.default_timeout` | 默认超时时间（秒） |
+| `execution.max_output_size` | 最大输出大小（字节） |
+| `permissions.default_deny` | true=黑名单模式（默认拒绝），false=白名单模式（默认允许） |
+| `permissions.log_denied` | 是否记录拒绝的操作到审计日志 |
 
 ---
 
@@ -872,30 +889,37 @@ dangerous: true
 
 ### 错误处理
 
+ToolResult 中的 error_code 字段使用字符串格式的错误代码（如 `TOOL_NOT_FOUND`），与 error_codes 附录中的名称对应。
+
 ```yaml
 error_codes:
   TOOL_NOT_FOUND:
     code: 404
+    string_code: "TOOL_NOT_FOUND"
     message: "工具不存在"
     action: "检查工具名称"
 
   INVALID_ARGUMENTS:
     code: 400
+    string_code: "INVALID_ARGUMENTS"
     message: "参数无效"
     action: "检查参数类型和值"
 
   PERMISSION_DENIED:
     code: 403
+    string_code: "PERMISSION_DENIED"
     message: "权限不足"
     action: "联系管理员或更改权限"
 
   EXECUTION_TIMEOUT:
     code: 408
+    string_code: "EXECUTION_TIMEOUT"
     message: "执行超时"
     action: "增加超时时间或优化操作"
 
   EXECUTION_FAILED:
     code: 500
+    string_code: "EXECUTION_FAILED"
     message: "执行失败"
     action: "查看错误详情"
 ```
