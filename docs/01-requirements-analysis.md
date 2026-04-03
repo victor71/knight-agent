@@ -1525,14 +1525,6 @@ allowed_commands:
 # 运行 Agent
 > /agent run <Agent名称>[:<变体>] [--prompt <提示>]
 
-# 创建 Agent
-> /agent create <名称> [--template <模板>]
-
-# 编辑 Agent
-> /agent edit <Agent名称>
-
-# 删除 Agent
-> /agent delete <Agent名称>
 ```
 
 #### 3. Skill 管理 (skill)
@@ -1547,20 +1539,6 @@ allowed_commands:
 # 运行 Skill
 > /skill run <Skill名称> [--args <参数>]
 
-# 创建 Skill
-> /skill create <名称> [--template <模板>]
-
-# 编辑 Skill
-> /skill edit <Skill名称>
-
-# 删除 Skill
-> /skill delete <Skill名称>
-
-# 创建 Pipeline
-> /skill pipeline create <名称> --skills <技能列表>
-
-# 运行 Pipeline
-> /skill pipeline run <Pipeline名称>
 ```
 
 #### 4. 工作流管理 (workflow)
@@ -1613,21 +1591,6 @@ allowed_commands:
 # 列出定时任务
 > /schedule list [--active]
 
-# 创建定时任务
-> /schedule create \
-  --type <oneshot|interval|cron> \
-  --schedule <时间表达式> \
-  --callback <回调配置>
-
-# 取消定时任务
-> /schedule cancel <任务ID>
-
-# 暂停定时任务
-> /schedule pause <任务ID>
-
-# 恢复定时任务
-> /schedule resume <任务ID>
-
 # 查看任务详情
 > /schedule info <任务ID>
 
@@ -1641,17 +1604,9 @@ allowed_commands:
 # 列出所有工具
 > /tool list
 
-# 查看工具详情
-> /tool info <工具名称>
+# 查看 工具 详情
+> /tool info <tool名称>
 
-# 运行工具
-> /tool run <工具名称> [--args <参数>]
-
-# 安装 MCP 工具
-> /tool install mcp <工具名称>
-
-# 卸载工具
-> /tool uninstall <工具名称>
 ```
 
 #### 7. Hook 管理 (hook)
@@ -1669,8 +1624,6 @@ allowed_commands:
 # 禁用 Hook
 > /hook disable <Hook名称>
 
-# 测试 Hook
-> /hook test <Hook名称> [--event <事件>]
 ```
 
 #### 8. 配置管理 (config)
@@ -1701,30 +1654,9 @@ allowed_commands:
 # 搜索日志
 > /log search <关键词> [--start <时间>] [--end <时间>]
 
-# 导出日志
-> /log export [--format json|csv] [--output <路径>]
-
-# 清空日志
-> /log clear
 ```
 
-#### 10. 协作管理 (orchestrate)
-
-```bash
-# 创建协作任务
-> /orchestrate create \
-  --agents <Agent列表> \
-  --mode <pipeline|parallel|voting> \
-  --prompt <提示>
-
-# 查看协作状态
-> /orchestrate status <任务ID>
-
-# 取消协作任务
-> /orchestrate cancel <任务ID>
-```
-
-#### 11. 系统命令
+#### 10. 系统命令
 
 ```bash
 # 健康检查
@@ -1755,10 +1687,9 @@ Welcome to Knight Agent!
 
 在交互式 Shell 中:
 ```bash
-> agent run code-reviewer
-> skill run test-unit
-> schedule list
-> exit
+> /agent run code-reviewer
+> /schedule list
+> /exit
 ```
 
 ### 自然语言命令
