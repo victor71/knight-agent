@@ -172,31 +172,19 @@ ContextCompressor:
 
 ```yaml
 # 压缩点
+# 注意: CompressionPoint 定义在 Session Manager 模块
+# 见 [Session Manager - CompressionPoint](../core/session-manager.md#compressionpoint-数据结构)
 CompressionPoint:
-  id:
-    type: string
-  session_id:
-    type: string
-  created_at:
-    type: datetime
+  $ref: ../core/session-manager.md#CompressionPoint
+```
 
-  # 压缩前
-  before:
-    type: CompressionBefore
-  # 压缩后
-  after:
-    type: CompressionAfter
+**共享类型引用**：
 
-  # 压缩信息
-  strategy:
-    type: string
-    enum: [summary, semantic, hybrid]
-  summary:
-    type: string
-    description: 压缩摘要
-  key_points:
-    type: array<string>
-    description: 关键点列表
+| 类型 | 定义位置 | 说明 |
+|------|---------|------|
+| CompressionPoint | [Session Manager](../core/session-manager.md#compressionpoint-数据结构) | 压缩点完整定义 |
+| Message | [Session Manager](../core/session-manager.md#message-数据结构) | 消息结构 |
+| Session | [Session Manager](../core/session-manager.md#session-数据结构) | 会话结构 |
 
   # 元数据
   model:

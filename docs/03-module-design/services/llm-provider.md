@@ -194,10 +194,18 @@ ChatCompletionRequest:
     default: false
 
 # 消息结构
+# 注意：这是 LLM API 层的消息格式，与 Session Manager 的内部消息格式不同
+# LLM Provider 负责将 Session Manager 的 Message 转换为 LLM API 格式
 Message:
   role:
     type: enum
-    values: [system, user, assistant]
+    values: [system, user, assistant, tool]
+    description: |
+      角色类型：
+      - system: 系统消息
+      - user: 用户消息
+      - assistant: AI 助手消息
+      - tool: 工具调用结果消息
   content:
     type: string | array<ContentBlock>
   tool_calls:
@@ -205,7 +213,11 @@ Message:
     description: 工具调用（仅 assistant）
   tool_call_id:
     type: string
-    description: 工具调用 ID（仅 tool）
+    description: 工具调用 ID（仅 tool role）
+
+# 消息格式转换
+# LLM Provider 内部将 Session Manager 的 Message 转换为 LLM API 格式
+# 见 Session Manager 的 [Message 数据结构](../core/session-manager.md#message-数据结构)
 
 # 内容块（多模态）
 ContentBlock:

@@ -24,9 +24,9 @@ MCP Client 负责与 MCP (Model Context Protocol) 服务器通信，包括：
 
 | 依赖模块 | 依赖类型 | 说明 |
 |---------|---------|------|
-| Tool System | 依赖 | 注册 MCP 工具 |
-| Session Manager | 依赖 | 会话上下文 |
-| Security Manager | 依赖 | 权限检查 |
+| Tool System | 依赖 | 注册 MCP 工具。见 [Tool System 接口](../tools/tool-system.md) |
+| Session Manager | 依赖 | 会话上下文。见 [Session Manager 接口](../core/session-manager.md) |
+| Security Manager | 依赖 | 权限检查。见 [Security Manager 接口](../security/security-manager.md) |
 
 ---
 

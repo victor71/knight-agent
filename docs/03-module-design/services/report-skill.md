@@ -22,10 +22,12 @@ Report Skill 是一个内置技能，负责生成各种使用报告，包括：
 
 | 依赖模块 | 依赖类型 | 说明 |
 |---------|---------|------|
-| Storage Service | 依赖 | 查询历史统计数据 |
-| Monitor | 依赖 | 获取实时数据（如需要） |
-| Timer System | 依赖 | 定时触发报告生成 |
-| Logging System | 依赖 | 记录报告生成日志 |
+| Storage Service | 依赖 | 查询历史统计数据。见 [Storage Service 接口](./storage-service.md) |
+| Monitor | 可选 | 仅在需要实时数据时使用，大部分报告使用 Storage Service 的历史数据 |
+| Timer System | 依赖 | 定时触发报告生成。见 [Timer System 接口](./timer-system.md) |
+| Logging System | 依赖 | 记录报告生成日志。见 [Logging System 接口](./logging-system.md) |
+
+**注意**：Report Skill 主要使用 Storage Service 的 `query_stats_range` 接口获取历史统计数据，Monitor 仅在需要实时数据时才使用。
 
 ---
 

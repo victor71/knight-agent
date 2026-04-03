@@ -396,6 +396,18 @@ StorageService:
         type: boolean
 ```
 
+### 共享类型引用
+
+Storage Service 使用以下由其他模块定义的数据类型：
+
+| 类型 | 定义位置 | 说明 |
+|------|---------|------|
+| Session | [Session Manager](../core/session-manager.md#session-数据结构) | 会话结构 |
+| Message | [Session Manager](../core/session-manager.md#message-数据结构) | 消息结构 |
+| CompressionPoint | [Session Manager](../core/session-manager.md#compressionpoint-数据结构) | 压缩点结构 |
+| Task | [Task Manager](../agent/task-manager.md#任务数据结构) | 任务结构 |
+| WorkflowDefinition | [Task Manager](../agent/task-manager.md#工作流数据结构) | 工作流定义 |
+
 ### 数据结构
 
 ```yaml
