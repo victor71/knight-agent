@@ -133,20 +133,53 @@ bootstrap:
 ```
 
 **模块初始化顺序**:
+
+系统启动时按以下顺序初始化模块（详细阶段划分参见 [`03-module-design/core/bootstrap.md`](03-module-design/core/bootstrap.md)）：
+
 ```
-1. 日志系统 (Logging System)     ← 最先初始化，记录所有日志
-2. Security Manager              ← 位置 2，确保启动期间安全检查已激活
-3. 存储服务 (Storage Service)
-4. LLM Provider
-5. Tool System
-6. Event Loop
-7. Timer System
-8. Hook Engine
-9. Session Manager
-10. Agent Runtime
-11. Skill Engine
-12. Sandbox
+阶段 1: 基础设施
+└── Logging System
+
+阶段 2: 安全与存储
+├── Security Manager
+└── Storage Service
+
+阶段 3: 基础服务
+├── LLM Provider
+└── Tool System
+
+阶段 3: 事件系统
+├── Event Loop
+└── Timer System
+
+阶段 4: 核心引擎层
+├── Hook Engine
+├── Session Manager
+├── Router
+└── Monitor
+
+阶段 5: Agent 层
+├── Agent Variants
+├── Agent Runtime
+├── External Agent
+├── Skill Engine
+├── Orchestrator
+├── Task Manager
+├── Command
+└── Workflows Directory
+
+阶段 6: 报告和监控
+└── Report Skill
+
+阶段 7: 上下文优化
+└── Context Compressor
+
+阶段 8: 安全层
+├── Sandbox
+└── IPC Contract
 ```
+
+> **详细说明**: 完整模块列表（25 个模块）和详细初始化逻辑见 [`03-module-design/core/bootstrap.md`](03-module-design/core/bootstrap.md)
 
 **启动配置**:
 ```yaml
