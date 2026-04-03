@@ -608,7 +608,9 @@ agent:
 
 ### Skill (技能)
 
-**职责**: 定义可复用的行为模式、响应触发、执行流程
+**职责**: 定义可复用的行为模式、响应触发、LLM 驱动的自然语言执行
+
+Skill 使用 **Markdown 自然语言格式**定义，由 LLM 解析并生成执行计划。
 
 ```yaml
 skill:
@@ -617,6 +619,7 @@ skill:
     description: string
     version: string
     category: string
+    default_llm: LLMConfig | null  # 可选，默认使用 Agent 的 LLM
 
   triggers:
     - type: keyword
@@ -630,25 +633,32 @@ skill:
     - type: schedule
       cron: "0 9 * * *"
 
-  steps:
-    - name: "收集文件"
-      tool: "glob"
-      args:
-        pattern: "**/*.ts"
-      output: "files"
-
-    - name: "AI 分析"
-      agent: "self"
-      prompt: |
-        分析以下文件：{{ files }}
-      output: "analysis"
-
-    - name: "生成报告"
-      tool: "write"
-      args:
-        path: "reports/{{ timestamp }}.md"
-        content: "{{ analysis }}"
+  content:
+    # Markdown 自然语言格式的技能定义
+    # LLM 根据此内容生成执行计划
+    type: string
 ```
+
+**自然语言格式示例**:
+
+```markdown
+# 代码审查技能
+
+## Trigger Conditions
+当用户说 "审查代码" 或文件变更时触发
+
+## Steps
+1. 收集所有待审查的文件
+2. 对每个文件进行语法和逻辑审查
+3. 检查常见的安全问题
+4. 生成审查报告，包含问题列表和修复建议
+```
+
+**执行流程**:
+1. 用户/事件触发 Skill
+2. LLM 解析 Markdown 自然语言步骤
+3. LLM 生成 ExecutionPlan（执行计划）
+4. 按计划执行各步骤
 
 ### Tool (工具)
 
@@ -725,14 +735,18 @@ events:
     branch: string
     hash: string
 
-  schedule_event:
-    type: schedule
-    cron: string
+  timer_event:
+    type: timer_triggered
+    timer_id: string
+    # 来源: Timer System
 
-  message_event:
-    type: message
-    content: string
-    session_id: string
+  http_event:
+    type: http_poll
+    source: string
+
+  webhook_event:
+    type: webhook
+    source: string
 ```
 
 **事件源**:
@@ -746,10 +760,19 @@ sources:
     enabled: true
     branches: [main, develop]
 
-  scheduler:
+  timer:
+    # 注意: Event Loop 不管理定时调度，仅接收 Timer System 发来的 timer_triggered 事件
+    # 定时任务调度由 Timer System 负责
     enabled: true
-    timezone: UTC
+
+  http_source:
+    enabled: false
+
+  webhook_source:
+    enabled: true
 ```
+
+> **架构说明**: Timer System 独立运行管理所有定时任务，在定时器触发时向 Event Loop 发送 `timer_triggered` 事件。Event Loop 仅负责接收和分发，不管理调度。
 
 详细设计参见: [`03-module-design/core/event-loop.md`](03-module-design/core/event-loop.md)
 
@@ -1391,19 +1414,21 @@ hook:
 hook_events:
   # Agent 生命周期
   agent:
-    - agent_create
-    - agent_created
-    - agent_execute
-    - agent_executed
-    - agent_error
+    - agent_create            # 创建前 (可阻断)
+    - agent_created           # 创建后
+    - agent_execute           # 执行前 (可阻断)
+    - agent_executed          # 执行后
+    - agent_error             # 错误时
+    - agent_destroy           # 销毁前 (可阻断)
 
   # 会话生命周期
   session:
-    - session_create
-    - session_created
-    - session_switch
-    - session_close
-    - context_compress
+    - session_create         # 创建前 (可阻断)
+    - session_created        # 创建后
+    - session_switch         # 切换后
+    - session_close          # 关闭前 (可阻断)
+    - context_compress       # 压缩前 (可阻断)
+    - context_compressed      # 压缩后
 
   # 工具调用
   tool:
@@ -1414,15 +1439,15 @@ hook_events:
 
   # LLM 调用
   llm:
-    - llm_request
-    - llm_response
-    - prompt_build            # 可修改 prompt
+    - llm_request             # 请求前 (可阻断)
+    - llm_response            # 响应后
+    - prompt_build            # Prompt 构建时 (可修改)
 
   # 消息处理
   message:
-    - message_send
-    - message_received
-    - message_modify
+    - message_send            # 发送前 (可阻断)
+    - message_received        # 接收后
+    - message_modify          # 修改时 (可阻断/修改)
 ```
 
 ### Hook 配置
