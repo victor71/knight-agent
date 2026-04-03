@@ -341,8 +341,10 @@ TimerStatus:
     - completed
     - cancelled
 
-# 定时器回调类型
+# 定时器回调类型（联合类型）
+# TimerCallback 是一个 discriminated union，根据 type 字段选择具体的回调类型
 TimerCallback:
+  # 类型选择器（必需）
   type:
     type: enum
     values: [callback, hook, skill, webhook]
@@ -352,16 +354,21 @@ TimerCallback:
       - hook: Hook 触发
       - skill: Skill 执行
       - webhook: HTTP Webhook 调用
-      注意: 不再支持 message_queue，使用 Event Loop 分发机制代替
 
-  # 回调函数
+  # 根据 type 的值，选择对应的回调配置（互斥）
+  # 当 type = callback 时使用
   callback:
-    type: function
-    description: 直接回调函数
+    type: object
+    description: 直接回调函数配置
+    properties:
+      handler:
+        type: function
+        description: 回调处理函数
 
-  # Hook 触发
+  # 当 type = hook 时使用
   hook:
     type: object
+    description: Hook 触发配置
     properties:
       hook_id:
         type: string
@@ -370,9 +377,10 @@ TimerCallback:
         type: object
         description: Hook 参数
 
-  # Skill 触发
+  # 当 type = skill 时使用
   skill:
     type: object
+    description: Skill 触发配置
     properties:
       skill_id:
         type: string
@@ -381,9 +389,10 @@ TimerCallback:
         type: object
         description: Skill 参数
 
-  # Webhook 调用
+  # 当 type = webhook 时使用
   webhook:
     type: object
+    description: Webhook 配置
     properties:
       url:
         type: string

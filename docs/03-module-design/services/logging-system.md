@@ -222,6 +222,10 @@ LoggingSystem:
         type: string
         description: 目标名称
         required: false
+    outputs:
+      success:
+        type: boolean
+        description: 操作是否成功
 
   get_stats:
     description: 获取日志统计

@@ -763,11 +763,11 @@ llm:
 ### 环境变量
 
 ```bash
-# Anthropic
+# LLM 提供商 API 密钥（Provider-native 格式，无 KNIGHT_ 前缀）
+# 这些变量直接传递给外部提供商 SDK，使用提供商预期的命名约定
 export ANTHROPIC_API_KEY="sk-ant-..."
 export ANTHROPIC_BASE_URL="https://api.anthropic.com"
 
-# OpenAI
 export OPENAI_API_KEY="sk-..."
 export OPENAI_BASE_URL="https://api.openai.com/v1"
 
@@ -775,11 +775,13 @@ export OPENAI_BASE_URL="https://api.openai.com/v1"
 export CUSTOM_LLM_URL="https://..."
 export CUSTOM_LLM_KEY="..."
 
-# 路由配置
+# Knight 特定配置（使用 KNIGHT_ 前缀）
 export KNIGHT_LLM_ROUTING_ENABLED="true"
 export KNIGHT_LLM_DEFAULT_PROVIDER="anthropic"
 export KNIGHT_LLM_DEFAULT_MODEL="claude-sonnet-4-6"
 ```
+
+**注意**: Provider-native 环境变量（如 `ANTHROPIC_API_KEY`）不使用 `KNIGHT_` 前缀，因为它们直接传递给外部 LLM 提供商的 SDK。其余 Knight 内部配置统一使用 `KNIGHT_` 前缀。
 
 ### 部署考虑
 

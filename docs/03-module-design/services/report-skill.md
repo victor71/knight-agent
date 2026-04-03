@@ -68,7 +68,7 @@ ReportSkill:
 
   # ========== 定时报告 ==========
   schedule_report:
-    description: 创建定时报告任务
+    description: 创建定时报告任务（内部调用 Timer System 的 create_cron 方法）
     inputs:
       type:
         type: string
@@ -76,12 +76,20 @@ ReportSkill:
       schedule:
         type: string
         description: Cron 表达式（如 "0 9 * * *" 表示每天 9 点）
+      callback:
+        type: TimerCallback
+        description: |
+          定时器回调配置，固定为 skill 类型：
+          - skill_id: "report-skill"
+          - args: { report_type: ${type}, format: "markdown" }
+          内部实现会调用 Timer System.create_cron() 创建定时器
       output:
-        type: string
-        description: 输出路径或邮件地址
+        type: ReportOutput
+        description: 报告输出配置（路径或邮件地址）
     outputs:
       task_id:
         type: string
+        description: 对应 Timer System 的 timer_id
 
   cancel_scheduled_report:
     description: 取消定时报告

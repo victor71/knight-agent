@@ -776,15 +776,18 @@ mcp:
 ### 环境变量
 
 ```bash
-# MCP 服务器
+# MCP 服务器配置（Server-native 格式，无 KNIGHT_ 前缀）
+# 这些变量传递给 MCP 服务器进程，使用服务器预期的命名约定
 export MCP_FILESYSTEM_PATH="."
 export MCP_BRAVE_SEARCH_API_KEY="your-key"
 export MCP_GITHUB_TOKEN="your-token"
 
-# 连接配置
+# Knight MCP Client 配置（使用 KNIGHT_ 前缀）
 export KNIGHT_MCP_TIMEOUT=30
 export KNIGHT_MCP_MAX_RETRIES=3
 ```
+
+**注意**: MCP 服务器配置变量（如 `MCP_FILESYSTEM_PATH`）不使用 `KNIGHT_` 前缀，因为它们直接传递给 MCP 服务器进程。其余 Knight 内部配置统一使用 `KNIGHT_` 前缀。
 
 ---
 
