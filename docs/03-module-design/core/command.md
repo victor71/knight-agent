@@ -52,6 +52,18 @@ Command 采用**声明式 + LLM 驱动**的设计，类似 Claude Code：
 
 ## 数据模型
 
+### 共享类型引用
+
+Command 模块使用以下由其他模块定义的数据类型：
+
+| 类型 | 定义位置 | 说明 |
+|------|---------|------|
+| Event | [Event Loop](../core/event-loop.md#事件) | 事件对象 |
+| Message | [Session Manager](../core/session-manager.md#消息结构) | 消息结构 |
+| TaskRequirements | [Task Manager](../agent/task-manager.md#任务数据结构) | 任务需求（Workflow 命令使用） |
+| Session | [Session Manager](../core/session-manager.md#会话结构) | 会话对象 |
+| WorkflowContext | [Task Manager](../agent/task-manager.md#工作流上下文) | 工作流上下文 |
+
 ### CommandDefinition
 
 ```yaml
@@ -437,6 +449,110 @@ Task Manager 执行工作流
 ```rust
 // Command 执行器
 pub struct CommandExecutor;
+
+### LLM 决策响应格式
+
+Command 使用 LLM 分析用户命令意图并决定执行方式。LLM 应返回以下 JSON 格式的决策：
+
+```yaml
+# LLM 决策响应格式
+LLMDecision:
+  target_type:
+    type: enum
+    values: [skill, agent, tools]
+    description: |
+      执行目标类型：
+      - skill: 调用 Skill
+      - agent: 直接调用 Agent
+      - tools: 直接调用工具序列
+
+  # target_type = skill 时
+  target_name:
+    type: string
+    description: Skill ID 或名称
+  params:
+    type: map<string, any>
+    description: 传递给 Skill 的参数
+
+  # target_type = agent 时
+  prompt:
+    type: string
+    description: 给 Agent 的提示词
+
+  # target_type = tools 时
+  tool_calls:
+    type: array<ToolCall>
+    description: 要执行的工具调用序列
+
+ToolCall:
+  tool:
+    type: string
+    description: 工具名称
+  args:
+    type: object
+    description: 工具参数
+```
+
+**示例 LLM 响应**：
+
+```json
+{
+  "target_type": "skill",
+  "target_name": "code-review",
+  "params": {
+    "files": ["src/main.ts", "src/utils.ts"],
+    "type": "full"
+  }
+}
+```
+
+或：
+
+```json
+{
+  "target_type": "agent",
+  "prompt": "请审查以下代码的质量问题：\n\n文件列表：src/main.ts"
+}
+```
+
+或：
+
+```json
+{
+  "target_type": "tools",
+  "tool_calls": [
+    {"tool": "Read", "args": {"file_path": "src/main.ts"}},
+    {"tool": "Grep", "args": {"pattern": "TODO"}}
+  ]
+}
+```
+
+**LLM Prompt 模板**：
+
+```
+你是一个命令调度器。根据用户输入的命令和上下文，决定最佳执行方式。
+
+可用 Skills：
+{{ available_skills }}
+
+可用 Agents：
+{{ available_agents }}
+
+可用 Tools：
+{{ available_tools }}
+
+命令定义：
+{{ command_description }}
+
+用户输入：
+{{ user_input }}
+
+请以 JSON 格式返回决策，包含：
+- target_type: skill/agent/tools
+- 根据类型的相应字段
+
+只返回 JSON，不要有其他内容。
+```
 
 impl CommandExecutor {
     pub async fn execute(

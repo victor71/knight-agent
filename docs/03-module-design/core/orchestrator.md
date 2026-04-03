@@ -310,6 +310,7 @@ AgentInfo:
 
 # 任务分配需求 (用于 allocate_agent 接口)
 # 注意: 完整的 Task 数据结构定义见 Task Manager 模块
+# TaskRequirements 是 Orchestrator 使用的简化版，完整类型见 [Task Manager](../agent/task-manager.md#任务数据结构)
 TaskRequirements:
   agent_type:
     type: string | null

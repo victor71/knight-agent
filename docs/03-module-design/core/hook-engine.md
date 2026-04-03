@@ -403,12 +403,15 @@ HookContext:
       duration_ms:
         type: integer
 
-  # 控制接口
+  # 控制配置（来自 HookDefinition.control）
+  # 运行时控制能力由 HookEngine 内部实现，不在接口中暴露
   control:
-    type: HookControlInterface
+    type: HookControl
+    description: Hook 的控制权限配置（哪些操作是允许的）
 
-# Hook 控制接口
-HookControlInterface:
+# Hook 控制接口（运行时实现）
+# 注意：这是运行时接口，不是序列化接口。实现时由 HookEngine 提供具体函数
+HookControlRuntime:
   block:
     type: function
     description: 阻断操作 block(reason: string)
@@ -418,6 +421,11 @@ HookControlInterface:
   skip:
     type: function
     description: 跳过后续 Hook
+
+**实现说明**：
+- `HookControl` 是可序列化的配置，定义在 `HookDefinition.control` 中
+- `HookControlRuntime` 是运行时接口，由 HookEngine 在触发 Hook 时提供
+- Hook 处理器通过 `HookContext.control` 获取控制能力，但控制能力本身由 HookDefinition.control 的值决定
 
 # Hook 执行结果
 HookResult:
