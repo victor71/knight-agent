@@ -56,13 +56,13 @@ External Agent 模块负责集成和调用外部 Agent 服务，包括：
 
 | 依赖模块 | 依赖类型 | 说明 |
 |---------|---------|------|
-| Agent Runtime | 依赖 | 基础 Agent 接口 |
+| Agent Runtime | 依赖 | 基础 Agent 接口。见 [Agent Runtime 接口](./agent-runtime.md) |
 | Session Manager | 依赖 | 获取会话上下文 |
 | Tool System | 依赖 | 结果回传 |
-| Monitor | 依赖 | 执行统计 |
-| Security Manager | 协作 | 权限验证、安全检查 |
-| Sandbox | 协作 | 沙箱隔离、资源限制 |
-| Orchestrator | 协作 | External Agent 作为特殊 Agent 类型注册到 Orchestrator 池 |
+| Monitor | 依赖 | 执行统计。见 [Monitor 接口](../core/monitor.md) |
+| Security Manager | 协作 | 权限验证、安全检查。见 [Security Manager 接口](../security/security-manager.md) |
+| Sandbox | 协作 | 沙箱隔离、资源限制。见 [Sandbox 接口](../security/sandbox.md) |
+| Orchestrator | 协作 | External Agent 注册到 [Orchestrator 池](../core/orchestrator.md#agent-池管理) |
 
 ### 与 Orchestrator 的集成
 

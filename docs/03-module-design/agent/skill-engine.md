@@ -29,7 +29,7 @@ Skill Engine 负责管理和执行技能（Skills），包括：
 | Tool System | 依赖 | 工具调用 |
 | LLM Provider | 依赖 | LLM 驱动执行解析 |
 | Agent Runtime | 依赖 | AI 处理（agent 步骤直接调用） |
-| Event Loop | 依赖 | 事件监听 |
+| Event Loop | 依赖 | 事件监听。Event 类型复用 [Event Loop 接口](../core/event-loop.md#事件)。订阅/发布接口见 [Event Loop 接口](../core/event-loop.md#监听器管理)。 |
 
 ---
 
@@ -603,14 +603,8 @@ Trigger:
 
 # 事件
 Event:
-  type:
-    type: string
-  timestamp:
-    type: datetime
-  source:
-    type: string
-  data:
-    type: object
+  $ref: ../core/event-loop.md#Event
+  description: 复用 Event Loop 模块定义的 Event 类型。
 ```
 
 ### 配置选项

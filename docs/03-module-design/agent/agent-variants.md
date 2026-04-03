@@ -35,8 +35,8 @@ Agent Variants 系统负责管理同一 Agent 的不同配置版本，包括：
 
 | 依赖模块 | 依赖类型 | 说明 |
 |---------|---------|------|
-| Agent Runtime | 依赖 | 创建 Agent 实例 |
-| Storage Service | 依赖 | 读取 Agent 定义文件 |
+| Agent Runtime | 依赖 | 创建 Agent 实例。见 [Agent Runtime 接口](./agent-runtime.md) |
+| Storage Service | 依赖 | 读取 Agent 定义文件。见 [Storage Service 接口](./storage-service.md) |
 
 ---
 

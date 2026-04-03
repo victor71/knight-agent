@@ -28,13 +28,13 @@ Agent Runtime 负责单个 Agent 的执行逻辑，包括：
 | Tool System | 依赖 | 工具执行 |
 | Skill Engine | 依赖 | 技能触发 |
 | Hook Engine | 依赖 | 生命周期钩子 |
-| Orchestrator | 协作 | 创建 Agent 后注册到 Orchestrator 池 |
+| Orchestrator | 协作 | 创建 Agent 后注册到 Orchestrator 池。Agent 分配接口见 [Orchestrator 接口](../core/orchestrator.md#agent-分配-供-task-manager-调用)。 |
 
 ### 被依赖模块
 
 | 模块 | 依赖类型 | 说明 |
 |------|---------|------|
-| Orchestrator | 被依赖 | Agent 创建后调用 Orchestrator.register_agent |
+| Orchestrator | 被依赖 | Agent 创建后调用 [Orchestrator.register_agent](../core/orchestrator.md#agent-池管理) |
 | Skill Engine | 被依赖 | Agent 可调用 Skill |
 | External Agent | 被依赖 | 外部 Agent 基于内部 Agent 接口 |
 
