@@ -1,0 +1,52 @@
+[workspace]
+resolver = "2"
+members = [
+    # Core (8)
+    "rust/core/event-loop",
+    "rust/core/hook-engine",
+    "rust/core/session-manager",
+    "rust/core/router",
+    "rust/core/monitor",
+    "rust/core/orchestrator",
+    "rust/core/command",
+    "rust/core/bootstrap",
+    # Agent (6)
+    "rust/agent/agent-variants",
+    "rust/agent/agent-runtime",
+    "rust/agent/external-agent",
+    "rust/agent/skill-engine",
+    "rust/agent/task-manager",
+    "rust/agent/workflows-directory",
+    # Services (7)
+    "rust/services/logging-system",
+    "rust/services/storage-service",
+    "rust/services/llm-provider",
+    "rust/services/timer-system",
+    "rust/services/report-skill",
+    "rust/services/context-compressor",
+    "rust/services/permission-service",
+    # Tool System (1)
+    "rust/tool-system/tool-system",
+    # Infrastructure (1)
+    "rust/infrastructure/ipc-contract",
+    # Security (2)
+    "rust/security/security-manager",
+    "rust/security/sandbox",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Knight Agent Team"]
+license = "MIT"
+
+[workspace.dependencies]
+tokio = { version = "1.45", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+async-trait = "0.1"
+uuid = { version = "1.0", features = ["v4"] }
