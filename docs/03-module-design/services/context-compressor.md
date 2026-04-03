@@ -50,7 +50,12 @@ ContextCompressor:
         type: string
 
   compress:
-    description: 压缩会话上下文
+    description: |
+      压缩会话上下文
+      失败处理：
+      - 重试次数耗尽：返回 COMPRESSION_RETRY_EXHAUSTED，继续使用原始上下文
+      - Token 预算超限：返回 COMPRESSION_TOKEN_LIMIT，继续使用原始上下文
+      - 不会无限重试，避免 Token 消耗过量
     inputs:
       session_id:
         type: string
@@ -66,6 +71,9 @@ ContextCompressor:
     outputs:
       compression_point:
         type: CompressionPoint
+    errors:
+      - COMPRESSION_RETRY_EXHAUSTED
+      - COMPRESSION_TOKEN_LIMIT
 
   compress_async:
     description: 异步压缩会话上下文
@@ -312,6 +320,20 @@ compression:
     keep_system: true
     min_compression_ratio: 0.3
 
+  # 重试限制 (防止 Token 消耗过量)
+  retry:
+    max_attempts: 3              # 最大压缩重试次数
+    backoff: exponential         # 退避策略
+    initial_delay_ms: 1000       # 初始延迟
+    max_delay_ms: 10000         # 最大延迟
+    fail_on_max_retries: true   # 达到最大重试后是否放弃压缩
+
+  # Token 预算保护
+  token_budget:
+    max_tokens_per_compression: 5000  # 单次压缩最大消耗 Token 数
+    max_total_compression_tokens: 50000  # 会话累计压缩消耗上限
+    stop_compression_on_limit: true    # 达到上限后停止压缩
+
   # 模型配置
   models:
     summary:
@@ -324,6 +346,16 @@ compression:
       summary_model: claude-haiku
       semantic_model: claude-sonnet-4-6
 ```
+
+**配置说明**:
+
+| 配置路径 | 说明 | 默认值 |
+|---------|------|--------|
+| `retry.max_attempts` | 压缩失败最大重试次数 | 3 |
+| `retry.fail_on_max_retries` | 达到最大重试后是否放弃 | true |
+| `token_budget.max_tokens_per_compression` | 单次压缩最大 Token 消耗 | 5000 |
+| `token_budget.max_total_compression_tokens` | 会话累计压缩 Token 上限 | 50000 |
+| `token_budget.stop_compression_on_limit` | 达到上限后停止压缩 | true |
 
 ---
 
@@ -624,22 +656,101 @@ error_codes:
     code: 500
     message: "压缩失败"
     action: "检查 LLM 服务"
+    retryable: true
+
+  COMPRESSION_RETRY_EXHAUSTED:
+    code: 510
+    message: "压缩重试次数已用尽"
+    action: "跳过压缩，继续使用原始上下文"
+    retryable: false
+
+  COMPRESSION_TOKEN_LIMIT:
+    code: 511
+    message: "压缩 Token 消耗超出预算"
+    action: "停止压缩，使用原始上下文"
+    retryable: false
 
   INSUFFICIENT_CONTEXT:
     code: 400
     message: "上下文不足"
     action: "等待更多消息"
+    retryable: false
 
   LOW_COMPRESSION_RATIO:
     code: 200
     message: "压缩比例过低"
     action: "调整压缩选项"
+    retryable: true
 
   SESSION_NOT_FOUND:
     code: 404
     message: "会话不存在"
     action: "检查会话 ID"
+    retryable: false
 ```
+
+### 压缩失败处理流程
+
+```
+压缩请求
+    │
+    ▼
+┌──────────────────────────────┐
+│ 1. 执行压缩                  │
+│    - 调用 LLM 生成摘要        │
+└──────────────────────────────┘
+    │
+    ▼
+    ┌───┴────┐
+    │ 成功？  │
+    └───┬────┘
+        │ 否
+        ▼
+┌──────────────────────────────┐
+│ 2. 检查重试次数              │
+│    - current_attempt < max   │
+└──────────────────────────────┘
+        │
+        ▼
+    ┌───┴────┐
+    │ 可重试？│
+    └───┬────┘
+        │ 否
+        ▼
+┌──────────────────────────────┐
+│ 3. 放弃压缩                  │
+│    - 返回 COMPRESSION_RETRY_EXHAUSTED │
+│    - 继续使用原始上下文      │
+└──────────────────────────────┘
+        │ 是
+        ▼
+┌──────────────────────────────┐
+│ 4. 检查 Token 预算          │
+│    - current_tokens + estimated < limit │
+└──────────────────────────────┘
+        │
+        ▼
+    ┌───┴────┐
+    │ 未超限？│
+    └───┬────┘
+        │ 超限
+        ▼
+┌──────────────────────────────┐
+│ 5. 停止压缩                  │
+│    - 返回 COMPRESSION_TOKEN_LIMIT │
+│    - 继续使用原始上下文      │
+└──────────────────────────────┘
+        │ 是
+        ▼
+┌──────────────────────────────┐
+│ 6. 延迟重试 (指数退避)       │
+│    - delay = min(delay * 2, max_delay) │
+│    - current_attempt++       │
+│    - 等待后重试              │
+└──────────────────────────────┘
+```
+
+**重要**: 当 `COMPRESSION_RETRY_EXHAUSTED` 或 `COMPRESSION_TOKEN_LIMIT` 发生时，**不会无限重试**，系统会继续使用原始上下文，Agent 可以继续工作（虽然上下文较长）。
 
 ### 压缩策略对比
 
