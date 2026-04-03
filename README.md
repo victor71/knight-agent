@@ -30,6 +30,8 @@ knight-agent/
 │   ├── 02-system-design.md            # 系统架构设计
 │   ├── 03-module-design/              # 模块详细设计
 │   │   ├── README.md                  # 模块设计索引
+│   │   ├── cli/                       # CLI 模块 (1)
+│   │   │   └── cli.md                 # 命令行接口
 │   │   ├── core/                      # 核心引擎模块 (8)
 │   │   │   ├── bootstrap.md           # 系统启动器
 │   │   │   ├── session-manager.md     # 会话管理器
@@ -56,6 +58,8 @@ knight-agent/
 │   │   │   └── report-skill.md        # 报告技能
 │   │   ├── tools/                     # 工具系统 (1)
 │   │   │   └── tool-system.md         # 工具框架
+│   │   ├── infrastructure/            # 基础设施模块 (1)
+│   │   │   └── ipc-contract.md        # 进程间通信契约
 │   │   └── security/                  # 安全模块 (2)
 │   │       ├── security-manager.md    # 安全管理器
 │   │       └── sandbox.md             # 沙箱机制
@@ -198,6 +202,8 @@ knight-agent/
 
 | 模块 | 文档 | 状态 |
 |------|------|------|
+| **CLI** | | |
+| 命令行接口 | [cli](./docs/03-module-design/cli/cli.md) | ✅ |
 | **核心引擎** | | |
 | 系统启动器 | [bootstrap](./docs/03-module-design/core/bootstrap.md) | ✅ |
 | 会话管理器 | [session-manager](./docs/03-module-design/core/session-manager.md) | ✅ |
@@ -224,6 +230,8 @@ knight-agent/
 | 报告技能 | [report-skill](./docs/03-module-design/services/report-skill.md) | ✅ |
 | **工具系统** | | |
 | 工具框架 | [tool-system](./docs/03-module-design/tools/tool-system.md) | ✅ |
+| **基础设施** | | |
+| 进程间通信 | [ipc-contract](./docs/03-module-design/infrastructure/ipc-contract.md) | ✅ |
 | **安全模块** | | |
 | 安全管理器 | [security-manager](./docs/03-module-design/security/security-manager.md) | ✅ |
 | 沙箱机制 | [sandbox](./docs/03-module-design/security/sandbox.md) | ✅ |
@@ -301,4 +309,4 @@ MIT License
 ---
 
 **设计状态**: 📐 设计阶段已完成，等待实现阶段
-**最后更新**: 2026-04-02
+**最后更新**: 2026-04-03
