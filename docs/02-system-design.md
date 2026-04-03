@@ -2871,36 +2871,6 @@ grpc_services:
 
 ---
 
-## 部署架构
-
-### 开发环境
-
-```
-开发者机器
-├── knight-agent (CLI)
-├── ~/.knight-agent/
-│   ├── config/
-│   ├── agents/
-│   ├── skills/
-│   └── storage/
-└── 项目目录/
-    └── .knight/
-        └── project.yaml
-```
-
-### 生产环境
-
-```
-服务器
-├── Systemd Service
-│   └── knight-daemon
-├── Docker (可选)
-│   └── knight-agent
-└── 监控
-    ├── Prometheus
-    └── Grafana
-```
-
 ---
 
 ## 状态机设计
