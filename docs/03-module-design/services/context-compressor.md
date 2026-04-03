@@ -1286,25 +1286,6 @@ compression_failure:
     description: "压缩执行耗时"
 ```
 
-**告警规则示例**（Prometheus）:
-
-```yaml
-# 压缩失败率告警
-alerts:
-  - alert: HighCompressionFailureRate
-    expr: rate(compression_retry_exhausted_total[5m]) > 0.1
-    for: 10m
-    annotations:
-      summary: "压缩失败率过高"
-      description: "5分钟内压缩重试耗尽率超过 10%"
-
-  - alert: CompressionBudgetExhausted
-    expr: compression_token_limit_exceeded_total > 0
-    annotations:
-      summary: "压缩 Token 预算耗尽"
-      description: "会话 {{ $labels.session_id }} 的压缩预算已耗尽"
-```
-
 ### 压缩策略对比
 
 | 策略 | 速度 | Token 节省 | 信息保留 | 适用场景 |

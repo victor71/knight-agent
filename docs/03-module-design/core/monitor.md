@@ -753,7 +753,6 @@ async fn test_status_query() {
 - [x] 每日/每周/每月报告生成
 - [ ] 历史趋势图表
 - [ ] 自定义指标
-- [ ] 指标导出（Prometheus 格式）
 - [ ] 告警通知（邮件/Webhook）
 - [ ] 性能分析
 - [ ] 异常检测
