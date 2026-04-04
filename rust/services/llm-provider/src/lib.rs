@@ -1,82 +1,49 @@
-//! LLM Provider
+//! LLM Provider Module
 //!
-//! Design Reference: docs/03-module-design/services/llm-provider.md
+//! Unified LLM provider interface supporting Anthropic and OpenAI.
+//!
+//! # Features
+//!
+//! - Unified chat completion interface
+//! - Streaming response support
+//! - Multiple provider support (Anthropic, OpenAI)
+//! - Token counting and cost estimation
+//! - Model routing and fallback
+//!
+//! # Quick Start
+//!
+//! ```rust,ignore
+//! use llm_provider::{LLMProvider, ChatCompletionRequest, Message, MessageRole, Content};
+//! use llm_provider::provider::AnthropicProvider;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let provider = AnthropicProvider::new("your-api-key")?;
+//!
+//!     let request = ChatCompletionRequest {
+//!         model: "claude-sonnet-4-6".to_string(),
+//!         messages: vec![Message {
+//!             role: MessageRole::User,
+//!             content: Some(Content::Text("Hello!".to_string())),
+//!             tool_calls: None,
+//!             tool_call_id: None,
+//!         }],
+//!         temperature: 0.7,
+//!         max_tokens: 1024,
+//!         ..Default::default()
+//!     };
+//!
+//!     let response = provider.chat_completion(request).await?;
+//!     println!("Response: {}", response.content.unwrap());
+//!
+//!     Ok(())
+//! }
+//! ```
 
-#![allow(unused)]
+pub mod provider;
+pub mod llm_trait;
+pub mod types;
 
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum LLMProviderError {
-    #[error("LLM provider not initialized")]
-    NotInitialized,
-    #[error("Inference failed: {0}")]
-    InferenceFailed(String),
-    #[error("Model not found: {0}")]
-    ModelNotFound(String),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LLMRequest {
-    pub model: String,
-    pub prompt: String,
-    pub max_tokens: u32,
-    pub temperature: f32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LLMResponse {
-    pub content: String,
-    pub model: String,
-    pub usage: TokenUsage,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TokenUsage {
-    pub prompt_tokens: u32,
-    pub completion_tokens: u32,
-    pub total_tokens: u32,
-}
-
-pub trait LLMProvider: Send + Sync {
-    fn new() -> Result<Self, LLMProviderError>
-    where
-        Self: Sized;
-    fn name(&self) -> &str;
-    fn is_initialized(&self) -> bool;
-    async fn complete(&self, request: LLMRequest) -> Result<LLMResponse, LLMProviderError>;
-    async fn list_models(&self) -> Result<Vec<String>, LLMProviderError>;
-}
-
-pub struct LLMProviderImpl;
-
-impl LLMProvider for LLMProviderImpl {
-    fn new() -> Result<Self, LLMProviderError> {
-        Ok(LLMProviderImpl)
-    }
-
-    fn name(&self) -> &str {
-        "llm-provider"
-    }
-
-    fn is_initialized(&self) -> bool {
-        false
-    }
-
-    async fn complete(&self, _request: LLMRequest) -> Result<LLMResponse, LLMProviderError> {
-        Ok(LLMResponse {
-            content: String::new(),
-            model: String::new(),
-            usage: TokenUsage {
-                prompt_tokens: 0,
-                completion_tokens: 0,
-                total_tokens: 0,
-            },
-        })
-    }
-
-    async fn list_models(&self) -> Result<Vec<String>, LLMProviderError> {
-        Ok(vec![])
-    }
-}
+pub use provider::{AnthropicProvider, OpenAIProvider};
+pub use llm_trait::{LLMProvider, LLMError, LLMResult, TokenCount, CompletionStream};
+pub use types::*;
