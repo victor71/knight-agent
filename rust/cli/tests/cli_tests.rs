@@ -10,10 +10,14 @@ fn test_repl_input_parse() {
     assert!(matches!(empty, ReplInput::Empty));
 
     let slash = ReplInput::parse("/help");
-    assert!(matches!(slash, ReplInput::SlashCommand { command: c, args: a } if c == "help" && a.is_empty()));
+    assert!(
+        matches!(slash, ReplInput::SlashCommand { command: c, args: a } if c == "help" && a.is_empty())
+    );
 
     let slash_with_args = ReplInput::parse("/session new");
-    assert!(matches!(slash_with_args, ReplInput::SlashCommand { command: c, args: a } if c == "session" && a == "new"));
+    assert!(
+        matches!(slash_with_args, ReplInput::SlashCommand { command: c, args: a } if c == "session" && a == "new")
+    );
 
     let natural = ReplInput::parse("Hello world");
     assert!(matches!(natural, ReplInput::NaturalLanguage { text } if text == "Hello world"));
@@ -28,7 +32,9 @@ fn test_repl_command_parse() {
     assert!(matches!(session_list, ReplCommand::SessionList));
 
     let session_new = ReplCommand::parse("sessions", "new test");
-    assert!(matches!(session_new, ReplCommand::SessionCreate { name } if name == Some("test".to_string())));
+    assert!(
+        matches!(session_new, ReplCommand::SessionCreate { name } if name == Some("test".to_string()))
+    );
 }
 
 #[tokio::test]

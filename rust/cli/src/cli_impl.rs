@@ -5,8 +5,8 @@ use tokio::sync::RwLock;
 
 use crate::error::{CliError, CliResult};
 use crate::r#trait::Cli;
-use crate::types::DaemonAction;
 use crate::repl::CliRepl;
+use crate::types::DaemonAction;
 
 /// CLI implementation
 #[derive(Clone)]
@@ -25,6 +25,7 @@ impl CliImpl {
     }
 
     /// Get the REPL
+    #[must_use]
     pub fn repl(&self) -> &CliRepl {
         &self.repl
     }
@@ -41,10 +42,13 @@ impl Cli for CliImpl {
     }
 
     fn is_initialized(&self) -> bool {
-        self.initialized
-            .try_read()
-            .map(|guard| *guard)
-            .unwrap_or(false)
+        match self.initialized.try_read() {
+            Ok(guard) => *guard,
+            Err(_) => {
+                tracing::error!("CLI initialization lock poisoned, assuming not initialized");
+                false
+            }
+        }
     }
 
     async fn initialize(&self) -> CliResult<()> {

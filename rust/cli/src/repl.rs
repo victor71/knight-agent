@@ -1,12 +1,10 @@
 //! REPL implementation for CLI
 
-use std::sync::Arc;
-use tokio::sync::RwLock;
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::signal::ctrl_c;
-
-use crate::error::{CliError, CliResult};
+use crate::error::CliResult;
 use crate::types::{ReplCommand, ReplInput};
+use std::sync::Arc;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::sync::RwLock;
 
 /// REPL state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,7 +16,6 @@ pub enum ReplState {
 /// CLI REPL implementation
 #[derive(Clone)]
 pub struct CliRepl {
-    running: Arc<RwLock<bool>>,
     state: Arc<RwLock<ReplState>>,
     prompt: Arc<RwLock<String>>,
 }
@@ -27,15 +24,14 @@ impl CliRepl {
     /// Create a new REPL
     pub fn new() -> Self {
         Self {
-            running: Arc::new(RwLock::new(false)),
             state: Arc::new(RwLock::new(ReplState::Running)),
-            prompt: Arc::new(RwLock::new("knight>".to_string())),
+            prompt: Arc::new(RwLock::new(String::from("knight>"))),
         }
     }
 
     /// Check if running
     pub async fn is_running(&self) -> bool {
-        *self.running.read().await
+        matches!(*self.state.read().await, ReplState::Running)
     }
 
     /// Get state
@@ -49,9 +45,7 @@ impl CliRepl {
 
         match input {
             ReplInput::Empty => Ok(ReplCommand::Status),
-            ReplInput::SlashCommand { command, args } => {
-                Ok(ReplCommand::parse(&command, &args))
-            }
+            ReplInput::SlashCommand { command, args } => Ok(ReplCommand::parse(&command, &args)),
             ReplInput::NaturalLanguage { text } => {
                 tracing::info!("Processing natural language input: {}", text);
                 // In production, this would route to the orchestrator
@@ -96,14 +90,15 @@ impl CliRepl {
             }
             ReplCommand::Exit => {
                 *self.state.write().await = ReplState::Exiting;
-                *self.running.write().await = false;
             }
             ReplCommand::Quit => {
                 *self.state.write().await = ReplState::Exiting;
-                *self.running.write().await = false;
             }
             ReplCommand::Unknown { command } => {
-                println!("Unknown command: {}. Type /help for available commands.", command);
+                println!(
+                    "Unknown command: {}. Type /help for available commands.",
+                    command
+                );
             }
         }
         Ok(())
@@ -111,8 +106,6 @@ impl CliRepl {
 
     /// Run the REPL loop
     pub async fn run(&self) -> CliResult<()> {
-        *self.running.write().await = true;
-
         println!("Knight Agent CLI");
         println!("Type /help for available commands, /quit to exit");
 
@@ -123,8 +116,7 @@ impl CliRepl {
         while self.is_running().await {
             // Print prompt
             print!("{}", *self.prompt.read().await);
-            use std::io::Write;
-            std::io::stdout().flush()?;
+            tokio::io::stdout().flush().await?;
 
             line.clear();
             let n = reader.read_line(&mut line).await?;

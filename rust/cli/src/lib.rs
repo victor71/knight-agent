@@ -8,8 +8,8 @@
 // Re-export public API
 pub use cli_impl::CliImpl;
 pub use error::{CliError, CliResult};
-pub use repl::{CliRepl, ReplState};
 pub use r#trait::Cli;
+pub use repl::{CliRepl, ReplState};
 pub use types::{DaemonAction, ReplCommand, ReplInput};
 
 mod cli_impl;

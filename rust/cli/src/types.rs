@@ -2,20 +2,27 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Daemon action
+/// Daemon control actions
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum DaemonAction {
+    /// Start the daemon process
     Start,
+    /// Stop the daemon process
     Stop,
+    /// Query daemon status
     Status,
+    /// Restart the daemon process
     Restart,
 }
 
-/// REPL input type
+/// Parsed REPL input
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ReplInput {
+    /// Slash command (e.g., "/help", "/sessions")
     SlashCommand { command: String, args: String },
+    /// Natural language input
     NaturalLanguage { text: String },
+    /// Empty input
     Empty,
 }
 
@@ -39,23 +46,29 @@ impl ReplInput {
 }
 
 /// REPL command type
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ReplCommand {
-    // Help
+    /// Show help information
     Help,
-    // Session management
+    /// List all sessions
     SessionList,
+    /// Create a new session
     SessionCreate { name: Option<String> },
+    /// Switch to a session
     SessionSwitch { id: String },
+    /// Destroy a session
     SessionDestroy { id: String },
-    // Agent management
+    /// List all agents
     AgentList,
+    /// Spawn a new agent
     AgentSpawn { variant: String },
-    // System
+    /// Show system status
     Status,
+    /// Exit the REPL
     Quit,
+    /// Exit the REPL (alias for Quit)
     Exit,
-    // Unknown
+    /// Unknown command
     Unknown { command: String },
 }
 
