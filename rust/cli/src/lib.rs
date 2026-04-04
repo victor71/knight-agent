@@ -1,96 +1,96 @@
-//! CLI (命令行接口)
+//! CLI (Command Line Interface)
+//!
+//! Command-line interface for Knight-Agent.
+//! Provides REPL mode and daemon control.
 //!
 //! Design Reference: docs/03-module-design/cli/cli.md
 
-#![allow(unused)]
+// Re-export public API
+pub use cli_impl::CliImpl;
+pub use error::{CliError, CliResult};
+pub use repl::{CliRepl, ReplState};
+pub use r#trait::Cli;
+pub use types::{DaemonAction, ReplCommand, ReplInput};
 
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
+mod cli_impl;
+mod error;
+mod repl;
+mod r#trait;
+mod types;
 
-#[derive(Error, Debug)]
-pub enum CliError {
-    #[error("Daemon not running")]
-    DaemonNotRunning,
-    #[error("Connection failed: {0}")]
-    ConnectionFailed(String),
-    #[error("Command not found: {0}")]
-    CommandNotFound(String),
-    #[error("Session not found: {0}")]
-    SessionNotFound(String),
-    #[error("Timeout")]
-    Timeout,
-    #[error("IPC error: {0}")]
-    IpcError(String),
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum DaemonAction {
-    Start,
-    Stop,
-    Status,
-    Restart,
-}
+    #[test]
+    fn test_repl_input_parse() {
+        let empty = ReplInput::parse("");
+        assert!(matches!(empty, ReplInput::Empty));
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ReplInput {
-    SlashCommand { command: String, args: String },
-    NaturalLanguage { text: String },
-    Empty,
-}
+        let slash = ReplInput::parse("/help");
+        assert!(matches!(slash, ReplInput::SlashCommand { command: c, args: a } if c == "help" && a.is_empty()));
 
-impl ReplInput {
-    pub fn parse(line: &str) -> Self {
-        let line = line.trim();
-        if line.is_empty() {
-            return ReplInput::Empty;
-        }
-        if line.starts_with('/') {
-            let parts: Vec<&str> = line.splitn(2, ' ').collect();
-            let command = parts[0].trim_start_matches('/').to_string();
-            let args = parts.get(1).map(|s| s.to_string()).unwrap_or_default();
-            return ReplInput::SlashCommand { command, args };
-        }
-        ReplInput::NaturalLanguage {
-            text: line.to_string(),
-        }
-    }
-}
+        let slash_with_args = ReplInput::parse("/session new");
+        assert!(matches!(slash_with_args, ReplInput::SlashCommand { command: c, args: a } if c == "session" && a == "new"));
 
-pub trait Cli: Send + Sync {
-    fn new() -> Result<Self, CliError>
-    where
-        Self: Sized;
-    fn name(&self) -> &str;
-    fn is_initialized(&self) -> bool;
-    async fn run_repl(&self) -> Result<(), CliError>;
-    async fn daemon_action(&self, action: DaemonAction) -> Result<(), CliError>;
-    async fn health_check(&self) -> Result<(), CliError>;
-}
-
-pub struct CliImpl;
-
-impl Cli for CliImpl {
-    fn new() -> Result<Self, CliError> {
-        Ok(CliImpl)
+        let natural = ReplInput::parse("Hello world");
+        assert!(matches!(natural, ReplInput::NaturalLanguage { text } if text == "Hello world"));
     }
 
-    fn name(&self) -> &str {
-        "cli"
+    #[test]
+    fn test_repl_command_parse() {
+        let help = ReplCommand::parse("help", "");
+        assert!(matches!(help, ReplCommand::Help));
+
+        let session_list = ReplCommand::parse("sessions", "");
+        assert!(matches!(session_list, ReplCommand::SessionList));
+
+        let session_new = ReplCommand::parse("sessions", "new test");
+        assert!(matches!(session_new, ReplCommand::SessionCreate { name } if name == Some("test".to_string())));
     }
 
-    fn is_initialized(&self) -> bool {
-        false // TODO: implement
+    #[tokio::test]
+    async fn test_cli_new() {
+        let cli = CliImpl::new().unwrap();
+        assert_eq!(cli.name(), "cli");
+        assert!(!cli.is_initialized());
     }
 
-    async fn run_repl(&self) -> Result<(), CliError> {
-        Ok(()) // TODO: implement
+    #[tokio::test]
+    async fn test_cli_initialize() {
+        let cli = CliImpl::new().unwrap();
+        cli.initialize().await.unwrap();
+        assert!(cli.is_initialized());
     }
 
-    async fn daemon_action(&self, _action: DaemonAction) -> Result<(), CliError> {
-        Ok(()) // TODO: implement
+    #[tokio::test]
+    async fn test_repl_state() {
+        let repl = CliRepl::new();
+        assert_eq!(repl.state().await, ReplState::Running);
     }
 
-    async fn health_check(&self) -> Result<(), CliError> {
-        Ok(()) // TODO: implement
+    #[tokio::test]
+    async fn test_process_input() {
+        let repl = CliRepl::new();
+        let cmd = repl.process_input("/help").await.unwrap();
+        assert!(matches!(cmd, ReplCommand::Help));
+
+        let cmd = repl.process_input("test").await.unwrap();
+        assert!(matches!(cmd, ReplCommand::Status)); // Natural language defaults to status
+    }
+
+    #[tokio::test]
+    async fn test_execute_command() {
+        let repl = CliRepl::new();
+        repl.execute_command(ReplCommand::Help).await.unwrap();
+        // Should print help, which we can't test directly
+    }
+
+    #[tokio::test]
+    async fn test_execute_exit_command() {
+        let repl = CliRepl::new();
+        repl.execute_command(ReplCommand::Exit).await.unwrap();
+        assert!(!repl.is_running().await);
+        assert_eq!(repl.state().await, ReplState::Exiting);
     }
 }
