@@ -1,9 +1,8 @@
-//! LLM Provider Implementations
+//! LLM Provider
 //!
-//! Concrete implementations for Anthropic and OpenAI.
+//! A configurable LLM provider that supports OpenAI and Anthropic protocols.
+//! Providers are configured via API key, base URL, and protocol type.
 
-mod anthropic;
-mod openai;
+mod generic;
 
-pub use anthropic::AnthropicProvider;
-pub use openai::OpenAIProvider;
+pub use generic::{LLMProtocol, ProviderConfig, GenericLLMProvider};

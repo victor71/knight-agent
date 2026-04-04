@@ -1,12 +1,14 @@
 //! LLM Provider Module
 //!
-//! Unified LLM provider interface supporting Anthropic and OpenAI.
+//! Unified LLM provider interface supporting Anthropic and OpenAI protocols.
+//! Configuration-driven design allows flexible provider setup.
 //!
 //! # Features
 //!
 //! - Unified chat completion interface
 //! - Streaming response support
-//! - Multiple provider support (Anthropic, OpenAI)
+//! - OpenAI and Anthropic protocol support
+//! - Configuration-driven provider setup
 //! - Token counting and cost estimation
 //! - Model routing and fallback
 //!
@@ -14,14 +16,24 @@
 //!
 //! ```rust,ignore
 //! use llm_provider::{LLMProvider, ChatCompletionRequest, Message, MessageRole, Content};
-//! use llm_provider::provider::AnthropicProvider;
+//! use llm_provider::provider::{GenericLLMProvider, LLMProtocol, ProviderConfig};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let provider = AnthropicProvider::new("your-api-key")?;
+//!     // Create OpenAI-compatible provider
+//!     let openai_config = ProviderConfig {
+//!         name: "openai".to_string(),
+//!         api_key: "your-api-key".to_string(),
+//!         base_url: "https://api.openai.com/v1".to_string(),
+//!         protocol: LLMProtocol::OpenAI,
+//!         models: vec!["gpt-4o".to_string()],
+//!         default_model: Some("gpt-4o".to_string()),
+//!         timeout_secs: 120,
+//!     };
+//!     let provider = GenericLLMProvider::new(openai_config)?;
 //!
 //!     let request = ChatCompletionRequest {
-//!         model: "claude-sonnet-4-6".to_string(),
+//!         model: "gpt-4o".to_string(),
 //!         messages: vec![Message {
 //!             role: MessageRole::User,
 //!             content: Some(Content::Text("Hello!".to_string())),
@@ -44,6 +56,6 @@ pub mod provider;
 pub mod llm_trait;
 pub mod types;
 
-pub use provider::{AnthropicProvider, OpenAIProvider};
+pub use provider::{GenericLLMProvider, LLMProtocol, ProviderConfig};
 pub use llm_trait::{LLMProvider, LLMError, LLMResult, TokenCount, CompletionStream};
 pub use types::*;
