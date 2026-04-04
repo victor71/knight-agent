@@ -1,62 +1,20 @@
 //! Agent Variants
 //!
 //! Design Reference: docs/03-module-design/agent/agent-variants.md
+//!
+//! This module provides agent variant management, including:
+//! - Loading agent definitions with variant support
+//! - Variant inheritance and override mechanisms
+//! - Agent reference resolution (e.g., "code-reviewer:quick")
 
-#![allow(unused)]
+pub mod types;
+pub mod registry;
 
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
+pub use types::AgentVariantError;
+pub use registry::AgentVariantRegistryImpl;
 
-#[derive(Error, Debug)]
-pub enum AgentVariantError {
-    #[error("Variant not found: {0}")]
-    NotFound(String),
-    #[error("Variant registration failed: {0}")]
-    RegistrationFailed(String),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AgentVariant {
-    pub name: String,
-    pub variant_type: String,
-    pub capabilities: Vec<String>,
-}
-
-pub trait AgentVariantRegistry: Send + Sync {
-    fn new() -> Result<Self, AgentVariantError>
-    where
-        Self: Sized;
-    fn name(&self) -> &str;
-    fn is_initialized(&self) -> bool;
-    async fn register_variant(&self, variant: AgentVariant) -> Result<(), AgentVariantError>;
-    async fn get_variant(&self, name: &str) -> Result<AgentVariant, AgentVariantError>;
-    async fn list_variants(&self) -> Result<Vec<AgentVariant>, AgentVariantError>;
-}
-
-pub struct AgentVariantRegistryImpl;
-
-impl AgentVariantRegistry for AgentVariantRegistryImpl {
-    fn new() -> Result<Self, AgentVariantError> {
-        Ok(AgentVariantRegistryImpl)
-    }
-
-    fn name(&self) -> &str {
-        "agent-variants"
-    }
-
-    fn is_initialized(&self) -> bool {
-        false
-    }
-
-    async fn register_variant(&self, _variant: AgentVariant) -> Result<(), AgentVariantError> {
-        Ok(())
-    }
-
-    async fn get_variant(&self, name: &str) -> Result<AgentVariant, AgentVariantError> {
-        Err(AgentVariantError::NotFound(name.to_string()))
-    }
-
-    async fn list_variants(&self) -> Result<Vec<AgentVariant>, AgentVariantError> {
-        Ok(vec![])
-    }
-}
+// Re-export types for convenience
+pub use types::{
+    ModelConfig, PermissionConfig, AgentDefinition, AgentVariant, VariantOverrides,
+    VariantInfo, AgentVariantInfo, ValidationResult, ResolvedAgentRef,
+};
