@@ -49,6 +49,6 @@ pub mod database;
 pub mod system;
 pub mod types;
 
-pub use database::StorageError;
+pub use database::{Database, StorageError};
 pub use system::{StorageService, StorageServiceImpl};
 pub use types::*;
