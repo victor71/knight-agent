@@ -67,19 +67,14 @@ impl Event {
 }
 
 /// Event source type
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum EventSourceType {
     FileWatcher,
     GitWatcher,
+    #[default]
     Custom,
     Timer,
-}
-
-impl Default for EventSourceType {
-    fn default() -> Self {
-        Self::Custom
-    }
 }
 
 /// File watcher configuration
@@ -347,18 +342,13 @@ impl From<&EventListener> for EventListenerInfo {
 }
 
 /// Event queue overflow policy
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum OverflowPolicy {
+    #[default]
     Block,
     DropOldest,
     DropNewest,
-}
-
-impl Default for OverflowPolicy {
-    fn default() -> Self {
-        Self::Block
-    }
 }
 
 /// Event loop configuration

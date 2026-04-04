@@ -22,35 +22,25 @@ pub enum TimerError {
 pub type TimerResult<T> = Result<T, TimerError>;
 
 /// Timer type
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum TimerType {
+    #[default]
     Oneshot,
     Interval,
     Cron,
 }
 
-impl Default for TimerType {
-    fn default() -> Self {
-        Self::Oneshot
-    }
-}
-
 /// Timer status
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum TimerStatus {
+    #[default]
     Pending,
     Active,
     Paused,
     Completed,
     Cancelled,
-}
-
-impl Default for TimerStatus {
-    fn default() -> Self {
-        Self::Pending
-    }
 }
 
 /// Callback type for timers

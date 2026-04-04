@@ -2,7 +2,7 @@
 //!
 //! Event dispatch logic including listener matching and handler execution.
 
-use crate::types::{Event, EventHandler, EventListener, HandlerType};
+use crate::types::{Event, EventListener, HandlerType};
 use tracing::{debug, info};
 
 /// Event dispatcher result
@@ -261,7 +261,7 @@ impl Default for EventDispatcher {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{EventFilter, EventListener, SkillHandler};
+    use crate::types::{EventFilter, EventHandler, EventListener, SkillHandler};
 
     fn create_test_listener(id: &str, event_type: &str) -> EventListener {
         EventListener {

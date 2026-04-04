@@ -113,6 +113,7 @@ pub trait EventLoopTrait: Send + Sync {
 
 /// Event loop implementation
 pub struct EventLoopImpl {
+    #[allow(dead_code)]
     config: EventLoopConfig,
     queue: Arc<EventQueue>,
     dispatcher: Arc<RwLock<EventDispatcher>>,
@@ -145,6 +146,7 @@ impl EventLoopImpl {
     }
 
     /// Record an event in statistics
+    #[allow(dead_code)]
     async fn record_event(&self, event: &Event, processing_time_ms: f64, delivered_count: usize) {
         // Use try_write to avoid blocking
         if let Ok(mut guard) = self.stats.try_write() {
@@ -178,7 +180,7 @@ impl Default for EventLoopImpl {
 #[async_trait]
 impl EventLoopTrait for EventLoopImpl {
     fn new() -> EventLoopResult<Self> {
-        Ok(Self::with_config(EventLoopConfig::default())?)
+        Self::with_config(EventLoopConfig::default())
     }
 
     fn name(&self) -> &str {
@@ -214,7 +216,7 @@ impl EventLoopTrait for EventLoopImpl {
             // Wait for queue to drain (with timeout)
             let timeout = tokio::time::Duration::from_secs(5);
             let start = Instant::now();
-            while self.queue.len() > 0 && start.elapsed() < timeout {
+            while !self.queue.is_empty() && start.elapsed() < timeout {
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             }
         }

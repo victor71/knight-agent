@@ -23,6 +23,7 @@ impl ScheduledEvent {
     }
 
     /// Get the time remaining until execution
+    #[allow(dead_code)]
     pub fn time_remaining(&self) -> Duration {
         let elapsed = self.scheduled_at.elapsed();
         let delay = Duration::from_millis(self.delay_ms);

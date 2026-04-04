@@ -150,7 +150,7 @@ impl TimerScheduler {
             TimerConfig::Oneshot(config) => {
                 let created = chrono::DateTime::parse_from_rfc3339(&timer.created_at)
                     .map_err(|e| TimerError::CreationFailed(e.to_string()))?;
-                let next = created + chrono::Duration::milliseconds(config.delay_ms as i64);
+                let _next = created + chrono::Duration::milliseconds(config.delay_ms as i64);
                 Instant::now() + Duration::from_millis(config.delay_ms)
             }
             TimerConfig::Interval(config) => {
@@ -318,7 +318,7 @@ impl TimerScheduler {
             .ok_or_else(|| TimerError::NotFound(timer_id.to_string()))?;
 
         let start = Instant::now();
-        let scheduled_at = timer.last_execution.clone().unwrap_or_else(|| timer.created_at.clone());
+        let _scheduled_at = timer.last_execution.clone().unwrap_or_else(|| timer.created_at.clone());
 
         // Execute the callback (for now, just simulate success)
         // In a real implementation, this would trigger the callback
