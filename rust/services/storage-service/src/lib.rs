@@ -1,73 +1,54 @@
 //! Storage Service
 //!
 //! Design Reference: docs/03-module-design/services/storage-service.md
+//!
+//! A SQLite-based storage service providing unified data persistence interface.
+//!
+//! # Features
+//!
+//! - Session data storage and retrieval
+//! - Message history persistence
+//! - Compression point storage
+//! - Task state management
+//! - Workflow storage
+//! - Configuration storage
+//! - Statistics persistence
+//! - Data backup and restore
+//!
+//! # Example
+//!
+//! ```rust,no_run
+//! use storage_service::{StorageServiceImpl, StorageService, Session, SessionStatus};
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let storage = StorageServiceImpl::new()?;
+//!     storage.init().await?;
+//!
+//!     let now = std::time::SystemTime::now()
+//!         .duration_since(std::time::UNIX_EPOCH)?
+//!         .as_secs() as i64;
+//!
+//!     let session = Session {
+//!         id: "session-1".to_string(),
+//!         name: "Test Session".to_string(),
+//!         status: SessionStatus::Active,
+//!         workspace_root: "/workspace".to_string(),
+//!         project_type: None,
+//!         created_at: now,
+//!         last_active_at: now,
+//!         metadata: Default::default(),
+//!     };
+//!
+//!     storage.save_session(session).await?;
+//!     Ok(())
+//! }
+//! ```
 
-#![allow(unused)]
+pub mod database;
+pub mod system;
+pub mod types;
 
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum StorageError {
-    #[error("Storage not initialized")]
-    NotInitialized,
-    #[error("Storage read failed: {0}")]
-    ReadFailed(String),
-    #[error("Storage write failed: {0}")]
-    WriteFailed(String),
-    #[error("Key not found: {0}")]
-    KeyNotFound(String),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StorageEntry {
-    pub key: String,
-    pub value: serde_json::Value,
-    pub created_at: std::time::SystemTime,
-}
-
-pub trait StorageService: Send + Sync {
-    fn new() -> Result<Self, StorageError>
-    where
-        Self: Sized;
-    fn name(&self) -> &str;
-    fn is_initialized(&self) -> bool;
-    async fn put(&self, key: &str, value: serde_json::Value) -> Result<(), StorageError>;
-    async fn get(&self, key: &str) -> Result<StorageEntry, StorageError>;
-    async fn delete(&self, key: &str) -> Result<(), StorageError>;
-    async fn list_keys(&self) -> Result<Vec<String>, StorageError>;
-}
-
-pub struct StorageServiceImpl;
-
-impl StorageService for StorageServiceImpl {
-    fn new() -> Result<Self, StorageError> {
-        Ok(StorageServiceImpl)
-    }
-
-    fn name(&self) -> &str {
-        "storage-service"
-    }
-
-    fn is_initialized(&self) -> bool {
-        false
-    }
-
-    async fn put(&self, key: &str, value: serde_json::Value) -> Result<(), StorageError> {
-        let _ = key;
-        let _ = value;
-        Ok(())
-    }
-
-    async fn get(&self, key: &str) -> Result<StorageEntry, StorageError> {
-        Err(StorageError::KeyNotFound(key.to_string()))
-    }
-
-    async fn delete(&self, _key: &str) -> Result<(), StorageError> {
-        Ok(())
-    }
-
-    async fn list_keys(&self) -> Result<Vec<String>, StorageError> {
-        Ok(vec![])
-    }
-}
+pub use database::StorageError;
+pub use system::{StorageService, StorageServiceImpl};
+pub use types::*;
