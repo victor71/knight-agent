@@ -1,71 +1,16 @@
 //! Workflows Directory
 //!
+//! Manages workflow definitions loaded from Markdown files.
+//!
 //! Design Reference: docs/03-module-design/agent/workflows-directory.md
 
-#![allow(unused)]
+pub mod manager;
+pub mod parser;
+pub mod types;
 
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
+pub use manager::WorkflowDirectoryImpl;
+pub use types::*;
+pub use parser::{WorkflowParser, parse_index};
 
-#[derive(Error, Debug)]
-pub enum WorkflowDirectoryError {
-    #[error("Workflow directory not initialized")]
-    NotInitialized,
-    #[error("Workflow not found: {0}")]
-    NotFound(String),
-    #[error("Workflow registration failed: {0}")]
-    RegistrationFailed(String),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Workflow {
-    pub name: String,
-    pub description: String,
-    pub steps: Vec<WorkflowStep>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WorkflowStep {
-    pub step_id: String,
-    pub action: String,
-    pub parameters: serde_json::Value,
-}
-
-pub trait WorkflowDirectory: Send + Sync {
-    fn new() -> Result<Self, WorkflowDirectoryError>
-    where
-        Self: Sized;
-    fn name(&self) -> &str;
-    fn is_initialized(&self) -> bool;
-    async fn register_workflow(&self, workflow: Workflow) -> Result<(), WorkflowDirectoryError>;
-    async fn get_workflow(&self, name: &str) -> Result<Workflow, WorkflowDirectoryError>;
-    async fn list_workflows(&self) -> Result<Vec<Workflow>, WorkflowDirectoryError>;
-}
-
-pub struct WorkflowDirectoryImpl;
-
-impl WorkflowDirectory for WorkflowDirectoryImpl {
-    fn new() -> Result<Self, WorkflowDirectoryError> {
-        Ok(WorkflowDirectoryImpl)
-    }
-
-    fn name(&self) -> &str {
-        "workflows-directory"
-    }
-
-    fn is_initialized(&self) -> bool {
-        false
-    }
-
-    async fn register_workflow(&self, _workflow: Workflow) -> Result<(), WorkflowDirectoryError> {
-        Ok(())
-    }
-
-    async fn get_workflow(&self, name: &str) -> Result<Workflow, WorkflowDirectoryError> {
-        Err(WorkflowDirectoryError::NotFound(name.to_string()))
-    }
-
-    async fn list_workflows(&self) -> Result<Vec<Workflow>, WorkflowDirectoryError> {
-        Ok(vec![])
-    }
-}
+// Re-export for backwards compatibility
+pub use types::WorkflowDirectory;
