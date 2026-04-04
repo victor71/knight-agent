@@ -1,13 +1,14 @@
 # LLM Provider Module
 
-LLM 提供商抽象层，提供统一的接口支持 Anthropic Claude 和 OpenAI GPT 系列模型。
+LLM 提供商抽象层，支持 OpenAI 和 Anthropic 协议。配置驱动设计允许灵活设置提供商。
 
 Design Reference: `docs/03-module-design/services/llm-provider.md`
 
 ## 特性
 
 - 统一的大模型调用接口
-- 支持 Anthropic 和 OpenAI 提供商
+- OpenAI 和 Anthropic 协议支持
+- 配置驱动的提供商设置
 - 流式响应支持
 - Token 计数和成本估算
 - 模型信息和健康检查
@@ -26,17 +27,26 @@ serde_json = "1"
 ```rust
 use llm_provider::{
     LLMProvider, ChatCompletionRequest, Message, MessageRole, Content,
-    provider::AnthropicProvider,
+    provider::{GenericLLMProvider, LLMProtocol, ProviderConfig},
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 创建 Anthropic 提供商
-    let provider = AnthropicProvider::new("your-api-key")?;
+    // 创建 OpenAI 协议提供商
+    let openai_config = ProviderConfig {
+        name: "openai".to_string(),
+        api_key: "your-api-key".to_string(),
+        base_url: "https://api.openai.com/v1".to_string(),
+        protocol: LLMProtocol::OpenAI,
+        models: vec!["gpt-4o".to_string()],
+        default_model: Some("gpt-4o".to_string()),
+        timeout_secs: 120,
+    };
+    let provider = GenericLLMProvider::new(openai_config)?;
 
     // 构建请求
     let request = ChatCompletionRequest {
-        model: "claude-sonnet-4-6".to_string(),
+        model: "gpt-4o".to_string(),
         messages: vec![Message {
             role: MessageRole::User,
             content: Some(Content::Text("Hello!".to_string())),
@@ -61,11 +71,55 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### 提供商创建
 
 ```rust
-// Anthropic 提供商
-let provider = AnthropicProvider::new("api-key")?;
+use provider::{GenericLLMProvider, LLMProtocol, ProviderConfig};
 
-// OpenAI 提供商
-let provider = OpenAIProvider::new("api-key")?;
+// OpenAI 协议提供商
+let openai_config = ProviderConfig {
+    name: "openai".to_string(),
+    api_key: "your-api-key".to_string(),
+    base_url: "https://api.openai.com/v1".to_string(),
+    protocol: LLMProtocol::OpenAI,
+    models: vec!["gpt-4o".to_string()],
+    default_model: Some("gpt-4o".to_string()),
+    timeout_secs: 120,
+};
+let provider = GenericLLMProvider::new(openai_config)?;
+
+// Anthropic 协议提供商
+let anthropic_config = ProviderConfig {
+    name: "anthropic".to_string(),
+    api_key: "your-api-key".to_string(),
+    base_url: "https://api.anthropic.com".to_string(),
+    protocol: LLMProtocol::Anthropic,
+    models: vec!["claude-sonnet-4-6".to_string()],
+    default_model: Some("claude-sonnet-4-6".to_string()),
+    timeout_secs: 120,
+};
+let provider = GenericLLMProvider::new(anthropic_config)?;
+
+// 从环境变量创建
+let provider = GenericLLMProvider::from_env()?;
+```
+
+### ProviderConfig 字段
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `name` | String | 提供商名称 |
+| `api_key` | String | API 密钥 |
+| `base_url` | String | API 端点基础 URL |
+| `protocol` | LLMProtocol | 协议类型 (OpenAI 或 Anthropic) |
+| `models` | Vec<String> | 支持的模型列表 |
+| `default_model` | Option<String> | 默认模型 |
+| `timeout_secs` | u64 | 请求超时时间 (秒) |
+
+### LLMProtocol 枚举
+
+```rust
+pub enum LLMProtocol {
+    OpenAI,   // OpenAI 协议
+    Anthropic, // Anthropic 协议
+}
 ```
 
 ### 聊天补全
@@ -196,7 +250,7 @@ pub enum LLMError {
     NotInitialized,              // 提供商未初始化
     InferenceFailed(String),     // 推理失败
     ModelNotFound(String),       // 模型不存在
-    ProviderNotFound(String),   // 提供商不存在
+    ProviderNotFound(String),    // 提供商不存在
     RateLimitExceeded,          // 超过速率限制
     ContextLengthExceeded,      // 超过上下文长度
     InvalidRequest(String),      // 无效请求
@@ -205,16 +259,18 @@ pub enum LLMError {
 }
 ```
 
-## 支持的模型
+## 支持的协议
 
-### Anthropic
+### OpenAI 协议
 
-| 模型 | 上下文长度 | 输入价格 | 输出价格 |
-|------|-----------|----------|----------|
-| claude-sonnet-4-6 | 200K | $3.00/M | $15.00/M |
-| claude-haiku | 200K | $0.25/M | $1.25/M |
+兼容任何实现 OpenAI Chat Completions API 的服务。
 
-### OpenAI
+| 配置项 | 值 |
+|--------|-----|
+| base_url | https://api.openai.com/v1 |
+| 协议 | LLMProtocol::OpenAI |
+
+常用模型:
 
 | 模型 | 上下文长度 | 输入价格 | 输出价格 |
 |------|-----------|----------|----------|
@@ -222,4 +278,30 @@ pub enum LLMError {
 | gpt-4o-mini | 128K | $0.15/M | $0.60/M |
 | gpt-4-turbo | 128K | $10.00/M | $30.00/M |
 
+### Anthropic 协议
+
+| 配置项 | 值 |
+|--------|-----|
+| base_url | https://api.anthropic.com |
+| 协议 | LLMProtocol::Anthropic |
+
+常用模型:
+
+| 模型 | 上下文长度 | 输入价格 | 输出价格 |
+|------|-----------|----------|----------|
+| claude-sonnet-4-6 | 200K | $3.00/M | $15.00/M |
+| claude-haiku | 200K | $0.25/M | $1.25/M |
+
 > 价格为每 1M tokens 的美元价格
+
+## 环境变量
+
+使用 `from_env()` 创建提供商时，从以下环境变量读取配置：
+
+| 环境变量 | 说明 |
+|----------|------|
+| LLM_API_KEY | API 密钥 |
+| LLM_BASE_URL | API 基础 URL (默认 https://api.openai.com/v1) |
+| LLM_PROTOCOL | 协议类型 (openai 或 anthropic，默认 openai) |
+| LLM_MODELS | 支持的模型列表 (逗号分隔) |
+| LLM_DEFAULT_MODEL | 默认模型 |
