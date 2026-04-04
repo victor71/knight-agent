@@ -1,71 +1,25 @@
 //! IPC Contract
 //!
+//! Inter-process communication contract for Knight-Agent.
+//! Defines message types and protocols for communication between
+//! Rust core services and TypeScript UI layer.
+//!
 //! Design Reference: docs/03-module-design/infrastructure/ipc-contract.md
 
-#![allow(unused)]
+// Re-export public API
+pub use contract::IPCContract;
+pub use error::{ErrorCode, IPCError, IPCResult};
+pub use implementation::{IPCConfig, IPCContractImpl};
+pub use registry::{AwaitInfo, AwaitRegistry};
+pub use types::{
+    BaseMessage, ErrorResponse, MessageType, NotificationMessage, PendingQuery,
+    QueryContext, QueryDependencies, QueryType, RequestMessage, RequestOptions,
+    ResponseMessage, StreamChunkMessage, UserQueryMessage, UserResponseData,
+    UserResponseMessage,
+};
 
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum IPCError {
-    #[error("IPC not initialized")]
-    NotInitialized,
-    #[error("Connection failed: {0}")]
-    ConnectionFailed(String),
-    #[error("Send failed: {0}")]
-    SendFailed(String),
-    #[error("Receive failed: {0}")]
-    ReceiveFailed(String),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IPCMessage {
-    pub id: String,
-    pub msg_type: String,
-    pub payload: serde_json::Value,
-}
-
-pub trait IPCContract: Send + Sync {
-    fn new() -> Result<Self, IPCError>
-    where
-        Self: Sized;
-    fn name(&self) -> &str;
-    fn is_initialized(&self) -> bool;
-    async fn send(&self, message: IPCMessage) -> Result<(), IPCError>;
-    async fn receive(&self) -> Result<IPCMessage, IPCError>;
-    async fn connect(&self) -> Result<(), IPCError>;
-    async fn disconnect(&self) -> Result<(), IPCError>;
-}
-
-pub struct IPCContractImpl;
-
-impl IPCContract for IPCContractImpl {
-    fn new() -> Result<Self, IPCError> {
-        Ok(IPCContractImpl)
-    }
-
-    fn name(&self) -> &str {
-        "ipc-contract"
-    }
-
-    fn is_initialized(&self) -> bool {
-        false
-    }
-
-    async fn send(&self, _message: IPCMessage) -> Result<(), IPCError> {
-        Ok(())
-    }
-
-    async fn receive(&self) -> Result<IPCMessage, IPCError> {
-        Err(IPCError::ReceiveFailed("No message available".to_string()))
-    }
-
-    async fn connect(&self) -> Result<(), IPCError> {
-        Ok(())
-    }
-
-    async fn disconnect(&self) -> Result<(), IPCError> {
-        Ok(())
-    }
-}
+mod contract;
+mod error;
+mod implementation;
+mod registry;
+mod types;
