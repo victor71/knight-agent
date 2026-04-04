@@ -25,17 +25,14 @@ pub type MonitorResult<T> = Result<T, MonitorError>;
 /// Stat scope
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum StatScope {
+    #[default]
     All,
     Session,
     Agent,
 }
 
-impl Default for StatScope {
-    fn default() -> Self {
-        Self::All
-    }
-}
 
 /// Token usage statistics
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -125,17 +122,14 @@ pub struct SystemStatus {
 /// Status scope
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum StatusScope {
+    #[default]
     All,
     Session,
     Agent,
 }
 
-impl Default for StatusScope {
-    fn default() -> Self {
-        Self::All
-    }
-}
 
 /// Status update for watching
 #[derive(Debug, Clone, Serialize, Deserialize)]

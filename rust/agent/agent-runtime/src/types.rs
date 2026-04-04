@@ -36,7 +36,9 @@ pub type RuntimeResult<T> = Result<T, AgentRuntimeError>;
 /// Agent status enum
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum AgentStatus {
+    #[default]
     Idle,
     Thinking,
     Acting,
@@ -46,11 +48,6 @@ pub enum AgentStatus {
     Stopped,
 }
 
-impl Default for AgentStatus {
-    fn default() -> Self {
-        Self::Idle
-    }
-}
 
 /// Agent state
 #[derive(Debug, Clone, Serialize, Deserialize)]

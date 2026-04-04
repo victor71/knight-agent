@@ -35,7 +35,7 @@ impl CommandParser {
         let args = Self::extract_args(body)?;
 
         // Extract expected behavior
-        let expected_behavior = Self::extract_expected_behavior(body)?;
+        let _expected_behavior = Self::extract_expected_behavior(body)?;
 
         // Extract workflow config if present
         let workflow_config = Self::extract_workflow_config(body)?;
@@ -52,13 +52,13 @@ impl CommandParser {
     fn extract_frontmatter(content: &str) -> CommandResult<(String, &str)> {
         let trimmed = content.trim();
 
-        if trimmed.starts_with("---") {
-            let end_idx = trimmed[3..]
+        if let Some(stripped) = trimmed.strip_prefix("---") {
+            let end_idx = stripped
                 .find("---")
                 .ok_or_else(|| CommandError::ParseError("Front matter not closed".to_string()))?;
 
-            let front_matter = trimmed[3..end_idx + 3].trim().to_string();
-            let body = &trimmed[end_idx + 6..];
+            let front_matter = stripped[..end_idx].trim().to_string();
+            let body = &stripped[end_idx + 3..];
             Ok((front_matter, body))
         } else {
             Err(CommandError::ParseError(
@@ -313,10 +313,10 @@ impl ArgBinder {
 
         // First pass: handle named arguments (--name value)
         for (i, arg) in input_args.iter().enumerate() {
-            if arg.starts_with("--") {
-                let name = arg[2..].splitn(2, '=').next().unwrap_or(&arg[2..]);
+            if let Some(stripped) = arg.strip_prefix("--") {
+                let name = stripped.split('=').next().unwrap_or(stripped);
                 let value = if arg.contains('=') {
-                    arg.splitn(2, '=').nth(1).unwrap_or("")
+                    arg.split_once('=').map(|x| x.1).unwrap_or("")
                 } else if i + 1 < input_args.len() && !input_args[i + 1].starts_with('-') {
                     used_args.insert(i + 1, true);
                     &input_args[i + 1]

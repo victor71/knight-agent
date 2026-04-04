@@ -27,17 +27,14 @@ impl std::fmt::Display for ReportType {
 /// Report output format
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum OutputFormat {
+    #[default]
     Markdown,
     Json,
     Html,
 }
 
-impl Default for OutputFormat {
-    fn default() -> Self {
-        OutputFormat::Markdown
-    }
-}
 
 /// Time period for a report (internal use)
 #[derive(Debug, Clone)]

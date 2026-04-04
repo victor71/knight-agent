@@ -18,6 +18,7 @@ pub struct CommandManagerImpl {
     /// Command directories to scan
     command_dirs: Arc<Mutex<Vec<PathBuf>>>,
     /// Configuration
+    #[allow(dead_code)]
     config: Arc<Mutex<CommandConfig>>,
 }
 
@@ -227,9 +228,9 @@ impl CommandManagerImpl {
         user_input: &str,
     ) -> CommandResult<ParsedArgs> {
         // Remove command name from input
-        let input = if user_input.starts_with('/') {
-            if let Some(space_idx) = user_input[1..].find(|c: char| c.is_whitespace()) {
-                &user_input[space_idx + 1..].trim()
+        let input = if let Some(stripped) = user_input.strip_prefix('/') {
+            if let Some(space_idx) = stripped.find(|c: char| c.is_whitespace()) {
+                &stripped[space_idx + 1..]
             } else {
                 ""
             }
@@ -344,11 +345,10 @@ impl CommandManagerImpl {
         }
 
         // Check workflow commands have workflow config
-        if definition.metadata.command_type == CommandType::Workflow {
-            if definition.workflow_config.is_none() {
+        if definition.metadata.command_type == CommandType::Workflow
+            && definition.workflow_config.is_none() {
                 // Not necessarily an error - could be set dynamically
             }
-        }
 
         Ok(())
     }

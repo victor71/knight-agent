@@ -32,16 +32,13 @@ pub type CommandResult<T> = Result<T, CommandError>;
 /// Command type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum CommandType {
+    #[default]
     Simple,
     Workflow,
 }
 
-impl Default for CommandType {
-    fn default() -> Self {
-        Self::Simple
-    }
-}
 
 /// Command metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -157,6 +154,7 @@ impl CommandUsage {
 
 /// Workflow configuration for workflow-type commands
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct WorkflowConfig {
     #[serde(default)]
     pub workflow_definition_path: Option<String>,
@@ -166,15 +164,6 @@ pub struct WorkflowConfig {
     pub parallel_execution: bool,
 }
 
-impl Default for WorkflowConfig {
-    fn default() -> Self {
-        Self {
-            workflow_definition_path: None,
-            dynamic_agent_creation: false,
-            parallel_execution: false,
-        }
-    }
-}
 
 /// Command definition
 #[derive(Debug, Clone, Serialize, Deserialize)]

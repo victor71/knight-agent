@@ -31,21 +31,19 @@ pub type SessionResult<T> = Result<T, SessionError>;
 /// Session status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum SessionStatus {
+    #[default]
     Active,
     Paused,
     Archived,
 }
 
-impl Default for SessionStatus {
-    fn default() -> Self {
-        Self::Active
-    }
-}
 
 /// Project type for auto-detection
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum ProjectType {
     Rust,
     Node,
@@ -54,14 +52,10 @@ pub enum ProjectType {
     Java,
     Web,
     Other,
+    #[default]
     Auto,
 }
 
-impl Default for ProjectType {
-    fn default() -> Self {
-        Self::Auto
-    }
-}
 
 impl ProjectType {
     pub fn as_str(&self) -> &'static str {
@@ -192,17 +186,14 @@ pub struct CompressionPoint {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum CompressionMethod {
+    #[default]
     Summary,
     Semantic,
     Hybrid,
 }
 
-impl Default for CompressionMethod {
-    fn default() -> Self {
-        Self::Summary
-    }
-}
 
 /// Search result in session history
 #[derive(Debug, Clone, Serialize, Deserialize)]

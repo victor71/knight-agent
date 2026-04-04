@@ -126,7 +126,7 @@ impl ReportSkillImpl {
                 by_hour: (0..24)
                     .map(|hour| HourlyTokenStats {
                         hour,
-                        total: if hour >= 9 && hour <= 17 { 3456 } else { 1234 },
+                        total: if (9..=17).contains(&hour) { 3456 } else { 1234 },
                     })
                     .collect(),
             },
@@ -318,6 +318,12 @@ impl ReportSkillImpl {
     /// Render report as JSON
     fn render_json(&self, report: &Report) -> String {
         serde_json::to_string_pretty(report).unwrap_or_else(|_| "{}".to_string())
+    }
+}
+
+impl Default for ReportSkillImpl {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

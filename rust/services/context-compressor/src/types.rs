@@ -7,17 +7,14 @@ use std::collections::HashMap;
 /// Compression strategy
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum CompressionStrategy {
+    #[default]
     Summary,  // LLM-based summarization
     Semantic, // Semantic clustering and extraction
     Hybrid,   // Combination of summary and semantic
 }
 
-impl Default for CompressionStrategy {
-    fn default() -> Self {
-        CompressionStrategy::Summary
-    }
-}
 
 /// Message structure for compression
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,6 +57,7 @@ pub struct MessageRange {
 }
 
 /// Compression before state
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompressionBefore {
     pub message_count: usize,
@@ -68,6 +66,7 @@ pub struct CompressionBefore {
 }
 
 /// Compression after state
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompressionAfter {
     pub message_count: usize,
@@ -134,6 +133,7 @@ impl Default for CompressionTrigger {
 
 /// Full compression configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct CompressionConfig {
     #[serde(default)]
     pub trigger: CompressionTrigger,
@@ -143,15 +143,6 @@ pub struct CompressionConfig {
     pub default_options: CompressionOptions,
 }
 
-impl Default for CompressionConfig {
-    fn default() -> Self {
-        Self {
-            trigger: CompressionTrigger::default(),
-            default_strategy: CompressionStrategy::default(),
-            default_options: CompressionOptions::default(),
-        }
-    }
-}
 
 /// Compression history entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -238,16 +229,9 @@ pub struct ShouldCompressResponse {
 
 /// Token estimation result
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct TokenEstimation {
     pub count: usize,
     pub by_message: Vec<usize>,
 }
 
-impl Default for TokenEstimation {
-    fn default() -> Self {
-        Self {
-            count: 0,
-            by_message: Vec::new(),
-        }
-    }
-}

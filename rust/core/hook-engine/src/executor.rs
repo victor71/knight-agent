@@ -12,6 +12,7 @@ use crate::registry::HookRegistry;
 /// Hook executor for running hooks and aggregating results
 pub struct HookExecutor {
     registry: Arc<HookRegistry>,
+    #[allow(dead_code)]
     global_timeout_ms: u64,
 }
 

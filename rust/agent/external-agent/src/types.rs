@@ -42,7 +42,9 @@ pub type ExternalAgentResult<T> = Result<T, ExternalAgentError>;
 /// External agent status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum ProcessState {
+    #[default]
     Starting,
     Running,
     WaitingInput,
@@ -51,26 +53,18 @@ pub enum ProcessState {
     Killed,
 }
 
-impl Default for ProcessState {
-    fn default() -> Self {
-        Self::Starting
-    }
-}
 
 /// Input mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum InputMode {
     Interactive,
     Batch,
+    #[default]
     Pipe,
 }
 
-impl Default for InputMode {
-    fn default() -> Self {
-        Self::Pipe
-    }
-}
 
 /// External agent configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

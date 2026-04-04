@@ -273,7 +273,7 @@ impl SessionManagerImpl {
         for session in sessions.values() {
             // Filter by session_id if provided
             if let Some(sid) = session_id {
-                if &session.id != sid {
+                if session.id != sid {
                     continue;
                 }
             }
@@ -390,7 +390,7 @@ impl SessionManagerImpl {
             id.to_string()
         } else {
             let current = self.current_session.read().await;
-            current.clone().ok_or_else(|| SessionError::NotInitialized)?
+            current.clone().ok_or(SessionError::NotInitialized)?
         };
 
         // Verify session exists

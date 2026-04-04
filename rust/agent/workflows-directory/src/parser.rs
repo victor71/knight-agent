@@ -283,11 +283,7 @@ impl WorkflowParser {
                     current_step = Some(step);
                 }
             } else if trimmed.starts_with("```") {
-                if in_prompt {
-                    in_prompt = false;
-                } else {
-                    in_prompt = true;
-                }
+                in_prompt = !in_prompt;
             } else if in_prompt {
                 prompt_lines.push(trimmed.to_string());
             } else if trimmed.starts_with("输入：") || trimmed.starts_with("输入:") {

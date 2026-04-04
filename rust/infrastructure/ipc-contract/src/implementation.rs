@@ -7,7 +7,7 @@ use crate::contract::IPCContract;
 use crate::error::{IPCError, IPCResult};
 use crate::registry::AwaitRegistry;
 use crate::types::{
-    BaseMessage, MessageType, NotificationMessage, PendingQuery, RequestMessage,
+    NotificationMessage, PendingQuery, RequestMessage,
     ResponseMessage, StreamChunkMessage, UserQueryMessage, UserResponseData,
 };
 
@@ -355,7 +355,7 @@ impl IPCContract for IPCContractImpl {
                 // Register user query (from agent)
                 let _ = self.await_registry.register(query).await;
             }
-            Envelope::UserResponse(await_id, response) => {
+            Envelope::UserResponse(await_id, _response) => {
                 tracing::debug!("Received user response: {}", await_id);
                 // Route response to waiting agent
                 // In real implementation, this would notify the agent runtime

@@ -244,6 +244,12 @@ impl ContextCompressorImpl {
     }
 }
 
+impl Default for ContextCompressorImpl {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ContextCompressor for ContextCompressorImpl {
     fn new() -> Result<Self, ContextCompressorError> {
         Ok(Self::new())

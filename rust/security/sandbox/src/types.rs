@@ -4,18 +4,15 @@ use std::collections::HashMap;
 /// Sandbox isolation level
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum SandboxLevel {
     None,   // No isolation - local development
+    #[default]
     Basic,   // Basic isolation - general use
     Strict,  // Strict isolation - sensitive operations
     Full,    // Full isolation - untrusted code
 }
 
-impl Default for SandboxLevel {
-    fn default() -> Self {
-        SandboxLevel::Basic
-    }
-}
 
 /// File system access action
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]

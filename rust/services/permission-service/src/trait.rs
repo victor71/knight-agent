@@ -1,6 +1,5 @@
 //! Permission Service trait
 
-use async_trait::async_trait;
 
 use crate::error::PermissionResult;
 use crate::types::Permission;

@@ -58,6 +58,15 @@ impl OrchestratorImpl {
 
     /// Register an agent to the pool
     pub async fn register_agent(&self, agent_info: AgentInfo) -> OrchestratorResult<()> {
+        // Get config values before any locks to avoid holding mutex across await
+        let max_agents;
+        let max_agents_per_session;
+        {
+            let config = self.config.lock().unwrap();
+            max_agents = config.max_agents;
+            max_agents_per_session = config.max_agents_per_session;
+        }
+
         let mut agents = self.agents.write().await;
         let agent_id = agent_info.id.clone();
 
@@ -69,21 +78,19 @@ impl OrchestratorImpl {
         }
 
         // Check agent limit
-        let config = self.config.lock().unwrap();
-        if agents.len() >= config.max_agents {
+        if agents.len() >= max_agents {
             return Err(OrchestratorError::ResourceLimitExceeded(
-                format!("Max agents {} reached", config.max_agents),
+                format!("Max agents {} reached", max_agents),
             ));
         }
 
         // Check per-session limit
         let session_agents = agents.values().filter(|a| a.session_id == agent_info.session_id).count();
-        if session_agents >= config.max_agents_per_session {
+        if session_agents >= max_agents_per_session {
             return Err(OrchestratorError::ResourceLimitExceeded(
-                format!("Max agents per session {} reached", config.max_agents_per_session),
+                format!("Max agents per session {} reached", max_agents_per_session),
             ));
         }
-        drop(config);
 
         agents.insert(agent_id.clone(), agent_info);
 
@@ -212,11 +219,10 @@ impl OrchestratorImpl {
                         return false;
                     }
                 }
-                if !requirements.capabilities.is_empty() {
-                    if !requirements.capabilities.iter().all(|c| a.capabilities.contains(c)) {
+                if !requirements.capabilities.is_empty()
+                    && !requirements.capabilities.iter().all(|c| a.capabilities.contains(c)) {
                         return false;
                     }
-                }
                 true
             })
             .collect();
@@ -228,10 +234,13 @@ impl OrchestratorImpl {
         }
 
         // Select based on scheduling strategy
-        let config = self.config.lock().unwrap();
-        let agent_id = match config.scheduling_strategy {
+        let scheduling_strategy = {
+            let config = self.config.lock().unwrap();
+            config.scheduling_strategy
+        };
+        let agent_id = match scheduling_strategy {
             SchedulingStrategy::RoundRobin => {
-                let mut queue = self.agent_queue.write().await;
+                let queue = self.agent_queue.write().await;
                 let mut index = self.round_robin_index.write().await;
                 *index = (*index + 1) % queue.len().max(1);
                 queue[*index % queue.len()].clone()

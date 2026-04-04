@@ -18,8 +18,10 @@ pub struct TaskManagerImpl {
     /// Task queue for pending tasks
     task_queue: Arc<AsyncRwLock<VecDeque<String>>>,
     /// Configuration
+    #[allow(dead_code)]
     config: Arc<Mutex<TaskManagerConfig>>,
     /// Event sender for task events
+    #[allow(dead_code)]
     event_sender: Arc<Mutex<Option<Box<dyn TaskEventSender + Send + Sync>>>>,
 }
 
@@ -356,11 +358,10 @@ impl TaskManagerImpl {
         let mut recursion_stack = HashSet::new();
 
         for task in &workflow.tasks {
-            if !visited.contains(&task.id) {
-                if self.detect_cycle(workflow, &task.id, &mut visited, &mut recursion_stack)? {
+            if !visited.contains(&task.id)
+                && self.detect_cycle(workflow, &task.id, &mut visited, &mut recursion_stack)? {
                     return Ok(true);
                 }
-            }
         }
 
         Ok(false)

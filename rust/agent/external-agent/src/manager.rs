@@ -85,7 +85,7 @@ Windows:
     pub async fn discover(&self) -> Vec<DiscoveredAgent> {
         let mut results = Vec::new();
 
-        for (_, def) in &self.agent_definitions {
+        for def in self.agent_definitions.values() {
             let discovered = self.check_agent(def).await;
             results.push(discovered);
         }

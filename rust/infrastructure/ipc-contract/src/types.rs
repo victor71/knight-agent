@@ -1,10 +1,9 @@
 //! IPC message and data types
 
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
-use crate::error::{ErrorCode, IPCResult};
+use crate::error::ErrorCode;
 
 /// Message type enum
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -63,21 +62,13 @@ impl BaseMessage {
 
 /// Request options
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct RequestOptions {
     pub timeout: Option<u64>,
     pub stream: Option<bool>,
     pub priority: Option<i32>,
 }
 
-impl Default for RequestOptions {
-    fn default() -> Self {
-        Self {
-            timeout: None,
-            stream: None,
-            priority: None,
-        }
-    }
-}
 
 /// Request message
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -229,6 +220,7 @@ impl QueryType {
 
 /// User query dependencies (for cross-agent dependency detection)
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct QueryDependencies {
     /// Agents this query depends on
     pub depends_on_agents: Option<Vec<String>>,
@@ -238,33 +230,16 @@ pub struct QueryDependencies {
     pub waiting_for_agent: Option<String>,
 }
 
-impl Default for QueryDependencies {
-    fn default() -> Self {
-        Self {
-            depends_on_agents: None,
-            depends_on_queries: None,
-            waiting_for_agent: None,
-        }
-    }
-}
 
 /// User query context
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct QueryContext {
     pub resource: Option<String>,
     pub action: Option<String>,
     pub reason: Option<String>,
 }
 
-impl Default for QueryContext {
-    fn default() -> Self {
-        Self {
-            resource: None,
-            action: None,
-            reason: None,
-        }
-    }
-}
 
 /// User query message
 #[derive(Debug, Clone, Serialize, Deserialize)]

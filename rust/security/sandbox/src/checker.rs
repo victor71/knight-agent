@@ -139,8 +139,7 @@ pub fn glob_match(pattern: &str, path: &str) -> bool {
     }
 
     // Match /foo/** pattern - /foo and anything under it
-    if pattern.ends_with("/**") {
-        let base = &pattern[..pattern.len() - 3];
+    if let Some(base) = pattern.strip_suffix("/**") {
         return path == base ||
                path.starts_with(&format!("{}/", base)) ||
                path.starts_with(base) ||

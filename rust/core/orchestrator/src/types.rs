@@ -36,7 +36,9 @@ pub type OrchestratorResult<T> = Result<T, OrchestratorError>;
 /// Agent status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum AgentStatus {
+    #[default]
     Idle,
     Busy,
     Paused,
@@ -44,11 +46,6 @@ pub enum AgentStatus {
     Stopped,
 }
 
-impl Default for AgentStatus {
-    fn default() -> Self {
-        Self::Idle
-    }
-}
 
 /// Agent information
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -168,17 +165,14 @@ pub struct ResourceUsage {
 /// Collaboration mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum CollaborationMode {
+    #[default]
     MasterWorker,
     Pipeline,
     Voting,
 }
 
-impl Default for CollaborationMode {
-    fn default() -> Self {
-        Self::MasterWorker
-    }
-}
 
 /// Collaboration group
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -350,17 +344,14 @@ impl Default for OrchestratorConfig {
 /// Scheduling strategy
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum SchedulingStrategy {
+    #[default]
     RoundRobin,
     LeastBusy,
     Priority,
 }
 
-impl Default for SchedulingStrategy {
-    fn default() -> Self {
-        Self::RoundRobin
-    }
-}
 
 /// Agent filter for querying agents
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

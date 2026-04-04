@@ -109,7 +109,7 @@ impl HookRegistry {
             .values()
             .filter(|hook| {
                 if let Some(evt) = event_filter {
-                    &hook.event == evt
+                    hook.event == evt
                 } else {
                     true
                 }

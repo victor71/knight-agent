@@ -193,8 +193,8 @@ impl ParsedInput {
         let raw = raw_input.into();
         let trimmed = raw.trim();
 
-        if trimmed.starts_with('/') {
-            let parts: Vec<&str> = trimmed[1..].splitn(2, |c: char| c.is_whitespace()).collect();
+        if let Some(stripped) = trimmed.strip_prefix('/') {
+            let parts: Vec<&str> = stripped.splitn(2, |c: char| c.is_whitespace()).collect();
             let command_name = parts.first().map(|s| s.to_lowercase());
             let args = if parts.len() > 1 {
                 parts[1].split_whitespace().map(|s| s.to_string()).collect()

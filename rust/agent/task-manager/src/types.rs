@@ -36,23 +36,22 @@ pub type TaskResult<T> = Result<T, TaskManagerError>;
 /// Task type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum TaskType {
+    #[default]
     Agent,
     Skill,
     Tool,
     Workflow,
 }
 
-impl Default for TaskType {
-    fn default() -> Self {
-        Self::Agent
-    }
-}
 
 /// Task status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum TaskStatus {
+    #[default]
     Pending,
     Ready,
     Running,
@@ -62,16 +61,13 @@ pub enum TaskStatus {
     Skipped,
 }
 
-impl Default for TaskStatus {
-    fn default() -> Self {
-        Self::Pending
-    }
-}
 
 /// Workflow status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum WorkflowStatus {
+    #[default]
     Pending,
     Running,
     Completed,
@@ -80,26 +76,18 @@ pub enum WorkflowStatus {
     Paused,
 }
 
-impl Default for WorkflowStatus {
-    fn default() -> Self {
-        Self::Pending
-    }
-}
 
 /// Dependency condition
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum DependencyCondition {
+    #[default]
     Success,
     Failed,
     Completed,
 }
 
-impl Default for DependencyCondition {
-    fn default() -> Self {
-        Self::Success
-    }
-}
 
 /// Task definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -252,16 +240,13 @@ impl Default for RetryConfig {
 /// Retry backoff strategy
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum RetryBackoff {
     Fixed,
+    #[default]
     Exponential,
 }
 
-impl Default for RetryBackoff {
-    fn default() -> Self {
-        Self::Exponential
-    }
-}
 
 /// Workflow definition
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -121,7 +121,9 @@ impl SkillParameter {
 /// Parameter type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum ParameterType {
+    #[default]
     String,
     Integer,
     Float,
@@ -130,11 +132,6 @@ pub enum ParameterType {
     Array,
 }
 
-impl Default for ParameterType {
-    fn default() -> Self {
-        Self::String
-    }
-}
 
 /// Skill step
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -183,18 +180,15 @@ impl SkillStep {
 /// Step type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum StepType {
+    #[default]
     Action,
     Skill,
     Agent,
     Condition,
 }
 
-impl Default for StepType {
-    fn default() -> Self {
-        Self::Action
-    }
-}
 
 /// Trigger definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -231,18 +225,15 @@ impl Trigger {
 /// Trigger type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum TriggerType {
+    #[default]
     Keyword,
     Event,
     Timer,
     FileChange,
 }
 
-impl Default for TriggerType {
-    fn default() -> Self {
-        Self::Keyword
-    }
-}
 
 /// Skill execution context
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -397,6 +388,12 @@ pub struct ExecutionPlan {
     pub steps: Vec<PlannedStep>,
     #[serde(default)]
     pub confidence: f64,
+}
+
+impl Default for ExecutionPlan {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ExecutionPlan {

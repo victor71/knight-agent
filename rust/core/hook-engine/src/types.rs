@@ -29,17 +29,14 @@ pub type HookResult<T> = Result<T, HookError>;
 /// Hook phase
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum HookPhase {
+    #[default]
     Before,
     After,
     Replace,
 }
 
-impl Default for HookPhase {
-    fn default() -> Self {
-        Self::Before
-    }
-}
 
 /// Hook handler type
 #[derive(Debug, Clone, Serialize, Deserialize)]

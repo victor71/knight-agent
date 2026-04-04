@@ -258,7 +258,7 @@ impl AwaitRegistry {
                 if let Some(waiting) = &deps.waiting_for_agent {
                     waiting_for
                         .entry(info.agent_id.clone())
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push(waiting.clone());
                 }
             }
