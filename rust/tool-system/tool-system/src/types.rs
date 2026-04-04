@@ -20,6 +20,9 @@ pub struct ToolDefinition {
     pub permissions: Vec<String>,
     #[serde(default)]
     pub dangerous: bool,
+    /// If true, this tool only reads data and can be executed in parallel
+    #[serde(default)]
+    pub is_read_only: bool,
 }
 
 /// JSON Schema for tool parameters
@@ -78,6 +81,9 @@ pub struct ToolInfo {
     pub category: String,
     pub parameters: JsonSchema,
     pub dangerous: bool,
+    /// If true, this tool only reads data and can be executed in parallel
+    #[serde(default)]
+    pub is_read_only: bool,
 }
 
 /// Tool context for execution

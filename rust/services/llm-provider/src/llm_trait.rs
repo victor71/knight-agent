@@ -72,8 +72,11 @@ pub trait LLMProvider: Send + Sync {
     /// Count tokens for a given text
     async fn count_tokens(&self, text: &str, model: &str) -> LLMResult<TokenCount>;
 
-    /// Estimate cost for a request
+    /// Estimate cost for a request (before API call)
     async fn estimate_cost(&self, request: &ChatCompletionRequest) -> LLMResult<CostEstimate>;
+
+    /// Calculate actual cost from usage (after API call)
+    async fn calculate_cost(&self, usage: &Usage, model: &str) -> LLMResult<CostEstimate>;
 
     /// List available models
     async fn list_models(&self) -> LLMResult<Vec<String>>;

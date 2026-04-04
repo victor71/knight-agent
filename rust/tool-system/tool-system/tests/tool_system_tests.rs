@@ -30,6 +30,7 @@ fn create_test_tool(name: &str, category: &str) -> ToolDefinition {
         },
         permissions: vec![],
         dangerous: false,
+        is_read_only: false,
     }
 }
 
@@ -345,6 +346,7 @@ fn test_tool_definition_dangerous_flag() {
         },
         permissions: vec![],
         dangerous: true,
+        is_read_only: false,
     };
 
     assert!(tool.dangerous);
@@ -396,4 +398,48 @@ fn test_tool_context_serialization() {
     let parsed: ToolContext = serde_json::from_str(&json).unwrap();
     assert_eq!(parsed.session_id, "session123");
     assert_eq!(parsed.agent_id, "agent456");
+}
+
+// is_read_only tests
+
+#[tokio::test]
+async fn test_builtin_tool_read_is_read_only() {
+    let ts = ToolSystemImpl::new().unwrap();
+    let info = ts.get_tool("read").await.unwrap().unwrap();
+    assert!(info.is_read_only);
+}
+
+#[tokio::test]
+async fn test_builtin_tool_write_is_not_read_only() {
+    let ts = ToolSystemImpl::new().unwrap();
+    let info = ts.get_tool("write").await.unwrap().unwrap();
+    assert!(!info.is_read_only);
+}
+
+#[tokio::test]
+async fn test_builtin_tool_edit_is_not_read_only() {
+    let ts = ToolSystemImpl::new().unwrap();
+    let info = ts.get_tool("edit").await.unwrap().unwrap();
+    assert!(!info.is_read_only);
+}
+
+#[tokio::test]
+async fn test_builtin_tool_grep_is_read_only() {
+    let ts = ToolSystemImpl::new().unwrap();
+    let info = ts.get_tool("grep").await.unwrap().unwrap();
+    assert!(info.is_read_only);
+}
+
+#[tokio::test]
+async fn test_builtin_tool_glob_is_read_only() {
+    let ts = ToolSystemImpl::new().unwrap();
+    let info = ts.get_tool("glob").await.unwrap().unwrap();
+    assert!(info.is_read_only);
+}
+
+#[tokio::test]
+async fn test_builtin_tool_bash_is_not_read_only() {
+    let ts = ToolSystemImpl::new().unwrap();
+    let info = ts.get_tool("bash").await.unwrap().unwrap();
+    assert!(!info.is_read_only);
 }

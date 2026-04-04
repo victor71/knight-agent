@@ -32,6 +32,18 @@ impl BuiltinTool {
         }
     }
 
+    /// Check if this tool is read-only (can be executed in parallel)
+    pub fn is_read_only(&self) -> bool {
+        match self {
+            BuiltinTool::Read(_) => true,
+            BuiltinTool::Write(_) => false,
+            BuiltinTool::Edit(_) => false,
+            BuiltinTool::Grep(_) => true,
+            BuiltinTool::Glob(_) => true,
+            BuiltinTool::Bash(_) => false,
+        }
+    }
+
     /// Execute the tool
     pub async fn execute(&self, args: &Value, context: &ToolContext) -> ToolExecutionResult {
         match self {

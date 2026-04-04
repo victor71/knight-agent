@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use reqwest::header::HeaderName;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use tracing::{info, warn};
 
@@ -20,6 +21,52 @@ pub enum LLMProtocol {
     #[default]
     OpenAI,
     Anthropic,
+}
+
+/// Model pricing information (per 1M tokens)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelPricing {
+    /// Input cost per 1M tokens
+    pub input: f64,
+    /// Output cost per 1M tokens
+    pub output: f64,
+}
+
+impl Default for ModelPricing {
+    fn default() -> Self {
+        Self {
+            input: 0.0,
+            output: 0.0,
+        }
+    }
+}
+
+impl ModelPricing {
+    /// Create new model pricing
+    pub fn new(input: f64, output: f64) -> Self {
+        Self { input, output }
+    }
+}
+
+/// Default pricing for common models (per 1M tokens)
+/// Used when user hasn't configured model-specific pricing
+fn default_pricing_for_model(model: &str) -> ModelPricing {
+    match model {
+        // OpenAI models
+        "gpt-4o" => ModelPricing::new(2.5, 10.0),
+        "gpt-4o-mini" => ModelPricing::new(0.15, 0.6),
+        "gpt-4-turbo" => ModelPricing::new(10.0, 30.0),
+        "gpt-3.5-turbo" => ModelPricing::new(0.5, 1.5),
+        // Anthropic models
+        "claude-opus-4-6" | "claude-sonnet-4-6" => ModelPricing::new(3.0, 15.0),
+        "claude-haiku-4-5-20251001" | "claude-haiku" => ModelPricing::new(0.25, 1.25),
+        "claude-3-5-sonnet" | "claude-3-5-sonnet-20241022" => ModelPricing::new(3.0, 15.0),
+        "claude-3-opus" => ModelPricing::new(15.0, 75.0),
+        "claude-3-sonnet" => ModelPricing::new(3.0, 15.0),
+        "claude-3-haiku" => ModelPricing::new(0.25, 1.25),
+        // Default - no charge
+        _ => ModelPricing::default(),
+    }
 }
 
 /// Provider configuration
@@ -42,6 +89,10 @@ pub struct ProviderConfig {
     /// Request timeout in seconds
     #[serde(default = "default_timeout")]
     pub timeout_secs: u64,
+    /// Per-model pricing (model_name -> Pricing)
+    /// If a model is not listed here, default pricing will be used
+    #[serde(default)]
+    pub model_pricing: HashMap<String, ModelPricing>,
 }
 
 fn default_timeout() -> u64 {
@@ -112,6 +163,7 @@ impl GenericLLMProvider {
             models,
             default_model,
             timeout_secs: 120,
+            model_pricing: HashMap::new(),
         };
 
         Self::new(config)
@@ -588,12 +640,70 @@ impl LLMProvider for GenericLLMProvider {
         Ok(TokenCount { count })
     }
 
-    async fn estimate_cost(&self, _request: &ChatCompletionRequest) -> LLMResult<CostEstimate> {
-        // Default pricing - user should configure per-model
+    async fn estimate_cost(&self, request: &ChatCompletionRequest) -> LLMResult<CostEstimate> {
+        // Get pricing: user config > default pricing for known models > zero
+        let model_pricing = self
+            .config
+            .model_pricing
+            .get(&request.model)
+            .cloned()
+            .unwrap_or_else(|| default_pricing_for_model(&request.model));
+
+        // Estimate input tokens (simple estimation: ~4 characters per token)
+        let input_tokens = request
+            .messages
+            .iter()
+            .map(|m| {
+                let content_len = match &m.content {
+                    Some(Content::Text(t)) => t.len(),
+                    Some(Content::Blocks(blocks)) => blocks
+                        .iter()
+                        .map(|b| match b {
+                            ContentBlock::Text { text } => text.len(),
+                            ContentBlock::Image { .. } => 100, // Approximate image token cost
+                        })
+                        .sum(),
+                    None => 0,
+                };
+                content_len / 4
+            })
+            .sum::<usize>() as u32;
+
+        // Estimate output tokens: use typical ratio (30%) of max_tokens
+        // This is more realistic than using max_tokens directly
+        let output_tokens = ((request.max_tokens as f64) * 0.3) as u32;
+
+        // Calculate costs (per 1M tokens)
+        let input_cost = (input_tokens as f64 / 1_000_000.0) * model_pricing.input;
+        let output_cost = (output_tokens as f64 / 1_000_000.0) * model_pricing.output;
+        let total_cost = input_cost + output_cost;
+
         Ok(CostEstimate {
-            input_cost: 0.0,
-            output_cost: 0.0,
-            total_cost: 0.0,
+            input_cost,
+            output_cost,
+            total_cost,
+            currency: "USD".to_string(),
+        })
+    }
+
+    async fn calculate_cost(&self, usage: &Usage, model: &str) -> LLMResult<CostEstimate> {
+        // Get pricing: user config > default pricing for known models > zero
+        let model_pricing = self
+            .config
+            .model_pricing
+            .get(model)
+            .cloned()
+            .unwrap_or_else(|| default_pricing_for_model(model));
+
+        // Calculate actual costs from usage (per 1M tokens)
+        let input_cost = (usage.input_tokens as f64 / 1_000_000.0) * model_pricing.input;
+        let output_cost = (usage.output_tokens as f64 / 1_000_000.0) * model_pricing.output;
+        let total_cost = input_cost + output_cost;
+
+        Ok(CostEstimate {
+            input_cost,
+            output_cost,
+            total_cost,
             currency: "USD".to_string(),
         })
     }
@@ -604,14 +714,22 @@ impl LLMProvider for GenericLLMProvider {
 
     async fn get_model_info(&self, model: &str) -> LLMResult<ModelInfo> {
         if self.config.models.contains(&model.to_string()) {
+            // Get pricing: user config > default pricing for known models > zero
+            let model_pricing = self
+                .config
+                .model_pricing
+                .get(model)
+                .cloned()
+                .unwrap_or_else(|| default_pricing_for_model(model));
+
             Ok(ModelInfo {
                 id: model.to_string(),
                 name: model.to_string(),
                 provider: self.config.name.clone(),
                 context_length: 200_000,
                 pricing: Pricing {
-                    input: 0.0,
-                    output: 0.0,
+                    input: model_pricing.input,
+                    output: model_pricing.output,
                     currency: "USD".to_string(),
                 },
                 capabilities: vec!["chat".to_string(), "tools".to_string()],

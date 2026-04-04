@@ -311,16 +311,17 @@ impl ToolSystemTrait for ToolSystemImpl {
         let mut tools = registry.list_info();
 
         // Add built-in tools
-        for name in builtin_names() {
+        for (name, tool) in &self.builtin_tools {
             if registry.to_info(name).is_none() {
                 // Add built-in tool info if not overridden by custom tool
                 tools.push(ToolInfo {
-                    name: name.to_string(),
-                    display_name: name.to_string(),
+                    name: name.clone(),
+                    display_name: name.clone(),
                     description: format!("Built-in tool: {}", name),
                     category: "builtin".to_string(),
                     parameters: Default::default(),
                     dangerous: name == "bash" || name == "write" || name == "edit",
+                    is_read_only: tool.is_read_only(),
                 });
             }
         }
@@ -347,6 +348,7 @@ impl ToolSystemTrait for ToolSystemImpl {
                 category: t.category.clone(),
                 parameters: t.parameters.clone(),
                 dangerous: t.dangerous,
+                is_read_only: t.is_read_only,
             })
             .collect();
 
@@ -366,7 +368,7 @@ impl ToolSystemTrait for ToolSystemImpl {
         }
 
         // Check built-in tools
-        if builtin_names().contains(&name) {
+        if let Some(tool) = self.builtin_tools.get(name) {
             return Ok(Some(ToolInfo {
                 name: name.to_string(),
                 display_name: name.to_string(),
@@ -374,6 +376,7 @@ impl ToolSystemTrait for ToolSystemImpl {
                 category: "builtin".to_string(),
                 parameters: Default::default(),
                 dangerous: name == "bash" || name == "write" || name == "edit",
+                is_read_only: tool.is_read_only(),
             }));
         }
 

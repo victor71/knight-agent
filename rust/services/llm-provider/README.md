@@ -25,14 +25,18 @@ serde_json = "1"
 ## 快速开始
 
 ```rust
+use std::collections::HashMap;
 use llm_provider::{
     LLMProvider, ChatCompletionRequest, Message, MessageRole, Content,
-    provider::{GenericLLMProvider, LLMProtocol, ProviderConfig},
+    provider::{GenericLLMProvider, LLMProtocol, ModelPricing, ProviderConfig},
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 创建 OpenAI 协议提供商
+    let mut model_pricing = HashMap::new();
+    model_pricing.insert("gpt-4o".to_string(), ModelPricing::new(2.5, 10.0));
+
     let openai_config = ProviderConfig {
         name: "openai".to_string(),
         api_key: "your-api-key".to_string(),
@@ -41,6 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         models: vec!["gpt-4o".to_string()],
         default_model: Some("gpt-4o".to_string()),
         timeout_secs: 120,
+        model_pricing,
     };
     let provider = GenericLLMProvider::new(openai_config)?;
 
@@ -62,6 +67,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let response = provider.chat_completion(request).await?;
     println!("Response: {}", response.content.unwrap());
 
+    // 使用实际 usage 计算成本
+    let actual_cost = provider.calculate_cost(&response.usage, &response.model).await?;
+    println!("Cost: ${:.6}", actual_cost.total_cost);
+
     Ok(())
 }
 ```
@@ -71,21 +80,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### 提供商创建
 
 ```rust
-use provider::{GenericLLMProvider, LLMProtocol, ProviderConfig};
+use std::collections::HashMap;
+use provider::{GenericLLMProvider, LLMProtocol, ModelPricing, ProviderConfig};
 
 // OpenAI 协议提供商
+let mut model_pricing = HashMap::new();
+model_pricing.insert("gpt-4o".to_string(), ModelPricing::new(2.5, 10.0));
+model_pricing.insert("gpt-4o-mini".to_string(), ModelPricing::new(0.15, 0.6));
+
 let openai_config = ProviderConfig {
     name: "openai".to_string(),
     api_key: "your-api-key".to_string(),
     base_url: "https://api.openai.com/v1".to_string(),
     protocol: LLMProtocol::OpenAI,
-    models: vec!["gpt-4o".to_string()],
+    models: vec!["gpt-4o".to_string(), "gpt-4o-mini".to_string()],
     default_model: Some("gpt-4o".to_string()),
     timeout_secs: 120,
+    model_pricing,
 };
 let provider = GenericLLMProvider::new(openai_config)?;
 
 // Anthropic 协议提供商
+let mut model_pricing = HashMap::new();
+model_pricing.insert("claude-sonnet-4-6".to_string(), ModelPricing::new(3.0, 15.0));
+
 let anthropic_config = ProviderConfig {
     name: "anthropic".to_string(),
     api_key: "your-api-key".to_string(),
@@ -94,6 +112,7 @@ let anthropic_config = ProviderConfig {
     models: vec!["claude-sonnet-4-6".to_string()],
     default_model: Some("claude-sonnet-4-6".to_string()),
     timeout_secs: 120,
+    model_pricing,
 };
 let provider = GenericLLMProvider::new(anthropic_config)?;
 
@@ -112,6 +131,21 @@ let provider = GenericLLMProvider::from_env()?;
 | `models` | Vec<String> | 支持的模型列表 |
 | `default_model` | Option<String> | 默认模型 |
 | `timeout_secs` | u64 | 请求超时时间 (秒) |
+| `model_pricing` | HashMap<String, ModelPricing> | 模型定价配置 |
+
+**ModelPricing 结构：**
+
+```rust
+pub struct ModelPricing {
+    pub input: f64,  // 每 1M 输入 tokens 的价格 (USD)
+    pub output: f64, // 每 1M 输出 tokens 的价格 (USD)
+}
+```
+
+**定价优先级：**
+1. 用户在 `model_pricing` 中配置的价格
+2. 常见模型的默认定价（gpt-4o, claude-sonnet-4-6 等）
+3. 未配置且无默认定价的模型返回 0
 
 ### LLMProtocol 枚举
 
@@ -166,10 +200,17 @@ while let Some(chunk_result) = stream.next().await {
 ### Token 和成本
 
 ```rust
-// 估算成本
+// 估算成本（调用 API 前）
 async fn estimate_cost(
     &self,
     request: &ChatCompletionRequest,
+) -> LLMResult<CostEstimate>
+
+// 根据实际 usage 计算成本（调用 API 后）
+async fn calculate_cost(
+    &self,
+    usage: &Usage,
+    model: &str,
 ) -> LLMResult<CostEstimate>
 
 // CostEstimate
@@ -179,6 +220,26 @@ pub struct CostEstimate {
     pub total_cost: f64,      // 总成本
     pub currency: String,     // 货币 (默认 USD)
 }
+
+// Usage（API 响应中的实际 token 使用量）
+pub struct Usage {
+    pub input_tokens: u32,
+    pub output_tokens: u32,
+    pub total_tokens: u32,
+}
+```
+
+**使用示例：**
+
+```rust
+// 1. 调用前预估
+let estimated = provider.estimate_cost(&request).await?;
+
+// 2. 实际调用 API
+let response = provider.chat_completion(request).await?;
+
+// 3. 调用后用实际 usage 计算成本
+let actual = provider.calculate_cost(&response.usage, &response.model).await?;
 ```
 
 ### 模型信息

@@ -1,12 +1,24 @@
 //! LLM Provider Unit Tests
 
+use std::collections::HashMap;
+
 use llm_provider::{
-    provider::{GenericLLMProvider, LLMProtocol, ProviderConfig},
+    provider::{GenericLLMProvider, LLMProtocol, ModelPricing, ProviderConfig},
     ChatCompletionRequest, Content, Message, MessageRole,
     LLMProvider,
 };
 
 fn create_openai_provider() -> GenericLLMProvider {
+    let mut model_pricing = HashMap::new();
+    model_pricing.insert(
+        "gpt-4o".to_string(),
+        ModelPricing::new(2.5, 10.0), // $2.5/M input, $10/M output
+    );
+    model_pricing.insert(
+        "gpt-4o-mini".to_string(),
+        ModelPricing::new(0.15, 0.6), // $0.15/M input, $0.6/M output
+    );
+
     let config = ProviderConfig {
         name: "test-openai".to_string(),
         api_key: "test-api-key".to_string(),
@@ -18,11 +30,22 @@ fn create_openai_provider() -> GenericLLMProvider {
         ],
         default_model: Some("gpt-4o".to_string()),
         timeout_secs: 120,
+        model_pricing,
     };
     GenericLLMProvider::new(config).unwrap()
 }
 
 fn create_anthropic_provider() -> GenericLLMProvider {
+    let mut model_pricing = HashMap::new();
+    model_pricing.insert(
+        "claude-sonnet-4-6".to_string(),
+        ModelPricing::new(3.0, 15.0), // $3/M input, $15/M output
+    );
+    model_pricing.insert(
+        "claude-haiku".to_string(),
+        ModelPricing::new(0.25, 1.25), // $0.25/M input, $1.25/M output
+    );
+
     let config = ProviderConfig {
         name: "test-anthropic".to_string(),
         api_key: "test-api-key".to_string(),
@@ -34,6 +57,7 @@ fn create_anthropic_provider() -> GenericLLMProvider {
         ],
         default_model: Some("claude-sonnet-4-6".to_string()),
         timeout_secs: 120,
+        model_pricing,
     };
     GenericLLMProvider::new(config).unwrap()
 }
@@ -73,6 +97,7 @@ fn test_provider_config_validation() {
         models: vec!["model1".to_string()],
         default_model: None,
         timeout_secs: 60,
+        model_pricing: HashMap::new(),
     };
 
     // default_model returns first model when default_model is None
@@ -138,9 +163,9 @@ async fn test_model_info_with_pricing() {
     let provider = create_openai_provider();
     let info = provider.get_model_info("gpt-4o").await.unwrap();
 
-    // Check pricing is set
-    assert_eq!(info.pricing.input, 0.0); // Default pricing is 0
-    assert_eq!(info.pricing.output, 0.0);
+    // Check pricing is set from config ($2.5/M input, $10/M output)
+    assert_eq!(info.pricing.input, 2.5);
+    assert_eq!(info.pricing.output, 10.0);
     assert_eq!(info.pricing.currency, "USD");
 }
 
@@ -170,11 +195,53 @@ async fn test_estimate_cost() {
     };
 
     let cost = provider.estimate_cost(&request).await.unwrap();
-    // Default pricing returns 0
+    // "Hello!" = 6 chars -> ~1 token (6/4), $2.5/M input
+    // max_tokens = 100, $10/M output
+    // input_cost = 1/1M * 2.5 = 0.0000025
+    // output_cost = 100/1M * 10 = 0.001
+    assert!(cost.input_cost > 0.0);
+    assert!(cost.output_cost > 0.0);
+    assert!(cost.total_cost > 0.0);
+    assert_eq!(cost.currency, "USD".to_string());
+}
+
+#[tokio::test]
+async fn test_calculate_cost_actual_usage() {
+    use llm_provider::types::Usage;
+
+    let provider = create_openai_provider();
+    let usage = Usage {
+        input_tokens: 1000,
+        output_tokens: 500,
+        total_tokens: 1500,
+    };
+
+    let cost = provider.calculate_cost(&usage, "gpt-4o").await.unwrap();
+    // 1000 input tokens at $2.5/M = $0.0025
+    // 500 output tokens at $10/M = $0.005
+    // total = $0.0075
+    assert_eq!(cost.input_cost, 0.0025);
+    assert_eq!(cost.output_cost, 0.005);
+    assert_eq!(cost.total_cost, 0.0075);
+    assert_eq!(cost.currency, "USD".to_string());
+}
+
+#[tokio::test]
+async fn test_calculate_cost_unknown_model() {
+    use llm_provider::types::Usage;
+
+    let provider = create_openai_provider();
+    let usage = Usage {
+        input_tokens: 1000,
+        output_tokens: 500,
+        total_tokens: 1500,
+    };
+
+    // Unknown model should use default (zero) pricing
+    let cost = provider.calculate_cost(&usage, "unknown-model").await.unwrap();
     assert_eq!(cost.input_cost, 0.0);
     assert_eq!(cost.output_cost, 0.0);
     assert_eq!(cost.total_cost, 0.0);
-    assert_eq!(cost.currency, "USD");
 }
 
 // Health check tests - skipped because they require network/API access
@@ -275,6 +342,7 @@ fn test_provider_config_serialization() {
         models: vec!["model1".to_string(), "model2".to_string()],
         default_model: Some("model1".to_string()),
         timeout_secs: 60,
+        model_pricing: HashMap::new(),
     };
 
     let json = serde_json::to_string(&config).unwrap();

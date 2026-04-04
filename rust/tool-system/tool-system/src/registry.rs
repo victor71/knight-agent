@@ -78,6 +78,7 @@ impl ToolRegistry {
             category: tool.category.clone(),
             parameters: tool.parameters.clone(),
             dangerous: tool.dangerous,
+            is_read_only: tool.is_read_only,
         })
     }
 
@@ -92,6 +93,7 @@ impl ToolRegistry {
                 category: tool.category.clone(),
                 parameters: tool.parameters.clone(),
                 dangerous: tool.dangerous,
+                is_read_only: tool.is_read_only,
             })
             .collect()
     }
@@ -155,6 +157,7 @@ mod tests {
             },
             permissions: vec![],
             dangerous: false,
+            is_read_only: false,
         }
     }
 

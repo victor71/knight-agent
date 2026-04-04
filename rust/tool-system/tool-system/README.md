@@ -92,6 +92,7 @@ let tool = ToolDefinition {
     },
     permissions: vec![],
     dangerous: false,
+    is_read_only: true,  // 设置为只读工具，可并行执行
 };
 
 tool_system.register_tool(tool).await?;
@@ -144,7 +145,7 @@ let categories = tool_system.get_categories().await?;
 
 ## 内置工具
 
-### read - 读取文件
+### read - 读取文件 (is_read_only: true)
 
 ```rust
 let args = serde_json::json!({
@@ -154,7 +155,7 @@ let args = serde_json::json!({
 });
 ```
 
-### write - 写入文件
+### write - 写入文件 (is_read_only: false)
 
 ```rust
 let args = serde_json::json!({
@@ -163,7 +164,7 @@ let args = serde_json::json!({
 });
 ```
 
-### edit - 编辑文件
+### edit - 编辑文件 (is_read_only: false)
 
 ```rust
 let args = serde_json::json!({
@@ -173,7 +174,7 @@ let args = serde_json::json!({
 });
 ```
 
-### grep - 搜索内容
+### grep - 搜索内容 (is_read_only: true)
 
 ```rust
 let args = serde_json::json!({
@@ -183,7 +184,7 @@ let args = serde_json::json!({
 });
 ```
 
-### glob - 查找文件
+### glob - 查找文件 (is_read_only: true)
 
 ```rust
 let args = serde_json::json!({
@@ -192,7 +193,7 @@ let args = serde_json::json!({
 });
 ```
 
-### bash - 执行命令
+### bash - 执行命令 (is_read_only: false)
 
 ```rust
 let args = serde_json::json!({
@@ -200,6 +201,8 @@ let args = serde_json::json!({
     "timeout": 30  // 可选：超时时间（秒）
 });
 ```
+
+**并行执行优化：** 只读工具（read, grep, glob）可以安全地并行执行，非只读工具（write, edit, bash）需要串行执行以避免冲突。
 
 ## 错误类型
 
@@ -229,6 +232,21 @@ pub struct ToolDefinition {
     pub handler: ToolHandler,
     pub permissions: Vec<String>,
     pub dangerous: bool,
+    pub is_read_only: bool,  // 是否只读（只读工具可并行执行）
+}
+```
+
+### ToolInfo
+
+```rust
+pub struct ToolInfo {
+    pub name: String,
+    pub display_name: String,
+    pub description: String,
+    pub category: String,
+    pub parameters: JsonSchema,
+    pub dangerous: bool,
+    pub is_read_only: bool,  // 是否只读（只读工具可并行执行）
 }
 ```
 
