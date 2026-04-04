@@ -1,121 +1,156 @@
 //! Bootstrap - 8 Stage Initialization System
 //!
+//! System startup orchestrator for Knight-Agent.
+//! Manages the initialization of all 23 modules in 8 stages.
+//!
 //! Design Reference: docs/03-module-design/core/bootstrap.md
 
-#![allow(unused)]
+// Re-export public API
+pub use error::{BootstrapError, BootstrapResult};
+pub use system::{KnightAgentSystem, SystemHandle, SystemHandleImpl};
+pub use types::{
+    BootstrapConfig, BootstrapStage, HealthCheckResult, ModuleHealth, ModuleStatus, SystemStatus,
+    VersionInfo,
+};
 
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
+mod error;
+mod system;
+mod types;
 
-#[derive(Error, Debug)]
-pub enum BootstrapError {
-    #[error("Bootstrap failed: {0}")]
-    Failed(String),
-    #[error("Module initialization failed: {0}")]
-    ModuleInitFailed(String),
-    #[error("Stage {0} failed: {1}")]
-    StageFailed(u8, String),
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BootstrapStage {
-    Stage1Infrastructure = 1,
-    Stage2SecurityAndStorage = 2,
-    Stage3BasicServicesAndEvent = 3,
-    Stage4CoreEngineLayer = 4,
-    Stage5AgentLayer = 5,
-    Stage6Report = 6,
-    Stage7ContextCompression = 7,
-    Stage8SecurityLayer = 8,
-}
-
-impl std::fmt::Display for BootstrapStage {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            BootstrapStage::Stage1Infrastructure => write!(f, "Stage1: Infrastructure"),
-            BootstrapStage::Stage2SecurityAndStorage => write!(f, "Stage2: SecurityAndStorage"),
-            BootstrapStage::Stage3BasicServicesAndEvent => write!(f, "Stage3: BasicServicesAndEvent"),
-            BootstrapStage::Stage4CoreEngineLayer => write!(f, "Stage4: CoreEngineLayer"),
-            BootstrapStage::Stage5AgentLayer => write!(f, "Stage5: AgentLayer"),
-            BootstrapStage::Stage6Report => write!(f, "Stage6: Report"),
-            BootstrapStage::Stage7ContextCompression => write!(f, "Stage7: ContextCompression"),
-            BootstrapStage::Stage8SecurityLayer => write!(f, "Stage8: SecurityLayer"),
-        }
-    }
-}
-
-pub trait ModuleRegistry: Send + Sync {
-    fn register_module(&self, name: &str, module: Box<dyn Send + Sync>) -> Result<(), BootstrapError>;
-    fn get_module(&self, name: &str) -> Option<Box<dyn Send + Sync>>;
-}
-
-pub trait SystemHandle: Send + Sync {
-    fn name(&self) -> &str;
-    fn is_initialized(&self) -> bool;
-    fn get_stage(&self) -> BootstrapStage;
-}
-
-pub struct KnightAgentSystem {
-    stage: BootstrapStage,
-    initialized: bool,
-}
-
-impl KnightAgentSystem {
-    pub fn new() -> Self {
-        KnightAgentSystem {
-            stage: BootstrapStage::Stage1Infrastructure,
-            initialized: false,
-        }
+    #[tokio::test]
+    async fn test_bootstrap_stage_enum() {
+        assert_eq!(BootstrapStage::Stage1Infrastructure.as_u8(), 1);
+        assert_eq!(BootstrapStage::Stage1Infrastructure.name(), "Infrastructure");
+        assert_eq!(BootstrapStage::Stage1Infrastructure.to_string(), "Stage 1: Infrastructure");
     }
 
-    pub async fn bootstrap(&mut self) -> Result<(), BootstrapError> {
-        // Stage 1: Infrastructure (logging_system)
-        tracing::info!("{}", BootstrapStage::Stage1Infrastructure);
-        self.stage = BootstrapStage::Stage1Infrastructure;
+    #[tokio::test]
+    async fn test_bootstrap_stage_modules() {
+        let stage1 = BootstrapStage::Stage1Infrastructure;
+        assert_eq!(stage1.modules(), vec!["logging-system"]);
 
-        // Stage 2: Security and Storage (security_manager, storage_service)
-        tracing::info!("{}", BootstrapStage::Stage2SecurityAndStorage);
-        self.stage = BootstrapStage::Stage2SecurityAndStorage;
-
-        // Stage 3: Basic Services and Event (llm_provider, tool_system, event_loop, timer_system)
-        tracing::info!("{}", BootstrapStage::Stage3BasicServicesAndEvent);
-        self.stage = BootstrapStage::Stage3BasicServicesAndEvent;
-
-        // Stage 4: Core Engine Layer (hook_engine, session_manager, router, monitor)
-        tracing::info!("{}", BootstrapStage::Stage4CoreEngineLayer);
-        self.stage = BootstrapStage:: Stage4CoreEngineLayer;
-
-        // Stage 5: Agent Layer (agent_variants, agent_runtime, external_agent, skill_engine, orchestrator, task_manager, command, workflows_directory)
-        tracing::info!("{}", BootstrapStage::Stage5AgentLayer);
-        self.stage = BootstrapStage::Stage5AgentLayer;
-
-        // Stage 6: Report (report_skill)
-        tracing::info!("{}", BootstrapStage::Stage6Report);
-        self.stage = BootstrapStage::Stage6Report;
-
-        // Stage 7: Context Compression (context_compressor)
-        tracing::info!("{}", BootstrapStage::Stage7ContextCompression);
-        self.stage = BootstrapStage::Stage7ContextCompression;
-
-        // Stage 8: Security Layer (sandbox, ipc_contract)
-        tracing::info!("{}", BootstrapStage::Stage8SecurityLayer);
-        self.stage = BootstrapStage::Stage8SecurityLayer;
-
-        self.initialized = true;
-        Ok(())
-    }
-}
-
-impl SystemHandle for KnightAgentSystem {
-    fn name(&self) -> &str {
-        "knight-agent"
+        let stage8 = BootstrapStage::Stage8SecurityLayer;
+        assert_eq!(stage8.modules(), vec!["sandbox", "ipc-contract"]);
     }
 
-    fn is_initialized(&self) -> bool {
-        self.initialized
+    #[tokio::test]
+    async fn test_system_new() {
+        let system = KnightAgentSystem::new();
+        assert!(!system.is_initialized().await);
+        assert_eq!(system.stage().await, BootstrapStage::Stage1Infrastructure);
     }
 
-    fn get_stage(&self) -> BootstrapStage {
-        self.stage
+    #[tokio::test]
+    async fn test_system_bootstrap() {
+        let system = KnightAgentSystem::new();
+        system.bootstrap().await.unwrap();
+        assert!(system.is_initialized().await);
+        assert_eq!(system.stage().await, BootstrapStage::Stage8SecurityLayer);
+    }
+
+    #[tokio::test]
+    async fn test_system_status() {
+        let system = KnightAgentSystem::new();
+        system.bootstrap().await.unwrap();
+
+        let status = system.status().await;
+        assert!(status.initialized);
+        assert!(status.ready);
+        assert_eq!(status.stage, 8);
+        assert_eq!(status.module_count, 23);
+        assert_eq!(status.initialized_count, 23);
+    }
+
+    #[tokio::test]
+    async fn test_module_statuses() {
+        let system = KnightAgentSystem::new();
+        system.bootstrap().await.unwrap();
+
+        let modules = system.module_statuses().await;
+        assert_eq!(modules.len(), 23);
+
+        // Check that logging-system is initialized
+        let logging_status = system.module_status("logging-system").await;
+        assert!(logging_status.is_some());
+        assert!(logging_status.unwrap().initialized);
+    }
+
+    #[tokio::test]
+    async fn test_health_check() {
+        let system = KnightAgentSystem::new();
+        system.bootstrap().await.unwrap();
+
+        let health = system.health_check(false).await.unwrap();
+        assert!(health.healthy);
+
+        let detailed_health = system.health_check(true).await.unwrap();
+        assert!(detailed_health.healthy);
+        assert_eq!(detailed_health.details.len(), 23);
+    }
+
+    #[tokio::test]
+    async fn test_system_stop() {
+        let system = KnightAgentSystem::new();
+        system.bootstrap().await.unwrap();
+
+        let stopped = system.stop(true, 5000).await.unwrap();
+        assert!(stopped);
+        assert!(!system.is_initialized().await);
+    }
+
+    #[tokio::test]
+    async fn test_system_restart() {
+        let system = KnightAgentSystem::new();
+        system.bootstrap().await.unwrap();
+
+        let restarted = system.restart(true).await.unwrap();
+        assert!(restarted);
+        assert!(system.is_initialized().await);
+    }
+
+    #[tokio::test]
+    async fn test_bootstrap_config_default() {
+        let config = BootstrapConfig::default();
+        assert_eq!(config.workspace, ".");
+        assert!(!config.parallel_init);
+        assert_eq!(config.init_timeout_ms, 60000);
+        assert!(config.retry_on_failure);
+        assert_eq!(config.max_retries, 3);
+    }
+
+    #[tokio::test]
+    async fn test_module_status() {
+        let status = ModuleStatus::new("test-module".to_string(), BootstrapStage::Stage1Infrastructure);
+        assert!(!status.initialized);
+        assert!(!status.healthy);
+        assert_eq!(status.stage, 1);
+
+        let initialized = status.clone().initialized();
+        assert!(initialized.initialized);
+        assert!(!initialized.healthy);
+
+        let healthy = initialized.healthy();
+        assert!(healthy.initialized);
+        assert!(healthy.healthy);
+    }
+
+    #[tokio::test]
+    async fn test_already_initialized_error() {
+        let system = KnightAgentSystem::new();
+        system.bootstrap().await.unwrap();
+
+        let result = system.bootstrap().await;
+        assert!(matches!(result, Err(BootstrapError::AlreadyInitialized)));
+    }
+
+    #[tokio::test]
+    async fn test_version_info() {
+        let system = KnightAgentSystem::new();
+        let version = system.version();
+        assert!(!version.version.is_empty());
     }
 }
