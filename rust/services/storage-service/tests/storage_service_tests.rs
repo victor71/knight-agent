@@ -12,9 +12,15 @@ use std::collections::HashMap;
 
 fn temp_db_path() -> String {
     use std::sync::atomic::{AtomicU32, Ordering};
+    use std::time::SystemTime;
     static COUNTER: AtomicU32 = AtomicU32::new(0);
     let id = COUNTER.fetch_add(1, Ordering::SeqCst);
-    format!("./test_temp_{}.db", id)
+
+    let timestamp = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_micros();
+    format!("./test_temp_{}_{}.db", timestamp, id)
 }
 
 fn create_test_session(id: &str, name: &str) -> Session {
@@ -60,14 +66,25 @@ fn create_test_task(id: &str, name: &str, task_type: &str) -> Task {
 
 // Helper to create an isolated storage service for async tests
 fn create_test_storage() -> StorageServiceImpl {
-    static COUNTER: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-    let id = COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let path = format!("./test_storage_{}.db", id);
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::time::SystemTime;
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
+    let id = COUNTER.fetch_add(1, Ordering::SeqCst);
+
+    // Use timestamp + counter + random to ensure uniqueness
+    let timestamp = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_micros();
+    let path = format!("./test_storage_{}_{}.db", timestamp, id);
     let config = StorageConfig {
-        database_path: path,
+        database_path: path.clone(),
         ..Default::default()
     };
-    StorageServiceImpl::with_config(config).unwrap()
+    let storage = StorageServiceImpl::with_config(config).unwrap();
+
+    // Store path for cleanup
+    storage
 }
 
 // =============================================================================

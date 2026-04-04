@@ -19,6 +19,6 @@ pub use types::{
     ResourceLimits, SandboxConfig, ViolationAction, ResourceUsage,
     SandboxInfo, AccessCheckResult,
 };
-pub use checker::PermissionChecker;
+pub use checker::{PermissionChecker, glob_match};
 pub use r#trait::Sandbox;
 pub use sandbox::SandboxImpl;
