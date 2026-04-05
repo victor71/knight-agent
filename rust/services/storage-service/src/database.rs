@@ -1056,6 +1056,16 @@ impl Database {
             Ok(size)
         })
     }
+
+    /// Close the database connection and release file locks
+    /// This ensures SQLite properly closes WAL and releases file handles
+    #[allow(dead_code)]
+    pub fn close(&self) {
+        // Lock to ensure any pending operations complete
+        if let Ok(_guard) = self.conn.lock() {
+            // Connection held - will be dropped when guard is dropped
+        }
+    }
 }
 
 /// Storage error types

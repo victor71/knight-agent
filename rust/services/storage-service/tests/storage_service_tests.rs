@@ -9,10 +9,51 @@ use storage_service::{
 };
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::time::SystemTime;
+
+/// RAII guard for automatic cleanup of test database files
+struct TempStorage {
+    storage: StorageServiceImpl,
+    path: String,
+}
+
+impl TempStorage {
+    fn new() -> Self {
+        static COUNTER: AtomicU32 = AtomicU32::new(0);
+        let id = COUNTER.fetch_add(1, Ordering::SeqCst);
+
+        let timestamp = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_micros();
+        let path = format!("./test_storage_{}_{}.db", timestamp, id);
+        let config = StorageConfig {
+            database_path: path.clone(),
+            ..Default::default()
+        };
+        let storage = StorageServiceImpl::with_config(config).unwrap();
+
+        Self { storage, path }
+    }
+}
+
+impl Drop for TempStorage {
+    fn drop(&mut self) {
+        // Wait for database connection to be released
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        // Clean up database file
+        if let Err(e) = std::fs::remove_file(&self.path) {
+            eprintln!("Failed to remove {}: {}", self.path, e);
+        }
+        let wal_path = format!("{}-wal", &self.path);
+        let shm_path = format!("{}-shm", &self.path);
+        let _ = std::fs::remove_file(&wal_path);
+        let _ = std::fs::remove_file(&shm_path);
+    }
+}
 
 fn temp_db_path() -> String {
-    use std::sync::atomic::{AtomicU32, Ordering};
-    use std::time::SystemTime;
     static COUNTER: AtomicU32 = AtomicU32::new(0);
     let id = COUNTER.fetch_add(1, Ordering::SeqCst);
 
@@ -21,6 +62,34 @@ fn temp_db_path() -> String {
         .unwrap_or_default()
         .as_micros();
     format!("./test_temp_{}_{}.db", timestamp, id)
+}
+
+/// RAII guard for automatic cleanup of test database files
+struct TempDatabase {
+    db: Database,
+    path: String,
+}
+
+impl TempDatabase {
+    fn new() -> Self {
+        let path = temp_db_path();
+        let db = Database::open(std::path::Path::new(&path)).expect("should open database");
+        Self { db, path }
+    }
+}
+
+impl Drop for TempDatabase {
+    fn drop(&mut self) {
+        // Try to close database and clean up files
+        let path = self.path.clone();
+        self.db.close();
+        // Wait for file handles to be released (especially on Windows)
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        // Clean up database file
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(format!("{}-wal", &path));
+        let _ = std::fs::remove_file(format!("{}-shm", &path));
+    }
 }
 
 fn create_test_session(id: &str, name: &str) -> Session {
@@ -65,26 +134,8 @@ fn create_test_task(id: &str, name: &str, task_type: &str) -> Task {
 }
 
 // Helper to create an isolated storage service for async tests
-fn create_test_storage() -> StorageServiceImpl {
-    use std::sync::atomic::{AtomicU32, Ordering};
-    use std::time::SystemTime;
-    static COUNTER: AtomicU32 = AtomicU32::new(0);
-    let id = COUNTER.fetch_add(1, Ordering::SeqCst);
-
-    // Use timestamp + counter + random to ensure uniqueness
-    let timestamp = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_micros();
-    let path = format!("./test_storage_{}_{}.db", timestamp, id);
-    let config = StorageConfig {
-        database_path: path.clone(),
-        ..Default::default()
-    };
-    let storage = StorageServiceImpl::with_config(config).unwrap();
-
-    // Store path for cleanup
-    storage
+fn create_test_storage() -> TempStorage {
+    TempStorage::new()
 }
 
 // =============================================================================
@@ -93,15 +144,14 @@ fn create_test_storage() -> StorageServiceImpl {
 
 #[test]
 fn test_database_open_and_init() {
-    let path = temp_db_path();
-    let _db = Database::open(std::path::Path::new(&path)).expect("should open database");
-    std::fs::remove_file(&path).ok();
+    let _temp_db = TempDatabase::new();
+    // Database is opened and will be cleaned up when _temp_db goes out of scope
 }
 
 #[test]
 fn test_database_session_crud() {
-    let path = temp_db_path();
-    let db = Database::open(std::path::Path::new(&path)).expect("should open database");
+    let temp_db = TempDatabase::new();
+    let db = &temp_db.db;
 
     // Save session
     let session = create_test_session("s1", "Test Session");
@@ -122,14 +172,12 @@ fn test_database_session_crud() {
     // Load deleted session
     let loaded = db.load_session("s1").expect("should load session");
     assert!(loaded.is_none());
-
-    std::fs::remove_file(&path).ok();
 }
 
 #[test]
 fn test_database_list_sessions() {
-    let path = temp_db_path();
-    let db = Database::open(std::path::Path::new(&path)).expect("should open database");
+    let temp_db = TempDatabase::new();
+    let db = &temp_db.db;
 
     // Save multiple sessions
     for i in 0..5 {
@@ -144,14 +192,12 @@ fn test_database_list_sessions() {
     // List with limit
     let sessions = db.list_sessions(&SessionFilter::default(), Some(2), None).expect("should list sessions");
     assert_eq!(sessions.len(), 2);
-
-    std::fs::remove_file(&path).ok();
 }
 
 #[test]
 fn test_database_message_crud() {
-    let path = temp_db_path();
-    let db = Database::open(std::path::Path::new(&path)).expect("should open database");
+    let temp_db = TempDatabase::new();
+    let db = &temp_db.db;
 
     // Create session first
     let session = create_test_session("s1", "Test");
@@ -165,14 +211,12 @@ fn test_database_message_crud() {
     let messages = db.get_messages("s1", None, None, None).expect("should get messages");
     assert_eq!(messages.len(), 1);
     assert_eq!(messages[0].content, "Hello");
-
-    std::fs::remove_file(&path).ok();
 }
 
 #[test]
 fn test_database_task_crud() {
-    let path = temp_db_path();
-    let db = Database::open(std::path::Path::new(&path)).expect("should open database");
+    let temp_db = TempDatabase::new();
+    let db = &temp_db.db;
 
     // Save task
     let task = create_test_task("t1", "Test Task", "test");
@@ -186,14 +230,12 @@ fn test_database_task_crud() {
     // List tasks
     let tasks = db.list_tasks(&TaskFilter::default(), None).expect("should list tasks");
     assert_eq!(tasks.len(), 1);
-
-    std::fs::remove_file(&path).ok();
 }
 
 #[test]
 fn test_database_workflow_crud() {
-    let path = temp_db_path();
-    let db = Database::open(std::path::Path::new(&path)).expect("should open database");
+    let temp_db = TempDatabase::new();
+    let db = &temp_db.db;
 
     // Save workflow
     let workflow = WorkflowDefinition {
@@ -213,14 +255,12 @@ fn test_database_workflow_crud() {
     // List workflows
     let workflows = db.list_workflows().expect("should list workflows");
     assert_eq!(workflows.len(), 1);
-
-    std::fs::remove_file(&path).ok();
 }
 
 #[test]
 fn test_database_config_crud() {
-    let path = temp_db_path();
-    let db = Database::open(std::path::Path::new(&path)).expect("should open database");
+    let temp_db = TempDatabase::new();
+    let db = &temp_db.db;
 
     // Save config
     db.save_config("key1", "value1").expect("should save config");
@@ -233,14 +273,12 @@ fn test_database_config_crud() {
     // Delete config
     let deleted = db.delete_config("key1").expect("should delete config");
     assert!(deleted);
-
-    std::fs::remove_file(&path).ok();
 }
 
 #[test]
 fn test_database_compression_point_crud() {
-    let path = temp_db_path();
-    let db = Database::open(std::path::Path::new(&path)).expect("should open database");
+    let temp_db = TempDatabase::new();
+    let db = &temp_db.db;
 
     // Create session first
     let session = create_test_session("s1", "Test");
@@ -267,8 +305,6 @@ fn test_database_compression_point_crud() {
     // Delete compression point
     let deleted = db.delete_compression_point("cp1").expect("should delete");
     assert!(deleted);
-
-    std::fs::remove_file(&path).ok();
 }
 
 // =============================================================================
@@ -277,7 +313,8 @@ fn test_database_compression_point_crud() {
 
 #[tokio::test]
 async fn test_storage_service_init() {
-    let storage = create_test_storage();
+    let temp_storage = create_test_storage();
+    let storage = &temp_storage.storage;
     assert!(!storage.is_initialized());
 
     storage.init().await.expect("should initialize");
@@ -286,7 +323,8 @@ async fn test_storage_service_init() {
 
 #[tokio::test]
 async fn test_storage_service_session_operations() {
-    let storage = create_test_storage();
+    let temp_storage = create_test_storage();
+    let storage = &temp_storage.storage;
     storage.init().await.expect("should initialize");
 
     let session = create_test_session("s1", "Test Session");
@@ -300,7 +338,8 @@ async fn test_storage_service_session_operations() {
 
 #[tokio::test]
 async fn test_storage_service_message_operations() {
-    let storage = create_test_storage();
+    let temp_storage = create_test_storage();
+    let storage = &temp_storage.storage;
     storage.init().await.expect("should initialize");
 
     // Create session first
@@ -320,7 +359,8 @@ async fn test_storage_service_message_operations() {
 
 #[tokio::test]
 async fn test_storage_service_task_operations() {
-    let storage = create_test_storage();
+    let temp_storage = create_test_storage();
+    let storage = &temp_storage.storage;
     storage.init().await.expect("should initialize");
 
     let task = create_test_task("t1", "Test Task", "test");
@@ -353,7 +393,8 @@ async fn test_storage_service_task_operations() {
 
 #[tokio::test]
 async fn test_storage_service_workflow_operations() {
-    let storage = create_test_storage();
+    let temp_storage = create_test_storage();
+    let storage = &temp_storage.storage;
     storage.init().await.expect("should initialize");
 
     let workflow = WorkflowDefinition {
@@ -377,7 +418,8 @@ async fn test_storage_service_workflow_operations() {
 
 #[tokio::test]
 async fn test_storage_service_config_operations() {
-    let storage = create_test_storage();
+    let temp_storage = create_test_storage();
+    let storage = &temp_storage.storage;
     storage.init().await.expect("should initialize");
 
     // Save config
@@ -396,7 +438,8 @@ async fn test_storage_service_config_operations() {
 
 #[tokio::test]
 async fn test_storage_service_compression_point_operations() {
-    let storage = create_test_storage();
+    let temp_storage = create_test_storage();
+    let storage = &temp_storage.storage;
     storage.init().await.expect("should initialize");
 
     // Create session first
@@ -430,7 +473,8 @@ async fn test_storage_service_compression_point_operations() {
 
 #[tokio::test]
 async fn test_storage_service_token_usage() {
-    let storage = create_test_storage();
+    let temp_storage = create_test_storage();
+    let storage = &temp_storage.storage;
     storage.init().await.expect("should initialize");
 
     let usage = TokenUsageRecord {
@@ -451,7 +495,8 @@ async fn test_storage_service_token_usage() {
 
 #[tokio::test]
 async fn test_storage_service_llm_call() {
-    let storage = create_test_storage();
+    let temp_storage = create_test_storage();
+    let storage = &temp_storage.storage;
     storage.init().await.expect("should initialize");
 
     let call = LLMCallRecord {
@@ -474,7 +519,8 @@ async fn test_storage_service_llm_call() {
 
 #[tokio::test]
 async fn test_storage_service_session_event() {
-    let storage = create_test_storage();
+    let temp_storage = create_test_storage();
+    let storage = &temp_storage.storage;
     storage.init().await.expect("should initialize");
 
     let event = SessionEvent {
@@ -491,7 +537,8 @@ async fn test_storage_service_session_event() {
 
 #[tokio::test]
 async fn test_storage_service_stats() {
-    let storage = create_test_storage();
+    let temp_storage = create_test_storage();
+    let storage = &temp_storage.storage;
     storage.init().await.expect("should initialize");
 
     let stats = storage.get_stats().await.expect("should get stats");
@@ -500,7 +547,8 @@ async fn test_storage_service_stats() {
 
 #[tokio::test]
 async fn test_storage_service_list_sessions_with_filter() {
-    let storage = create_test_storage();
+    let temp_storage = create_test_storage();
+    let storage = &temp_storage.storage;
     storage.init().await.expect("should initialize");
 
     // Create sessions with different statuses
@@ -527,7 +575,8 @@ async fn test_storage_service_list_sessions_with_filter() {
 
 #[tokio::test]
 async fn test_storage_service_delete_messages() {
-    let storage = create_test_storage();
+    let temp_storage = create_test_storage();
+    let storage = &temp_storage.storage;
     storage.init().await.expect("should initialize");
 
     // Create session and messages with different timestamps
@@ -576,7 +625,8 @@ async fn test_storage_service_delete_messages() {
 
 #[tokio::test]
 async fn test_storage_service_backup_restore() {
-    let storage = create_test_storage();
+    let temp_storage = create_test_storage();
+    let storage = &temp_storage.storage;
     storage.init().await.expect("should initialize");
 
     // Create a session
