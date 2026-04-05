@@ -36,6 +36,11 @@ yarn-error.log*
 *.temp
 .cache/
 
+# Test database files
+**/test_*.db
+**/test_*-wal
+**/test_*-shm
+
 # Claude Code local settings
 .claude/settings.local.json
 settings.local.json
