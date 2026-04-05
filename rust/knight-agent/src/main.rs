@@ -371,7 +371,7 @@ fn init_logging(log_dir: &Path) -> Result<(WorkerGuard, Arc<Mutex<SessionLogWrit
     // Create a non-blocking writer from our session log writer wrapper
     let (file_writer, guard) = tracing_appender::non_blocking(LogWriter(log_writer.clone()));
 
-    // Build the subscriber
+    // Build the subscriber - disable ANSI escape sequences for file logging
     let subscriber = tracing_subscriber::fmt::SubscriberBuilder::default()
         .with_max_level(Level::INFO)
         .with_target(true)
@@ -379,6 +379,7 @@ fn init_logging(log_dir: &Path) -> Result<(WorkerGuard, Arc<Mutex<SessionLogWrit
         .with_file(true)
         .with_line_number(true)
         .with_span_events(FmtSpan::CLOSE)
+        .with_ansi(false)  // Disable ANSI color codes in log files
         .with_writer(file_writer)
         .finish();
 
