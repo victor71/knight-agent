@@ -1,0 +1,62 @@
+[package]
+name = "knight-agent"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# Bootstrap
+bootstrap = { path = "../core/bootstrap" }
+
+# CLI (for REPL)
+cli = { path = "../cli" }
+
+# Core modules
+event-loop = { path = "../core/event-loop" }
+hook-engine = { path = "../core/hook-engine" }
+session-manager = { path = "../core/session-manager" }
+router = { path = "../core/router" }
+monitor = { path = "../core/monitor" }
+orchestrator = { path = "../core/orchestrator" }
+command = { path = "../core/command" }
+
+# Agent modules
+agent-runtime = { path = "../agent/agent-runtime" }
+agent-variants = { path = "../agent/agent-variants" }
+external-agent = { path = "../agent/external-agent" }
+skill-engine = { path = "../agent/skill-engine" }
+task-manager = { path = "../agent/task-manager" }
+workflows-directory = { path = "../agent/workflows-directory" }
+
+# Services
+logging-system = { path = "../services/logging-system" }
+storage-service = { path = "../services/storage-service" }
+llm-provider = { path = "../services/llm-provider" }
+timer-system = { path = "../services/timer-system" }
+report-skill = { path = "../services/report-skill" }
+context-compressor = { path = "../services/context-compressor" }
+permission-service = { path = "../services/permission-service" }
+
+# Tool System
+tool-system = { path = "../tool-system/tool-system" }
+
+# Infrastructure
+ipc-contract = { path = "../infrastructure/ipc-contract" }
+
+# Security
+security-manager = { path = "../security/security-manager" }
+sandbox = { path = "../security/sandbox" }
+
+# Async runtime
+tokio = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+[[bin]]
+name = "knight-agent"
+path = "src/main.rs"
