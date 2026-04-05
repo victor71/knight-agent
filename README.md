@@ -302,11 +302,77 @@ knight-agent/
 7. **安全优先** - Security Manager + Sandbox 双重保护
 8. **可观测** - 完整的审计日志和状态追踪
 
+## 构建与运行
+
+### 前置要求
+
+- Rust 1.70+
+- Cargo
+
+### 构建
+
+```bash
+# 构建项目
+cargo build -p knight-agent
+
+# Release 模式构建
+cargo build -p knight-agent --release
+```
+
+### 运行
+
+```bash
+# 运行 knight-agent
+./target/debug/knight-agent.exe     # Windows
+./target/debug/knight-agent         # macOS/Linux
+
+# 或使用 cargo 运行
+cargo run -p knight-agent
+```
+
+### 配置目录
+
+首次运行时，knight-agent 会在用户主目录创建 `.knight-agent` 配置目录：
+
+| 平台 | 路径 |
+|------|------|
+| Windows | `C:\Users\<用户名>\.knight-agent\` |
+| macOS | `~/.knight-agent/` |
+| Linux | `~/.knight-agent/` |
+
+**子目录结构：**
+
+```
+.knight-agent/
+├── sessions/      # 会话数据
+├── logs/          # 日志文件 (knight-agent.log)
+├── skills/        # 自定义技能
+├── commands/      # 自定义命令
+├── workspace/     # 工作区
+└── config.toml    # 配置文件 (可选)
+```
+
+**日志文件位置：** `~/.knight-agent/logs/knight-agent.log`
+
+### CLI 命令
+
+启动后可在 REPL 中使用以下命令：
+
+| 命令 | 说明 |
+|------|------|
+| `/help`, `/h` | 显示帮助 |
+| `/status` | 显示系统状态 |
+| `/sessions` | 列出所有会话 |
+| `/sessions new` | 创建新会话 |
+| `/sessions switch` | 切换会话 |
+| `/agents` | 列出所有 Agent |
+| `/quit`, `/exit` | 退出 CLI |
+
 ## 许可证
 
 MIT License
 
 ---
 
-**设计状态**: 📐 设计阶段已完成，等待实现阶段
-**最后更新**: 2026-04-03
+**设计状态**: 🚧 实现阶段进行中
+**最后更新**: 2026-04-05
