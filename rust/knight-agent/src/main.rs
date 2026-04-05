@@ -5,15 +5,19 @@
 use anyhow::{Context, Result};
 use bootstrap::{BootstrapConfig, KnightAgentSystem};
 use cli::{Cli, CliImpl};
+use std::io::Write as IoWrite;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tracing::{info, warn, Level};
-use tracing_subscriber::FmtSubscriber;
+use tracing_appender::non_blocking::WorkerGuard;
+use tracing_subscriber::fmt::format::FmtSpan;
 
 /// Default configuration directory name
 const CONFIG_DIR: &str = ".knight-agent";
 /// Default configuration file name
 const CONFIG_FILE: &str = "config.toml";
+/// Maximum log file size before rotation (10 MB)
+const MAX_LOG_FILE_SIZE: u64 = 10 * 1024 * 1024;
 
 /// System state shared across the application
 struct AppState {
@@ -78,6 +82,168 @@ fn ensure_dir(path: &Path, name: &str) -> Result<bool> {
             .with_context(|| format!("Failed to create {} directory: {}", name, path.display()))?;
         info!("Created {} directory: {}", name, path.display());
         Ok(true)
+    }
+}
+
+/// Session-based rotating log writer state
+struct SessionLogWriter {
+    log_dir: PathBuf,
+    current_session_id: Mutex<Option<String>>,
+    current_file: Mutex<Option<PathBuf>>,
+    current_size: Mutex<u64>,
+    file_index: Mutex<u32>,
+}
+
+impl SessionLogWriter {
+    fn new(log_dir: PathBuf) -> Self {
+        Self {
+            log_dir,
+            current_session_id: Mutex::new(None),
+            current_file: Mutex::new(None),
+            current_size: Mutex::new(0),
+            file_index: Mutex::new(0),
+        }
+    }
+
+    /// Generate a unique log file path for the session
+    fn generate_log_path(&self, session_id: &str, index: u32) -> PathBuf {
+        let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+        let filename = if index == 0 {
+            format!("{}_{}.log", session_id, timestamp)
+        } else {
+            format!("{}_{}_{}.log", session_id, timestamp, index)
+        };
+        self.log_dir.join(filename)
+    }
+
+    /// Set the current session and create a new log file if needed
+    fn set_session(&self, session_id: String) -> Result<()> {
+        let mut current_session = self.current_session_id.lock().unwrap();
+
+        // If same session, do nothing
+        if current_session.as_ref() == Some(&session_id) {
+            return Ok(());
+        }
+
+        // Update session
+        *current_session = Some(session_id.clone());
+        *self.file_index.lock().unwrap() = 0;
+        *self.current_size.lock().unwrap() = 0;
+
+        // Create new log file
+        let log_path = self.generate_log_path(&session_id, 0);
+        std::fs::write(&log_path, "").context("Failed to create log file")?;
+        *self.current_file.lock().unwrap() = Some(log_path);
+
+        info!("Created new log file for session: {}", session_id);
+        Ok(())
+    }
+
+    /// Get the current log file path for display
+    fn get_current_log_path(&self) -> Option<PathBuf> {
+        self.current_file.lock().unwrap().clone()
+    }
+
+    /// Check if rotation is needed and rotate if file is too large
+    fn check_rotation(&self) -> Result<()> {
+        let current_session = self.current_session_id.lock().unwrap();
+        let session_id = match current_session.as_ref() {
+            Some(id) => id,
+            None => return Ok(()), // No session set yet
+        };
+
+        let current_file = self.current_file.lock().unwrap();
+        let file_path = match current_file.as_ref() {
+            Some(p) => p,
+            None => return Ok(()),
+        };
+
+        // Check file size
+        let metadata = std::fs::metadata(file_path)?;
+        let size = metadata.len();
+        *self.current_size.lock().unwrap() = size;
+
+        if size >= MAX_LOG_FILE_SIZE {
+            drop(current_file); // Release lock before creating new file
+            let mut index = *self.file_index.lock().unwrap() + 1;
+            *self.file_index.lock().unwrap() = index;
+
+            // Rotate to a new file with index
+            let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+            let mut new_path;
+
+            loop {
+                new_path = self.log_dir.join(format!("{}_{}_{}.log", session_id, timestamp, index));
+                if !new_path.exists() {
+                    break;
+                }
+                index += 1;
+            }
+
+            std::fs::write(&new_path, "").context("Failed to create rotated log file")?;
+            *self.current_file.lock().unwrap() = Some(new_path.clone());
+            *self.current_size.lock().unwrap() = 0;
+
+            info!("Rotated log file to: {}", new_path.display());
+        }
+
+        Ok(())
+    }
+
+    /// Write data to the current log file
+    fn write_data(&self, buf: &[u8]) -> std::io::Result<usize> {
+        // Check if rotation is needed
+        if let Err(e) = self.check_rotation() {
+            eprintln!("Error checking log rotation: {}", e);
+        }
+
+        let current_file = self.current_file.lock().unwrap();
+        let file_path = match current_file.as_ref() {
+            Some(p) => p,
+            None => return Ok(0), // No file open
+        };
+
+        // Open file in append mode
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(file_path)?;
+
+        let result = IoWrite::write(&mut file, buf);
+
+        // Update size if write succeeded
+        if result.is_ok() {
+            let mut size = self.current_size.lock().unwrap();
+            *size += buf.len() as u64;
+        }
+
+        result
+    }
+
+    /// Flush the current log file
+    fn flush_data(&self) -> std::io::Result<()> {
+        let current_file = self.current_file.lock().unwrap();
+        if let Some(file_path) = current_file.as_ref() {
+            let mut file = std::fs::OpenOptions::new()
+                .append(true)
+                .open(file_path)?;
+            IoWrite::flush(&mut file)
+        } else {
+            Ok(())
+        }
+    }
+}
+
+/// Newtype wrapper to implement Write for Arc<Mutex<SessionLogWriter>>
+struct LogWriter(Arc<Mutex<SessionLogWriter>>);
+
+impl std::io::Write for LogWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().write_data(buf)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.0.lock().unwrap().flush_data()
     }
 }
 
@@ -194,6 +360,33 @@ fn display_help() {
     println!();
 }
 
+/// Initialize logging with session-based rotating log files
+fn init_logging(log_dir: &Path) -> Result<(WorkerGuard, Arc<Mutex<SessionLogWriter>>)> {
+    // Create the session log writer with a default session
+    let log_writer = Arc::new(Mutex::new(SessionLogWriter::new(log_dir.to_path_buf())));
+
+    // Set the default session
+    log_writer.lock().unwrap().set_session("default".to_string())?;
+
+    // Create a non-blocking writer from our session log writer wrapper
+    let (file_writer, guard) = tracing_appender::non_blocking(LogWriter(log_writer.clone()));
+
+    // Build the subscriber
+    let subscriber = tracing_subscriber::fmt::SubscriberBuilder::default()
+        .with_max_level(Level::INFO)
+        .with_target(true)
+        .with_thread_ids(true)
+        .with_file(true)
+        .with_line_number(true)
+        .with_span_events(FmtSpan::CLOSE)
+        .with_writer(file_writer)
+        .finish();
+
+    tracing::subscriber::set_global_default(subscriber)?;
+
+    Ok((guard, log_writer))
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Run system configuration check first to get config directory
@@ -206,23 +399,11 @@ async fn main() -> Result<()> {
         }
     };
 
-    // Set up log file path
+    // Set up log directory
     let log_dir = config_dir.join("logs");
-    let log_file = log_dir.join("knight-agent.log");
 
-    // Create a file-based subscriber for logging
-    let file_appender = tracing_appender::rolling::daily(&log_dir, "knight-agent.log");
-    let (file_writer, _guard) = tracing_appender::non_blocking(file_appender);
-
-    let subscriber = FmtSubscriber::builder()
-        .with_max_level(Level::INFO)
-        .with_target(true)
-        .with_thread_ids(true)
-        .with_file(true)
-        .with_line_number(true)
-        .with_writer(file_writer)
-        .finish();
-    tracing::subscriber::set_global_default(subscriber)?;
+    // Initialize logging with session-based rotating logs
+    let (_guard, log_writer) = init_logging(&log_dir)?;
 
     info!("Starting Knight Agent...");
 
@@ -254,8 +435,13 @@ async fn main() -> Result<()> {
     display_banner(&state.system.version().version, &config_dir);
     println!("Type /help for available commands, /quit to exit");
     println!();
-    println!("Logs are written to: {}", log_file.display());
-    println!();
+
+    // Display current log file location
+    if let Some(log_path) = log_writer.lock().unwrap().get_current_log_path() {
+        println!("Logs are written to: {}", log_path.display());
+        println!("Log rotation: 10MB per file");
+        println!();
+    }
 
     state.cli.repl().run().await?;
 
