@@ -23,3 +23,6 @@ monitor = { path = "../core/monitor" }
 orchestrator = { path = "../core/orchestrator" }
 session-manager = { path = "../core/session-manager" }
 task-manager = { path = "../agent/task-manager" }
+
+[dev-dependencies]
+# rexpect = "0.7"  # Unix-only, not available on Windows

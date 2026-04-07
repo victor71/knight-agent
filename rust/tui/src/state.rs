@@ -108,6 +108,13 @@ pub struct OutputLine {
     pub timestamp: DateTime<Local>,
 }
 
+impl OutputLine {
+    /// Get the content as a string slice
+    pub fn as_str(&self) -> &str {
+        &self.content
+    }
+}
+
 /// Output style
 #[derive(Debug, Clone)]
 pub enum OutputStyle {

@@ -9,6 +9,8 @@ mod renderer;
 mod state;
 pub mod widgets;
 
+pub mod test_harness;
+
 pub use app::{AppState, PopupType};
 pub use event::{AppEvent, EventHandler};
 pub use renderer::AppTerminal;
