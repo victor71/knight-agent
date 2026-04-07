@@ -78,7 +78,7 @@ impl AppState {
             tasks: Vec::new(),
             current_task_start: None,
             current_task_duration: None,
-            session_token_usage: SessionTokenUsage::new(0, 200_000),
+            session_token_usage: SessionTokenUsage::new(0),
             context_compression_status: None,
             event_tx,
             current_time: Local::now(),

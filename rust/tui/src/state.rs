@@ -8,22 +8,11 @@ use chrono::{DateTime, Local};
 #[derive(Debug, Clone)]
 pub struct SessionTokenUsage {
     pub current: u64,
-    pub limit: u64,
-    pub percentage: f32,
 }
 
 impl SessionTokenUsage {
-    pub fn new(current: u64, limit: u64) -> Self {
-        let percentage = if limit > 0 {
-            (current as f32 / limit as f32) * 100.0
-        } else {
-            0.0
-        };
-        Self {
-            current,
-            limit,
-            percentage,
-        }
+    pub fn new(current: u64) -> Self {
+        Self { current }
     }
 }
 

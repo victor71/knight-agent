@@ -103,43 +103,23 @@ pub fn render_status(f: &mut Frame, area: ratatui::layout::Rect, app: &AppState)
     f.render_widget(task_paragraph, chunks.center);
 
     // Right section: Session metrics (token usage + context compression)
-    let token_color = if app.session_token_usage.percentage > 80.0 {
-        Color::Red
-    } else if app.session_token_usage.percentage > 50.0 {
-        Color::Yellow
-    } else {
-        Color::Green
-    };
-
-    let context_color = match &app.context_compression_status {
-        Some(status) => match status.warning_level() {
-            CompressionWarningLevel::Critical => Color::Red,
-            CompressionWarningLevel::Warning => Color::Yellow,
-            CompressionWarningLevel::Normal => Color::Green,
-        },
-        None => Color::DarkGray,
-    };
-
     let metrics_info = vec![
         Line::from(vec![
             Span::styled("Tokens: ", Style::default().fg(Color::Gray)),
             Span::styled(
                 format!("{}", app.session_token_usage.current),
-                Style::default().fg(token_color),
-            ),
-            Span::styled(
-                format!("/{} ", app.session_token_usage.limit),
-                Style::default().fg(Color::DarkGray),
-            ),
-            Span::styled(
-                format!("({:.0}%)", app.session_token_usage.percentage),
-                Style::default().fg(token_color),
+                Style::default().fg(Color::Cyan),
             ),
         ]),
         Line::from(vec![
             Span::styled("Context: ", Style::default().fg(Color::Gray)),
             match &app.context_compression_status {
                 Some(status) => {
+                    let context_color = match status.warning_level() {
+                        CompressionWarningLevel::Critical => Color::Red,
+                        CompressionWarningLevel::Warning => Color::Yellow,
+                        CompressionWarningLevel::Normal => Color::Green,
+                    };
                     let warning = match status.warning_level() {
                         CompressionWarningLevel::Critical => "🔴",
                         CompressionWarningLevel::Warning => "⚠️ ",
