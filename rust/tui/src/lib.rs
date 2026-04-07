@@ -168,7 +168,7 @@ impl TuiApp {
                         self.state.input_buffer.clear();
                         self.state.cursor_position = 0;
 
-                        // Add to output
+                        // Add user message to output
                         self.state.event_tx.send(AppEvent::OutputLine(
                             crate::state::OutputLine {
                                 content: input.clone(),
@@ -177,9 +177,18 @@ impl TuiApp {
                             },
                         ))?;
 
-                        // Process command
+                        // Process command or show processing indicator
                         if input.starts_with('/') {
                             self.handle_command(&input)?;
+                        } else {
+                            // Show processing indicator for non-command input
+                            self.state.event_tx.send(AppEvent::OutputLine(
+                                crate::state::OutputLine {
+                                    content: "正在处理中...".to_string(),
+                                    style: crate::state::OutputStyle::Status("processing".to_string()),
+                                    timestamp: chrono::Local::now(),
+                                },
+                            ))?;
                         }
                     }
                 }
