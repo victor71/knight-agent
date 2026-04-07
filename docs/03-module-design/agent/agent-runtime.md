@@ -831,7 +831,7 @@ agent:
 **配置说明**:
 - Agent 运行时配置已合并到 `config/agent.yaml`
 - LLM 提供者配置统一在 `knight.json` 中管理
-- Agent Runtime 通过 `knight-config` 库获取 LLM 配置
+- Agent Runtime 通过 `configuration` 库获取 LLM 配置
 
 ### 环境变量
 

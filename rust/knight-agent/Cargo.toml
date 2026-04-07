@@ -5,7 +5,7 @@ edition.workspace = true
 
 [dependencies]
 # Shared Libraries
-knight-config = { path = "../knight-config" }
+configuration = { path = "../configuration" }
 
 # Bootstrap
 bootstrap = { path = "../core/bootstrap" }

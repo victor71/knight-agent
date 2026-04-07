@@ -1,4 +1,4 @@
-# Knight Config - Configuration Library
+# Configuration - Knight Agent Configuration Library
 
 Centralized configuration management for Knight Agent with hot-reload support.
 
@@ -377,7 +377,7 @@ strategy: semantic
 ### Basic Usage
 
 ```rust
-use knight_config::ConfigLoader;
+use configuration::ConfigLoader;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -407,11 +407,11 @@ let mut rx = loader.subscribe();
 tokio::spawn(async move {
     while let Ok(change) = rx.recv().await {
         match change {
-            knight_config::ConfigChangeEvent::MainConfigChanged(config) => {
+            configuration::ConfigChangeEvent::MainConfigChanged(config) => {
                 // Handle knight.json change
                 println!("LLM config changed: {:?}", config.llm);
             }
-            knight_config::ConfigChangeEvent::SystemConfigChanged { name, config } => {
+            configuration::ConfigChangeEvent::SystemConfigChanged { name, config } => {
                 // Handle system config change
                 println!("System config '{}' changed", name);
             }
@@ -426,7 +426,7 @@ All modules should use `knight-config` to access LLM configuration instead of de
 
 ```rust
 // In skill-engine, agent-runtime, etc.
-use knight_config::ConfigLoader;
+use configuration::ConfigLoader;
 
 struct SkillEngine {
     config_loader: Arc<ConfigLoader>,

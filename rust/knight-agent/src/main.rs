@@ -5,7 +5,7 @@
 use anyhow::{Context, Result};
 use bootstrap::{BootstrapConfig, KnightAgentSystem};
 use cli::{Cli, CliImpl};
-use knight_config::{ConfigLoader, LoggingConfig};
+use configuration::{ConfigLoader, LoggingConfig};
 use std::io::Write as IoWrite;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};

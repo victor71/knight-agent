@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
     # Shared Libraries
-    "rust/knight-config",
+    "rust/configuration",
     # Binary
     "rust/knight-agent",
     # CLI (1)

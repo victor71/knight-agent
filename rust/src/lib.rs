@@ -9,8 +9,8 @@
 //! - Infrastructure (1 module)
 //! - Security (2 modules)
 
-// Re-export knight-config for all modules
-pub use knight_config;
+// Re-export configuration for all modules
+pub use configuration;
 
 pub mod core;
 pub mod agent;
