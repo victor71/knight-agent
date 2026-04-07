@@ -56,7 +56,8 @@ pub struct LlmModelConfig {
     /// Context length in tokens
     pub context_length: usize,
     /// Pricing information
-    pub pricing: LlmPricing,
+    #[serde(default)]
+    pub pricing: Option<LlmPricing>,
     /// Model capabilities
     #[serde(default)]
     pub capabilities: Vec<String>,
@@ -67,9 +68,9 @@ pub struct LlmModelConfig {
 #[serde(rename_all = "camelCase")]
 pub struct LlmPricing {
     /// Input price per 1M tokens
-    pub input: f64,
+    pub input: Option<f64>,
     /// Output price per 1M tokens
-    pub output: f64,
+    pub output: Option<f64>,
     /// Currency code
     #[serde(default = "default_currency")]
     pub currency: String,
