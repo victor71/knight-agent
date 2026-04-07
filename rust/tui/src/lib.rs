@@ -21,9 +21,10 @@ pub use state::{
 
 use anyhow::Result;
 use crossterm::event::{self as crossterm_event, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
-use tracing::info;
+use tracing::{info, warn};
 use widgets::*;
 
 /// Main TUI application
@@ -31,6 +32,14 @@ pub struct TuiApp {
     state: AppState,
     terminal: AppTerminal,
     tick_rate: Duration,
+    /// Router for handling input
+    router: Option<Arc<dyn router::RouterHandle>>,
+    /// Agent runtime for LLM calls
+    agent_runtime: Option<Arc<dyn agent_runtime::AgentHandle>>,
+    /// Current session ID
+    session_id: String,
+    /// Pending agent input to process (set by sync event handler, processed by async loop)
+    pending_agent_input: Option<String>,
 }
 
 impl TuiApp {
@@ -53,7 +62,29 @@ impl TuiApp {
             state,
             terminal,
             tick_rate: Duration::from_millis(16), // ~60 FPS
+            router: None,
+            agent_runtime: None,
+            session_id: "default".to_string(),
+            pending_agent_input: None,
         })
+    }
+
+    /// Set the router handle
+    pub fn with_router(mut self, router: Arc<dyn router::RouterHandle>) -> Self {
+        self.router = Some(router);
+        self
+    }
+
+    /// Set the agent runtime handle
+    pub fn with_agent_runtime(mut self, agent_runtime: Arc<dyn agent_runtime::AgentHandle>) -> Self {
+        self.agent_runtime = Some(agent_runtime);
+        self
+    }
+
+    /// Set the session ID
+    pub fn with_session_id(mut self, session_id: String) -> Self {
+        self.session_id = session_id;
+        self
     }
 
     /// Get the event sender for external use
@@ -108,6 +139,11 @@ impl TuiApp {
                 if matches!(event, AppEvent::SessionSwitch(_) | AppEvent::TaskComplete(_)) {
                     // Could trigger refresh here
                 }
+            }
+
+            // Process pending agent input if any
+            if let Some(input) = self.pending_agent_input.take() {
+                self.route_to_agent(input).await?;
             }
 
             // Check exit condition
@@ -200,14 +236,16 @@ impl TuiApp {
                                 },
                             ))?;
 
-                            // Process command or just start processing
+                            // Process command or route to agent
                             if input.starts_with('/') {
                                 self.handle_command(&input)?;
                                 // Commands complete immediately
                                 self.state.processing_state.finish_processing();
                             } else {
-                                // Non-command inputs are "processing" - the animation will show
+                                // Non-command inputs - route to agent via router/agent_runtime
                                 self.state.event_tx.send(AppEvent::StartProcessing)?;
+                                // Set pending agent input - will be processed in the async event loop
+                                self.pending_agent_input = Some(input);
                             }
                         }
                     }
@@ -254,6 +292,92 @@ impl TuiApp {
         Ok(())
     }
 
+    /// Route non-command input to agent via router and agent runtime
+    async fn route_to_agent(&mut self, input: String) -> Result<()> {
+        // First, check with router
+        if let Some(ref router) = self.router {
+            let result = router.handle_input(input.clone(), self.session_id.clone()).await;
+            info!("Router result: to_agent={}", result.to_agent);
+
+            if result.to_agent {
+                // Router says to forward to agent - use agent runtime
+                if let Some(ref agent) = self.agent_runtime {
+                    info!("Calling agent runtime for input: \"{}\"", input);
+
+                    // Create a user message
+                    let message = agent_runtime::Message::user(input);
+
+                    // Try to get or create an agent for this session
+                    // For now, use a default agent ID
+                    let agent_id = "default-agent";
+
+                    match agent.send_message(agent_id, message, false).await {
+                        Ok(response) => {
+                            info!("Agent response received: \"{}\"", response.content);
+                            // Send agent response to output
+                            let content_str = if let serde_json::Value::String(s) = &response.content {
+                                s.clone()
+                            } else {
+                                response.content.to_string()
+                            };
+                            self.state.event_tx.send(AppEvent::OutputLine(
+                                crate::state::OutputLine {
+                                    content: content_str,
+                                    style: crate::state::OutputStyle::AgentMessage,
+                                    timestamp: chrono::Local::now(),
+                                },
+                            ))?;
+                        }
+                        Err(e) => {
+                            warn!("Agent runtime error: {:?}", e);
+                            self.state.event_tx.send(AppEvent::OutputLine(
+                                crate::state::OutputLine {
+                                    content: format!("Error: {:?}", e),
+                                    style: crate::state::OutputStyle::Error,
+                                    timestamp: chrono::Local::now(),
+                                },
+                            ))?;
+                        }
+                    }
+                } else {
+                    warn!("No agent runtime configured");
+                    self.state.event_tx.send(AppEvent::OutputLine(
+                        crate::state::OutputLine {
+                            content: "No agent runtime configured".to_string(),
+                            style: crate::state::OutputStyle::Error,
+                            timestamp: chrono::Local::now(),
+                        },
+                    ))?;
+                }
+            } else {
+                // Router handled it - show response if any
+                if !result.response.message.is_empty() {
+                    self.state.event_tx.send(AppEvent::OutputLine(
+                        crate::state::OutputLine {
+                            content: result.response.message,
+                            style: crate::state::OutputStyle::SystemInfo,
+                            timestamp: chrono::Local::now(),
+                        },
+                    ))?;
+                }
+            }
+        } else {
+            warn!("No router configured");
+            self.state.event_tx.send(AppEvent::OutputLine(
+                crate::state::OutputLine {
+                    content: "No router configured".to_string(),
+                    style: crate::state::OutputStyle::Error,
+                    timestamp: chrono::Local::now(),
+                },
+            ))?;
+        }
+
+        // Stop processing after handling
+        self.state.event_tx.send(AppEvent::StopProcessing)?;
+        self.state.processing_state.finish_processing();
+        Ok(())
+    }
+
     /// Handle a command
     fn handle_command(&self, command: &str) -> Result<()> {
         match command {
@@ -296,8 +420,24 @@ impl TuiApp {
 }
 
 /// Run the TUI application
-pub async fn run_tui(initial_status: Option<SystemStatusSnapshot>) -> Result<()> {
+pub async fn run_tui(
+    initial_status: Option<SystemStatusSnapshot>,
+    router: Option<Arc<dyn router::RouterHandle>>,
+    agent_runtime: Option<Arc<dyn agent_runtime::AgentHandle>>,
+    session_id: Option<String>,
+) -> Result<()> {
     let mut app = TuiApp::new()?;
+
+    // Configure router and agent runtime if provided
+    if let Some(r) = router {
+        app = app.with_router(r);
+    }
+    if let Some(a) = agent_runtime {
+        app = app.with_agent_runtime(a);
+    }
+    if let Some(s) = session_id {
+        app = app.with_session_id(s);
+    }
 
     // Send initial system status if provided
     if let Some(status) = initial_status {

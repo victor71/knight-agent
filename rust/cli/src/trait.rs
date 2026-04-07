@@ -1,5 +1,6 @@
 //! CLI trait definition
 
+use std::sync::Arc;
 use crate::error::CliResult;
 use crate::types::DaemonAction;
 use tui::event::SystemStatusSnapshot;
@@ -25,7 +26,13 @@ pub trait Cli: Send + Sync {
     async fn run_repl(&self) -> CliResult<()>;
 
     /// Run the TUI (Terminal User Interface)
-    async fn run_tui(&self, initial_status: Option<SystemStatusSnapshot>) -> CliResult<()>;
+    async fn run_tui(
+        &self,
+        initial_status: Option<SystemStatusSnapshot>,
+        router: Option<Arc<dyn router::RouterHandle>>,
+        agent_runtime: Option<Arc<dyn agent_runtime::AgentHandle>>,
+        session_id: Option<String>,
+    ) -> CliResult<()>;
 
     /// Execute a daemon action
     async fn daemon_action(&self, action: DaemonAction) -> CliResult<()>;

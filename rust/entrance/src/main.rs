@@ -361,6 +361,19 @@ fn display_help() {
     println!();
 }
 
+/// Create an LLM provider from configuration
+#[allow(dead_code)]
+async fn create_llm_provider(
+    _config_loader: &Arc<ConfigLoader>,
+) -> Result<Option<llm_provider::GenericLLMProvider>> {
+    // Try to load LLM config from knight.json
+    // For now, return None to indicate no provider is configured
+    // In production, this would load from config and create a real provider
+
+    info!("LLM provider configuration not yet implemented, using placeholder");
+    Ok(None)
+}
+
 /// Initialize logging with session-based rotating log files
 fn init_logging(log_dir: &Path, config: &LoggingConfig) -> Result<(WorkerGuard, Arc<Mutex<SessionLogWriter>>)> {
     let max_file_size = config.max_file_size_mb * 1024 * 1024;
@@ -457,6 +470,31 @@ async fn main() -> Result<()> {
     state.cli.initialize().await?;
     info!("CLI initialized");
 
+    // Create Router
+    info!("Creating Router...");
+    let router = Arc::new(router::RouterImpl::new());
+    router.initialize().await?;
+    info!("Router initialized");
+
+    // Create Agent Runtime
+    info!("Creating Agent Runtime...");
+    let mut agent_runtime_impl = agent_runtime::AgentRuntimeImpl::new();
+    agent_runtime_impl.initialize().await?;
+
+    // Create LLM Provider from config (using default/minimal config for now)
+    // In production, this would be configured via knight.json
+    info!("Creating LLM Provider...");
+    let llm_provider = create_llm_provider(&config_loader).await?;
+    if let Some(provider) = llm_provider {
+        let provider = Arc::new(provider);
+        agent_runtime_impl.set_llm_provider(provider.clone());
+        info!("LLM Provider configured");
+    }
+
+    // Wrap in Arc for sharing
+    let agent_runtime: Arc<dyn agent_runtime::AgentHandle> = Arc::new(agent_runtime_impl);
+    info!("Agent Runtime initialized");
+
     // Run CLI TUI (check for --no-tui flag)
     let use_tui = !std::env::args().any(|arg| arg == "--no-tui");
 
@@ -477,7 +515,12 @@ async fn main() -> Result<()> {
             memory_usage: 0,
         };
 
-        state.cli.run_tui(Some(initial_status)).await?;
+        state.cli.run_tui(
+            Some(initial_status),
+            Some(router.clone()),
+            Some(agent_runtime.clone() as Arc<dyn agent_runtime::AgentHandle>),
+            Some("default".to_string()),
+        ).await?;
     } else {
         // Run CLI REPL (fallback)
         display_banner(&state.system.version().version, &config_dir);

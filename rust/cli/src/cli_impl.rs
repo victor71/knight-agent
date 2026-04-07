@@ -70,13 +70,19 @@ impl Cli for CliImpl {
         self.repl.run().await
     }
 
-    async fn run_tui(&self, initial_status: Option<SystemStatusSnapshot>) -> CliResult<()> {
+    async fn run_tui(
+        &self,
+        initial_status: Option<SystemStatusSnapshot>,
+        router: Option<Arc<dyn router::RouterHandle>>,
+        agent_runtime: Option<Arc<dyn agent_runtime::AgentHandle>>,
+        session_id: Option<String>,
+    ) -> CliResult<()> {
         if !self.is_initialized() {
             return Err(CliError::NotInitialized);
         }
 
-        // Run the TUI with initial status
-        tui::run_tui(initial_status)
+        // Run the TUI with initial status and handles
+        tui::run_tui(initial_status, router, agent_runtime, session_id)
             .await
             .map_err(|e| CliError::Other(e.to_string()))?;
 

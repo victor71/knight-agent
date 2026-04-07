@@ -21,3 +21,29 @@ pub use runtime::AgentRuntimeImpl;
 
 /// Configuration for the agent runtime
 pub use runtime::RuntimeConfig;
+
+/// AgentHandle trait for external consumers (Router, CLI, TUI)
+#[async_trait::async_trait]
+pub trait AgentHandle: Send + Sync {
+    /// Send a message to an agent
+    async fn send_message(
+        &self,
+        agent_id: &str,
+        message: Message,
+        stream: bool,
+    ) -> RuntimeResult<Message>;
+
+    /// Create a new agent
+    async fn create_agent(
+        &self,
+        definition_id: String,
+        session_id: String,
+        variant: Option<String>,
+    ) -> RuntimeResult<Agent>;
+
+    /// Get an agent by ID
+    async fn get_agent(&self, agent_id: &str) -> RuntimeResult<Agent>;
+
+    /// Check if the runtime is initialized
+    fn is_initialized(&self) -> bool;
+}

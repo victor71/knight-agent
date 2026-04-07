@@ -14,3 +14,5 @@ async-trait.workspace = true
 
 # Local dependencies
 tui = { path = "../tui" }
+router = { path = "../core/router" }
+agent-runtime = { path = "../agent/agent-runtime" }

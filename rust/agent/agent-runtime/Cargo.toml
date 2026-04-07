@@ -13,3 +13,4 @@ tracing.workspace = true
 async-trait.workspace = true
 uuid.workspace = true
 chrono.workspace = true
+llm-provider = { path = "../../services/llm-provider" }

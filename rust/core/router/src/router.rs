@@ -448,3 +448,18 @@ impl Default for RouterImpl {
         Self::new()
     }
 }
+
+#[async_trait::async_trait]
+impl crate::RouterHandle for RouterImpl {
+    async fn handle_input(&self, input: String, session_id: String) -> HandleInputResult {
+        RouterImpl::handle_input(
+            self,
+            HandleInputRequest { input, session_id },
+        )
+        .await
+    }
+
+    fn is_initialized(&self) -> bool {
+        RouterImpl::is_initialized(self)
+    }
+}

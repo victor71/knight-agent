@@ -9,6 +9,7 @@ use tokio::sync::RwLock as AsyncRwLock;
 use tracing::{debug, info, warn};
 
 use crate::types::*;
+use llm_provider::LLMProvider;
 
 /// Agent runtime configuration
 #[derive(Debug, Clone)]
@@ -46,6 +47,8 @@ pub struct AgentRuntimeImpl {
     agents: Arc<AsyncRwLock<HashMap<String, Agent>>>,
     /// Execution tracking (agent_id -> start_time)
     execution_tracking: Arc<AsyncRwLock<HashMap<String, Instant>>>,
+    /// LLM Provider for chat completions
+    llm_provider: Option<Arc<dyn LLMProvider>>,
 }
 
 impl AgentRuntimeImpl {
@@ -56,6 +59,7 @@ impl AgentRuntimeImpl {
             initialized: false,
             agents: Arc::new(AsyncRwLock::new(HashMap::new())),
             execution_tracking: Arc::new(AsyncRwLock::new(HashMap::new())),
+            llm_provider: None,
         }
     }
 
@@ -66,7 +70,13 @@ impl AgentRuntimeImpl {
             initialized: false,
             agents: Arc::new(AsyncRwLock::new(HashMap::new())),
             execution_tracking: Arc::new(AsyncRwLock::new(HashMap::new())),
+            llm_provider: None,
         }
+    }
+
+    /// Set the LLM provider
+    pub fn set_llm_provider(&mut self, provider: Arc<dyn LLMProvider>) {
+        self.llm_provider = Some(provider);
     }
 
     /// Initialize the runtime
@@ -240,13 +250,96 @@ impl AgentRuntimeImpl {
             agent_id, agent.state.status
         );
 
-        // For now, return a placeholder response
-        // In a full implementation, this would call the LLM
-        let response = Message::assistant("Message received".to_string());
+        // Call LLM provider if available
+        let response = if let Some(ref llm) = self.llm_provider {
+            info!("Calling LLM provider for agent {}", agent_id);
+
+            // Convert agent-runtime Message to LLM provider format
+            let llm_messages = self.convert_to_llm_messages(&agent.context.messages)?;
+
+            let request = llm_provider::ChatCompletionRequest {
+                model: "claude-sonnet-4-6".to_string(),
+                messages: llm_messages,
+                temperature: 0.7,
+                max_tokens: 4096,
+                ..Default::default()
+            };
+
+            match llm.chat_completion(request).await {
+                Ok(response) => {
+                    // Extract content from LLM response
+                    let content = response.content
+                        .or_else(|| {
+                            response.choices.first().and_then(|c| {
+                                c.message.content.as_ref().map(|m| {
+                                    if let llm_provider::Content::Text(s) = m {
+                                        s.clone()
+                                    } else {
+                                        serde_json::to_string(m).unwrap_or_default()
+                                    }
+                                })
+                            })
+                        })
+                        .unwrap_or_else(|| "No response from LLM".to_string());
+
+                    Message::assistant(content)
+                }
+                Err(e) => {
+                    warn!("LLM call failed: {:?}", e);
+                    Message::assistant(format!("Error calling LLM: {:?}", e))
+                }
+            }
+        } else {
+            // No LLM provider - return placeholder
+            warn!("No LLM provider available for agent {}", agent_id);
+            Message::assistant("Message received (no LLM provider configured)".to_string())
+        };
+
         agent.context.add_message(response.clone());
         agent.state.statistics.increment_messages_sent();
 
         Ok(response)
+    }
+
+    /// Convert agent-runtime messages to LLM provider messages
+    fn convert_to_llm_messages(
+        &self,
+        messages: &[Message],
+    ) -> RuntimeResult<Vec<llm_provider::Message>> {
+        use llm_provider::{Message as LlmMessage, MessageRole as LlmRole, Content, ContentBlock};
+
+        let mut llm_messages = Vec::new();
+
+        for msg in messages {
+            let role = match msg.role {
+                MessageRole::User => LlmRole::User,
+                MessageRole::Assistant => LlmRole::Assistant,
+                MessageRole::System => LlmRole::System,
+                MessageRole::Tool => LlmRole::Tool,
+            };
+
+            let content = match &msg.content {
+                serde_json::Value::String(s) => Some(Content::Text(s.clone())),
+                serde_json::Value::Object(_) => {
+                    // Try to parse as content blocks
+                    if let Ok(blocks) = serde_json::from_value::<Vec<ContentBlock>>(msg.content.clone()) {
+                        Some(Content::Blocks(blocks))
+                    } else {
+                        Some(Content::Text(msg.content.to_string()))
+                    }
+                }
+                _ => Some(Content::Text(msg.content.to_string())),
+            };
+
+            llm_messages.push(LlmMessage {
+                role,
+                content,
+                tool_calls: None,
+                tool_call_id: None,
+            });
+        }
+
+        Ok(llm_messages)
     }
 
     /// Get agent state
@@ -530,5 +623,34 @@ impl AgentRuntimeImpl {
 impl Default for AgentRuntimeImpl {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::AgentHandle for AgentRuntimeImpl {
+    async fn send_message(
+        &self,
+        agent_id: &str,
+        message: Message,
+        stream: bool,
+    ) -> RuntimeResult<Message> {
+        AgentRuntimeImpl::send_message(self, agent_id, message, stream).await
+    }
+
+    async fn create_agent(
+        &self,
+        definition_id: String,
+        session_id: String,
+        variant: Option<String>,
+    ) -> RuntimeResult<Agent> {
+        AgentRuntimeImpl::create_agent(self, definition_id, session_id, variant).await
+    }
+
+    async fn get_agent(&self, agent_id: &str) -> RuntimeResult<Agent> {
+        AgentRuntimeImpl::get_agent(self, agent_id).await
+    }
+
+    fn is_initialized(&self) -> bool {
+        AgentRuntimeImpl::is_initialized(self)
     }
 }

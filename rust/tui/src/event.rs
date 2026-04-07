@@ -47,6 +47,9 @@ pub enum AppEvent {
     // Processing state events
     StartProcessing,
     StopProcessing,
+
+    // Agent routing event (triggered from sync context)
+    RouteToAgent(String),
 }
 
 /// System status snapshot for rendering
