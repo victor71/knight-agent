@@ -14,7 +14,6 @@ use crate::event::AppEvent;
 pub struct AppState {
     // UI state
     pub terminal_size: (u16, u16),
-    pub input_mode: InputMode,
     pub input_buffer: String,
     pub cursor_position: usize,
     pub active_popup: Option<PopupType>,
@@ -51,14 +50,6 @@ pub struct AppState {
     pub current_time: DateTime<Local>,
 }
 
-/// Input mode
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InputMode {
-    Normal, // Command mode
-    Insert, // Text editing
-    Visual, // Selection (future)
-}
-
 /// Popup type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PopupType {
@@ -71,7 +62,6 @@ impl AppState {
     pub fn new(event_tx: mpsc::UnboundedSender<AppEvent>) -> Self {
         Self {
             terminal_size: (80, 24),
-            input_mode: InputMode::Insert,  // Direct typing by default (Claude Code style)
             input_buffer: String::new(),
             cursor_position: 0,
             active_popup: None,
@@ -180,16 +170,6 @@ impl AppState {
         } else {
             format!("{}B", bytes)
         }
-    }
-
-    /// Switch to insert mode
-    pub fn enter_insert_mode(&mut self) {
-        self.input_mode = InputMode::Insert;
-    }
-
-    /// Switch to normal mode
-    pub fn enter_normal_mode(&mut self) {
-        self.input_mode = InputMode::Normal;
     }
 
     /// Toggle popup

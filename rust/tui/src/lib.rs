@@ -9,7 +9,7 @@ mod renderer;
 mod state;
 pub mod widgets;
 
-pub use app::{AppState, InputMode, PopupType};
+pub use app::{AppState, PopupType};
 pub use event::{AppEvent, EventHandler};
 pub use renderer::AppTerminal;
 pub use state::{
@@ -99,9 +99,7 @@ impl TuiApp {
             }
 
             // Check exit condition
-            if self.state.input_mode == InputMode::Normal
-                && self.state.input_buffer == "/quit"
-            {
+            if self.state.input_buffer == "/quit" {
                 break;
             }
 
@@ -113,15 +111,6 @@ impl TuiApp {
 
     /// Handle a key event
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
-        match self.state.input_mode {
-            InputMode::Normal => self.handle_normal_mode(key),
-            InputMode::Insert => self.handle_insert_mode(key),
-            InputMode::Visual => self.handle_visual_mode(key),
-        }
-    }
-
-    /// Handle key events in normal mode
-    fn handle_normal_mode(&mut self, key: KeyEvent) -> Result<()> {
         match (key.code, key.modifiers) {
             // Alt+N: Create new session
             (KeyCode::Char('n'), KeyModifiers::ALT) => {
@@ -135,17 +124,7 @@ impl TuiApp {
             (KeyCode::Char('t'), KeyModifiers::ALT) => {
                 self.state.toggle_popup(PopupType::TaskList);
             }
-            // Enter insert mode
-            (KeyCode::Char('i'), KeyModifiers::NONE)
-            | (KeyCode::Char('a'), KeyModifiers::NONE) => {
-                self.state.enter_insert_mode();
-            }
-            // Command mode
-            (KeyCode::Char(':'), KeyModifiers::NONE)
-            | (KeyCode::Char('/'), KeyModifiers::NONE) => {
-                self.state.enter_insert_mode();
-            }
-            // Quit
+            // Ctrl+Q or /quit command: Quit
             (KeyCode::Char('q'), KeyModifiers::CONTROL) => {
                 self.state.input_buffer = "/quit".to_string();
             }
@@ -182,75 +161,57 @@ impl TuiApp {
                         }
                     }
                     self.state.close_popup();
+                } else {
+                    // Submit input
+                    if !self.state.input_buffer.is_empty() {
+                        let input = self.state.input_buffer.clone();
+                        self.state.input_buffer.clear();
+                        self.state.cursor_position = 0;
+
+                        // Add to output
+                        self.state.event_tx.send(AppEvent::OutputLine(
+                            crate::state::OutputLine {
+                                content: input.clone(),
+                                style: crate::state::OutputStyle::UserMessage,
+                                timestamp: chrono::Local::now(),
+                            },
+                        ))?;
+
+                        // Process command
+                        if input.starts_with('/') {
+                            self.handle_command(&input)?;
+                        }
+                    }
                 }
             }
             // Close popup
             (KeyCode::Esc, KeyModifiers::NONE) => {
                 self.state.close_popup();
             }
-            _ => {}
-        }
-        Ok(())
-    }
-
-    /// Handle key events in insert mode
-    fn handle_insert_mode(&mut self, key: KeyEvent) -> Result<()> {
-        match key.code {
-            KeyCode::Esc => {
-                self.state.enter_normal_mode();
-            }
-            KeyCode::Enter => {
-                // Submit input
-                if !self.state.input_buffer.is_empty() {
-                    let input = self.state.input_buffer.clone();
-                    self.state.input_buffer.clear();
-                    self.state.cursor_position = 0;
-
-                    // Add to output
-                    self.state.event_tx.send(AppEvent::OutputLine(
-                        crate::state::OutputLine {
-                            content: input.clone(),
-                            style: crate::state::OutputStyle::UserMessage,
-                            timestamp: chrono::Local::now(),
-                        },
-                    ))?;
-
-                    // Process command
-                    if input.starts_with('/') {
-                        self.handle_command(&input)?;
-                    }
-                }
-            }
-            KeyCode::Char(c) => {
+            // Text input
+            (KeyCode::Char(c), KeyModifiers::NONE) => {
                 self.state.input_buffer.push(c);
-                self.state.cursor_position += 1;
+                self.state.cursor_position = self.state.input_buffer.chars().count();
             }
-            KeyCode::Backspace => {
+            (KeyCode::Backspace, KeyModifiers::NONE) => {
                 if !self.state.input_buffer.is_empty() {
                     self.state.input_buffer.pop();
-                    if self.state.cursor_position > 0 {
-                        self.state.cursor_position -= 1;
-                    }
+                    self.state.cursor_position = self.state.cursor_position.saturating_sub(1);
                 }
             }
-            KeyCode::Left => {
+            (KeyCode::Left, KeyModifiers::NONE) => {
                 if self.state.cursor_position > 0 {
                     self.state.cursor_position -= 1;
                 }
             }
-            KeyCode::Right => {
-                if self.state.cursor_position < self.state.input_buffer.len() {
+            (KeyCode::Right, KeyModifiers::NONE) => {
+                let char_count = self.state.input_buffer.chars().count();
+                if self.state.cursor_position < char_count {
                     self.state.cursor_position += 1;
                 }
             }
             _ => {}
         }
-        Ok(())
-    }
-
-    /// Handle key events in visual mode (placeholder)
-    fn handle_visual_mode(&mut self, _key: KeyEvent) -> Result<()> {
-        self.state.enter_normal_mode();
         Ok(())
     }
 
