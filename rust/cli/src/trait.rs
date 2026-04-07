@@ -23,6 +23,9 @@ pub trait Cli: Send + Sync {
     /// Run the REPL
     async fn run_repl(&self) -> CliResult<()>;
 
+    /// Run the TUI (Terminal User Interface)
+    async fn run_tui(&self) -> CliResult<()>;
+
     /// Execute a daemon action
     async fn daemon_action(&self, action: DaemonAction) -> CliResult<()>;
 

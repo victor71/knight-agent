@@ -1,7 +1,7 @@
 //! CLI implementation
 
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{mpsc, RwLock};
 
 use crate::error::{CliError, CliResult};
 use crate::r#trait::Cli;
@@ -67,6 +67,22 @@ impl Cli for CliImpl {
         }
 
         self.repl.run().await
+    }
+
+    async fn run_tui(&self) -> CliResult<()> {
+        if !self.is_initialized() {
+            return Err(CliError::NotInitialized);
+        }
+
+        // Create event channel for TUI
+        let (event_tx, _event_rx) = mpsc::unbounded_channel();
+
+        // Run the TUI
+        tui::run_tui(event_tx)
+            .await
+            .map_err(|e| CliError::Other(e.to_string()))?;
+
+        Ok(())
     }
 
     async fn daemon_action(&self, action: DaemonAction) -> CliResult<()> {

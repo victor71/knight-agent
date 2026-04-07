@@ -1,0 +1,25 @@
+[package]
+name = "tui"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+ratatui = { version = "0.29", features = ["all-widgets"] }
+crossterm = "0.28"
+tokio.workspace = true
+tokio-stream = "0.1"
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+chrono = "0.4"
+syntect = "5.2"
+unicode-width = "0.2"
+
+# Local dependencies
+bootstrap = { path = "../core/bootstrap" }
+monitor = { path = "../core/monitor" }
+orchestrator = { path = "../core/orchestrator" }
+session-manager = { path = "../core/session-manager" }
+task-manager = { path = "../agent/task-manager" }

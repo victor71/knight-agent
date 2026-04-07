@@ -456,37 +456,29 @@ async fn main() -> Result<()> {
     state.cli.initialize().await?;
     info!("CLI initialized");
 
-    // Run CLI REPL
-    display_banner(&state.system.version().version, &config_dir);
-    println!("Type /help for available commands, /quit to exit");
-    println!();
+    // Run CLI TUI (check for --no-tui flag)
+    let use_tui = !std::env::args().any(|arg| arg == "--no-tui");
 
-    // Display current log file location
-    if let Some(log_path) = log_writer.lock().unwrap().get_current_log_path() {
-        println!("Logs are written to: {}", log_path.display());
-        println!("Log rotation: {} MB per file, max {} files",
-            logging_config.max_file_size_mb,
-            logging_config.max_files);
+    if use_tui {
+        info!("Starting TUI...");
+        state.cli.run_tui().await?;
+    } else {
+        // Run CLI REPL (fallback)
+        display_banner(&state.system.version().version, &config_dir);
+        println!("Type /help for available commands, /quit to exit");
         println!();
-    }
 
-    // Start config change listener
-    let config_loader_clone = config_loader.clone();
-    tokio::spawn(async move {
-        let mut rx = config_loader_clone.subscribe();
-        while let Ok(change) = rx.recv().await {
-            match change {
-                knight_config::ConfigChangeEvent::MainConfigChanged(_) => {
-                    info!("Main configuration reloaded");
-                }
-                knight_config::ConfigChangeEvent::SystemConfigChanged { name, .. } => {
-                    info!("System configuration '{}' reloaded", name);
-                }
-            }
+        // Display current log file location
+        if let Some(log_path) = log_writer.lock().unwrap().get_current_log_path() {
+            println!("Logs are written to: {}", log_path.display());
+            println!("Log rotation: {} MB per file, max {} files",
+                logging_config.max_file_size_mb,
+                logging_config.max_files);
+            println!();
         }
-    });
 
-    state.cli.repl().run().await?;
+        state.cli.run_repl().await?;
+    }
 
     // Shutdown
     info!("Shutting down...");

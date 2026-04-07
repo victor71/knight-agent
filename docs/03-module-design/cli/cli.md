@@ -524,3 +524,11 @@ fn test_parse_natural_language() {
 - [ ] 支持键盘快捷键
 - [ ] 支持输出分页
 - [ ] 支持交互式参数输入
+
+---
+
+## TUI 模块
+
+Knight Agent 还提供 TUI (Terminal User Interface) 模式，作为 REPL 的增强版本。
+
+详见: [TUI 模块设计](./tui.md)

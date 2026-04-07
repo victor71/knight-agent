@@ -29,6 +29,9 @@ pub enum CliError {
     /// CLI not initialized
     #[error("CLI not initialized")]
     NotInitialized,
+    /// Generic error
+    #[error("Error: {0}")]
+    Other(String),
 }
 
 /// Result type for CLI operations

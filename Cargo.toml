@@ -7,6 +7,7 @@ members = [
     "rust/knight-agent",
     # CLI (1)
     "rust/cli",
+    "rust/tui",
     # Core (8)
     "rust/core/event-loop",
     "rust/core/hook-engine",

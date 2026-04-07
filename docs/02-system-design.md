@@ -8,7 +8,7 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                         用户接口层                               │
 ├─────────────────────────────────────────────────────────────────┤
-│  CLI Interface  │  Web UI  │  REST API  │  WebSocket           │
+│  CLI / TUI  │  Web UI  │  REST API  │  WebSocket           │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
@@ -2798,6 +2798,119 @@ $ knight logs --follow
 » /history                  # 查看历史
 » /help                     # 更多命令
 ```
+
+---
+
+## TUI (终端用户界面)
+
+### 概述
+
+TUI (Terminal User Interface) 是 Knight Agent 的交互式终端界面，提供类似 Claude Code 的用户体验。作为 REPL 的增强版本，TUI 在用户接口层与核心引擎层之间运行。
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      TUI Application                        │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │              Render Loop (16ms, ~60fps)                  │  │
+│  │  - Clone state snapshots                              │  │
+│  │  - Draw widgets                                      │  │
+│  └─────────────────────────────────────────────────────────┘  │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │              Input Handler (crossterm)                  │  │
+│  │  - Key events → command mode / text editing            │  │
+│  └─────────────────────────────────────────────────────────┘  │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │              Status Update Task                       │  │
+│  │  - Subscribe to Monitor.watch()                        │  │
+│  │  - Subscribe to ConfigLoader.subscribe()               │  │
+│  └─────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                    Channels (mpsc)
+                          │
+┌─────────────────────────────────────────────────────────────┐
+│              Existing Modules (read-only access)              │
+│  - KnightAgentSystem                                     │
+│  - MonitorImpl                                             │
+│  - OrchestratorImpl                                        │
+│  - SessionManagerImpl                                     │
+│  - AgentRuntimeImpl                                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### UI 布局
+
+```
+┌────────────────────────────────────────────────────────┐
+│ 📦 D:/workspace/knight-agent     [main]     14:32:05  │ ← Header (3行)
+│ Session: abc123-def4  [+ New]  [- Switch]             │
+│ Agents: 5 | Tasks: 3 | Memory: 256MB                   │
+├────────────────────────────────────────────────────────┤
+│                                                        │
+│  [Main Output Area - Rich text, code highlighting]      │
+│                                                        │
+├────────────────────────────────────────────────────────┤
+│ knight> help                              [INSERT]     │ ← Input (2行)
+├────────────────────────────────────────────────────────┤
+│ 🟢 Running | 🔄 code-reviewer 00:02:34 | Tasks: 2     │ ← Status Bar (2行)
+│ Tokens: 12,345/200K (6%) | Context: 12MB/25MB (48%)   │
+└────────────────────────────────────────────────────────┘
+```
+
+### 功能组件
+
+| 组件 | 功能 | 优先级 |
+|------|------|--------|
+| Header | 显示项目路径、Git 分支、Session ID、系统统计 | P1 |
+| Main Output | 富文本输出、代码高亮、流式响应 | P1 |
+| Input | 可编辑命令输入、NORMAL/INSERT 模式 | P1 |
+| Status Bar | 当前任务计时、Token 使用、上下文压缩状态 | P1 |
+| Session Popup | Session 列表、创建/切换会话 | P1 |
+| Task Popup | Task 列表、状态、运行时长 | P1 |
+
+### 快捷键
+
+| 按键 | 功能 | 模式 |
+|------|------|------|
+| `Alt+N` | 创建新 Session | Normal |
+| `Alt+S` | 打开 Session 切换弹窗 | Normal |
+| `Alt+T` | 打开 Task 列表弹窗 | Normal |
+| `i`, `a` | 进入 Insert 模式 | Normal |
+| `Esc` | 返回 Normal 模式 | Insert |
+| `Up/Down` | 弹窗内导航 | Popup |
+| `Enter` | 确认选择 | Popup |
+| `Ctrl+q` | 快速退出 | Normal |
+
+### 集成点
+
+| 现有模块 | TUI 集成方式 |
+|---------|-------------|
+| `MonitorImpl` | `watch()` → 状态更新流 |
+| `OrchestratorImpl` | `list_agents()` → Agent 列表 |
+| `SessionManagerImpl` | `get_current_session()`, `list_sessions()` → 会话信息 |
+| `TaskManagerImpl` | `list_tasks()`, `get_current_task()` → 任务列表 |
+| `ConfigLoader` | `subscribe()` → 配置变更 |
+
+### 启动方式
+
+```bash
+# 默认使用 TUI
+knight
+
+# 使用 REPL (fallback)
+knight --no-tui
+```
+
+### 性能要求
+
+| 指标 | 目标值 |
+|------|--------|
+| 帧率 | 60 FPS (~16ms) |
+| 响应延迟 | < 100ms |
+| 内存占用 | < 50MB (不含数据) |
+| 输出缓冲 | 1000 行 (可配置) |
+
+详细设计参见: [`03-module-design/cli/tui.md`](03-module-design/cli/tui.md)
 
 ---
 
