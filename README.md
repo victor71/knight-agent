@@ -340,19 +340,29 @@ cargo run -p knight-agent
 | macOS | `~/.knight-agent/` |
 | Linux | `~/.knight-agent/` |
 
-**子目录结构：**
+**目录结构：**
 
 ```
 .knight-agent/
-├── sessions/      # 会话数据
-├── logs/          # 日志文件 (knight-agent.log)
-├── skills/        # 自定义技能
-├── commands/      # 自定义命令
-├── workspace/     # 工作区
-└── config.toml    # 配置文件 (可选)
+├── knight.json          # LLM 提供者配置（用户常用）
+├── config/              # 系统配置（YAML 格式）
+│   ├── agent.yaml       # Agent 相关配置（已合并）
+│   ├── storage.yaml     # 存储配置
+│   ├── security.yaml    # 安全配置
+│   ├── logging.yaml     # 日志配置
+│   ├── monitoring.yaml  # 监控配置
+│   └── compressor.yaml  # 上下文压缩配置
+├── sessions/            # 会话数据
+├── logs/                # 日志文件
+├── skills/              # 自定义技能
+├── commands/            # 自定义命令
+└── workspace/           # 工作区
 ```
 
-**日志文件位置：** `~/.knight-agent/logs/knight-agent.log`
+**配置说明：**
+- **knight.json** - 唯一用户需要配置的文件，包含 LLM 提供者设置
+- **config/agent.yaml** - Agent 相关配置（已合并 agent-runtime、skill-engine、task-manager、workflows-directory）
+- **config/*.yaml** - 系统内部配置，使用 YAML 格式，通常不需要手动修改
 
 ### CLI 命令
 

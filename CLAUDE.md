@@ -5,3 +5,6 @@
 # Rust 工程
 - test代码存放在独立文件
 - 在README.md文件中描述对外开放的接口，并提供使用指导
+
+# lib docs
+First use Context7 when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.

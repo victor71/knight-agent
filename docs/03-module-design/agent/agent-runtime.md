@@ -798,41 +798,40 @@ stateDiagram-v2
 ### 配置文件格式
 
 ```yaml
-# config/agent.yaml
+# config/agent.yaml (agent 配置合并文件)
 agent:
-  # 执行限制
-  execution:
-    max_execution_time: 300
-    max_tool_calls: 50
-    max_llm_calls: 20
+  # Agent 运行时配置
+  runtime:
+    # 执行限制
+    maxExecutionTime: 300
+    maxToolCalls: 50
+    maxLlmCalls: 20
 
-  # 重试策略
-  retry:
-    max_attempts: 3
-    delay: 1000
-    backoff: exponential
-    retryable_errors:
-      - rate_limit
-      - timeout
-      - connection_error
+    # 重试策略
+    retry:
+      maxAttempts: 3
+      delay: 1000
+      backoff: exponential
+      retryableErrors:
+        - rate_limit
+        - timeout
+        - connection_error
 
-  # 超时配置
-  timeout:
-    llm_call: 60
-    tool_call: 30
+    # 超时配置
+    timeout:
+      llmCall: 60
+      toolCall: 30
 
-  # 流式输出
-  streaming:
-    enabled: true
-    chunk_size: 100
-
-  # 默认模型配置
-  default_model:
-    provider: anthropic
-    model: claude-sonnet-4-6
-    temperature: 0.7
-    max_tokens: 8192
+    # 流式输出
+    streaming:
+      enabled: true
+      chunkSize: 100
 ```
+
+**配置说明**:
+- Agent 运行时配置已合并到 `config/agent.yaml`
+- LLM 提供者配置统一在 `knight.json` 中管理
+- Agent Runtime 通过 `knight-config` 库获取 LLM 配置
 
 ### 环境变量
 

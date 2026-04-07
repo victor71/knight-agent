@@ -1160,30 +1160,35 @@ Layer 4: [Task E]          # 等待 C
 ### 配置文件格式
 
 ```yaml
-# config/task.yaml
-task:
-  # 执行配置
-  execution:
-    max_parallel: 10
-    default_timeout: 300
-    check_interval: 5
+# config/agent.yaml (agent 配置合并文件)
+agent:
+  # 任务管理器配置
+  task:
+    # 执行配置
+    maxParallel: 10
+    defaultTimeout: 300
+    checkInterval: 5
 
-  # 重试配置
-  retry:
-    max_attempts: 3
-    delay: 1000
-    backoff: exponential
+    # 重试配置
+    retry:
+      maxAttempts: 3
+      delay: 1000
+      backoff: exponential
+      retryableErrors: []
 
-  # 存储配置
-  storage:
-    persist_results: true
-    retention_days: 30
+    # 存储配置
+    storage:
+      persistResults: true
+      retentionDays: 30
 
-  # DAG 配置
-  dag:
-    max_tasks: 1000
-    max_depth: 50
+    # DAG 配置
+    dag:
+      maxTasks: 1000
+      maxDepth: 50
 ```
+
+**配置说明**:
+- 任务管理器配置已合并到 `config/agent.yaml`
 
 ### 环境变量
 

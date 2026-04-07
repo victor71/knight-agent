@@ -1183,37 +1183,37 @@ description: 完整代码审查，包含代码审查和安全审查
 ### 配置文件格式
 
 ```yaml
-# config/skill.yaml
-skill:
-  # 技能目录
-  directories:
-    - "./skills"
-    - "~/.knight-agent/skills"
+# config/agent.yaml (agent 配置合并文件)
+agent:
+  # 技能引擎配置
+  skill:
+    # 技能目录
+    directories:
+      - "./skills"
+      - "~/.knight-agent/skills"
 
-  # 执行配置
-  execution:
-    max_steps: 100
-    timeout: 600
-    enforce_timeout: true
-    enforce_max_steps: true
+    # 执行配置
+    execution:
+      max_steps: 100
+      timeout: 600
+      enforceTimeout: true
+      enforceMaxSteps: true
 
-  # 触发器配置
-  triggers:
-    debounce: 500
-    max_queue_size: 1000
+    # 触发器配置
+    triggers:
+      debounce: 500
+      maxQueueSize: 1000
 
-  # 默认 LLM 配置
-  default_llm:
-    provider: "anthropic"
-    model: "claude-sonnet-4-20250514"
-    max_tokens: 4096
-    temperature: 0.7
-
-  # LLM 解析配置
-  llm_parsing:
-    retry: 3
-    validation_enabled: true
+    # LLM 解析配置
+    llmParsing:
+      retry: 3
+      validationEnabled: true
 ```
+
+**配置说明**:
+- 技能引擎配置已合并到 `config/agent.yaml`
+- LLM 提供者配置统一在 `knight.json` 中管理
+- Skill Engine 通过 `knight-config` 库获取 LLM 配置，不再重复定义
 
 ### 环境变量
 

@@ -511,28 +511,33 @@ graph TD
 ### 配置文件
 
 ```yaml
-# config/workflow.yaml
-workflow:
-  # 工作流目录
-  directories:
-    - "./workflows"
-    - "~/.knight-agent/workflows"
+# config/agent.yaml (agent 配置合并文件)
+agent:
+  # 工作流配置
+  workflow:
+    # 工作流目录
+    directories:
+      - "./workflows"
+      - "~/.knight-agent/workflows"
 
-  # 执行配置
-  execution:
-    default_mode: background
-    timeout: 604800  # 7 天
+    # 执行配置
+    execution:
+      defaultMode: background
+      timeout: 604800  # 7 天
 
-  # 版本控制
-  versioning:
-    enabled: true
-    git_tracking: true
+    # 版本控制
+    versioning:
+      enabled: true
+      gitTracking: true
 
-  # 缓存
-  cache:
-    enabled: true
-    ttl: 3600
+    # 缓存
+    cache:
+      enabled: true
+      ttl: 3600
 ```
+
+**配置说明**:
+- 工作流配置已合并到 `config/agent.yaml`
 
 ### 环境变量
 

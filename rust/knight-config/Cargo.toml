@@ -1,0 +1,20 @@
+[package]
+name = "knight-config"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+anyhow = "1.0"
+thiserror = "1.0"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+notify = { version = "8.0", features = ["serde"] }
+parking_lot = "0.12"
+dirs = "5.0"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["test-util", "macros"] }
+tempfile = "3"

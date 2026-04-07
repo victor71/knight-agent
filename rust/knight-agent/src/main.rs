@@ -5,6 +5,7 @@
 use anyhow::{Context, Result};
 use bootstrap::{BootstrapConfig, KnightAgentSystem};
 use cli::{Cli, CliImpl};
+use knight_config::{ConfigLoader, LoggingConfig};
 use std::io::Write as IoWrite;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -14,25 +15,22 @@ use tracing_subscriber::fmt::format::FmtSpan;
 
 /// Default configuration directory name
 const CONFIG_DIR: &str = ".knight-agent";
-/// Default configuration file name
-const CONFIG_FILE: &str = "config.toml";
-/// Maximum log file size before rotation (10 MB)
-const MAX_LOG_FILE_SIZE: u64 = 10 * 1024 * 1024;
 
 /// System state shared across the application
 struct AppState {
     system: KnightAgentSystem,
     cli: Arc<CliImpl>,
+    config_loader: Arc<ConfigLoader>,
 }
 
 impl AppState {
-    async fn new(_config_dir: &Path) -> Result<Self> {
+    async fn new(config_loader: Arc<ConfigLoader>) -> Result<Self> {
         let config = BootstrapConfig::default();
         let system = KnightAgentSystem::with_config(config);
         let cli = CliImpl::new()
             .context("Failed to create CLI")?;
 
-        Ok(Self { system, cli: Arc::new(cli) })
+        Ok(Self { system, cli: Arc::new(cli), config_loader })
     }
 }
 
@@ -92,16 +90,18 @@ struct SessionLogWriter {
     current_file: Mutex<Option<PathBuf>>,
     current_size: Mutex<u64>,
     file_index: Mutex<u32>,
+    max_file_size: u64,
 }
 
 impl SessionLogWriter {
-    fn new(log_dir: PathBuf) -> Self {
+    fn new(log_dir: PathBuf, max_file_size: u64) -> Self {
         Self {
             log_dir,
             current_session_id: Mutex::new(None),
             current_file: Mutex::new(None),
             current_size: Mutex::new(0),
             file_index: Mutex::new(0),
+            max_file_size,
         }
     }
 
@@ -163,7 +163,7 @@ impl SessionLogWriter {
         let size = metadata.len();
         *self.current_size.lock().unwrap() = size;
 
-        if size >= MAX_LOG_FILE_SIZE {
+        if size >= self.max_file_size {
             drop(current_file); // Release lock before creating new file
             let mut index = *self.file_index.lock().unwrap() + 1;
             *self.file_index.lock().unwrap() = index;
@@ -247,7 +247,7 @@ impl std::io::Write for LogWriter {
     }
 }
 
-/// Check if the system is properly configured
+/// Check if the system is properly configured and initialize config loader
 fn check_system_config() -> Result<PathBuf> {
     info!("Checking system configuration...");
 
@@ -264,25 +264,13 @@ fn check_system_config() -> Result<PathBuf> {
     }
     info!("Config directory ready: {}", config_dir.display());
 
-    // Create subdirectories: sessions, logs, skills, commands
+    // Create subdirectories: sessions, logs, skills, commands, workspace
     for subdir in AGENT_SUBDIRS {
         let dir_path = config_dir.join(subdir);
         ensure_dir(&dir_path, subdir)?;
     }
 
-    // Check config file
-    let config_file = config_dir.join(CONFIG_FILE);
-    if config_file.exists() {
-        info!("Config file exists: {}", config_file.display());
-        // Validate config file is readable
-        std::fs::read_to_string(&config_file)
-            .context("Failed to read config file")?;
-        info!("Config file is readable");
-    } else {
-        warn!("Config file not found: {} (using defaults)", config_file.display());
-    }
-
-    // Check and create workspace directory inside .knight-agent
+    // Create workspace directory
     let workspace_dir = config_dir.join("workspace");
     if ensure_dir(&workspace_dir, "workspace")? {
         // Check workspace is writable
@@ -336,12 +324,19 @@ fn display_banner(version: &str, config_dir: &Path) {
     println!();
     println!("Configuration:");
     println!("  Config dir: {}", config_dir.display());
+    println!("    - knight.json    (LLM providers)");
+    println!("    - config/");
+    println!("      - agent.yaml      (runtime + skill + task + workflow)");
+    println!("      - storage.yaml");
+    println!("      - security.yaml");
+    println!("      - logging.yaml");
+    println!("      - monitoring.yaml");
+    println!("      - compressor.yaml");
     println!("    - sessions/");
     println!("    - logs/");
     println!("    - skills/");
     println!("    - commands/");
     println!("    - workspace/");
-    println!("  Config file: config.toml");
     println!();
 }
 
@@ -352,6 +347,7 @@ fn display_help() {
     println!("Knight Agent CLI Commands:");
     println!("  /help, /h         - Show this help");
     println!("  /status           - Show system status");
+    println!("  /config           - Show configuration");
     println!("  /sessions         - List sessions");
     println!("  /sessions new     - Create new session");
     println!("  /sessions switch   - Switch session");
@@ -361,9 +357,11 @@ fn display_help() {
 }
 
 /// Initialize logging with session-based rotating log files
-fn init_logging(log_dir: &Path) -> Result<(WorkerGuard, Arc<Mutex<SessionLogWriter>>)> {
+fn init_logging(log_dir: &Path, config: &LoggingConfig) -> Result<(WorkerGuard, Arc<Mutex<SessionLogWriter>>)> {
+    let max_file_size = config.max_file_size_mb * 1024 * 1024;
+
     // Create the session log writer with a default session
-    let log_writer = Arc::new(Mutex::new(SessionLogWriter::new(log_dir.to_path_buf())));
+    let log_writer = Arc::new(Mutex::new(SessionLogWriter::new(log_dir.to_path_buf(), max_file_size)));
 
     // Set the default session
     log_writer.lock().unwrap().set_session("default".to_string())?;
@@ -371,9 +369,19 @@ fn init_logging(log_dir: &Path) -> Result<(WorkerGuard, Arc<Mutex<SessionLogWrit
     // Create a non-blocking writer from our session log writer wrapper
     let (file_writer, guard) = tracing_appender::non_blocking(LogWriter(log_writer.clone()));
 
+    // Parse log level
+    let log_level = match config.level.to_lowercase().as_str() {
+        "trace" => Level::TRACE,
+        "debug" => Level::DEBUG,
+        "info" => Level::INFO,
+        "warn" => Level::WARN,
+        "error" => Level::ERROR,
+        _ => Level::INFO,
+    };
+
     // Build the subscriber - disable ANSI escape sequences for file logging
     let subscriber = tracing_subscriber::fmt::SubscriberBuilder::default()
-        .with_max_level(Level::INFO)
+        .with_max_level(log_level)
         .with_target(true)
         .with_thread_ids(true)
         .with_file(true)
@@ -396,20 +404,32 @@ async fn main() -> Result<()> {
         Err(e) => {
             eprintln!("System configuration check failed: {}", e);
             // Continue anyway, using defaults
-            PathBuf::from(".").join(CONFIG_DIR)
+            let home = get_home_dir().unwrap_or_else(|_| PathBuf::from("."));
+            home.join(CONFIG_DIR)
         }
     };
+
+    // Initialize config loader (will create default configs if needed)
+    let config_loader = Arc::new(ConfigLoader::new(config_dir.clone()).await
+        .context("Failed to initialize config loader")?);
+
+    info!("Config loader initialized: {}", config_dir.display());
+
+    // Get logging configuration
+    let logging_config = config_loader.get_logging_config();
 
     // Set up log directory
     let log_dir = config_dir.join("logs");
 
     // Initialize logging with session-based rotating logs
-    let (_guard, log_writer) = init_logging(&log_dir)?;
+    let (_guard, log_writer) = init_logging(&log_dir, &logging_config)?;
 
     info!("Starting Knight Agent...");
+    info!("Log level: {}", logging_config.level);
+    info!("Max log file size: {} MB", logging_config.max_file_size_mb);
 
     // Initialize system
-    let state = AppState::new(&config_dir).await?;
+    let state = AppState::new(config_loader.clone()).await?;
 
     // Bootstrap the system through all 8 stages
     info!("Initializing system (8-stage bootstrap)...");
@@ -440,9 +460,27 @@ async fn main() -> Result<()> {
     // Display current log file location
     if let Some(log_path) = log_writer.lock().unwrap().get_current_log_path() {
         println!("Logs are written to: {}", log_path.display());
-        println!("Log rotation: 10MB per file");
+        println!("Log rotation: {} MB per file, max {} files",
+            logging_config.max_file_size_mb,
+            logging_config.max_files);
         println!();
     }
+
+    // Start config change listener
+    let config_loader_clone = config_loader.clone();
+    tokio::spawn(async move {
+        let mut rx = config_loader_clone.subscribe();
+        while let Ok(change) = rx.recv().await {
+            match change {
+                knight_config::ConfigChangeEvent::MainConfigChanged(_) => {
+                    info!("Main configuration reloaded");
+                }
+                knight_config::ConfigChangeEvent::SystemConfigChanged { name, .. } => {
+                    info!("System configuration '{}' reloaded", name);
+                }
+            }
+        }
+    });
 
     state.cli.repl().run().await?;
 

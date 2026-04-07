@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
 members = [
+    # Shared Libraries
+    "rust/knight-config",
     # Binary
     "rust/knight-agent",
     # CLI (1)
