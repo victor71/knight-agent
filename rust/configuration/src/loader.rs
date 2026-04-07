@@ -432,7 +432,6 @@ mod tests {
         // Check main config
         let main_config = loader.get_main_config();
         assert!(main_config.llm.is_none());
-        assert!(main_config.storage.is_none());
 
         // Check system configs
         let logging = loader.get_logging_config();

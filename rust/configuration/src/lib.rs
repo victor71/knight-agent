@@ -17,7 +17,7 @@
 //! # Example
 //!
 //! ```no_run
-//! use knight_config::ConfigLoader;
+//! use configuration::ConfigLoader;
 //!
 //! #[tokio::main]
 //! async fn main() -> anyhow::Result<()> {
@@ -35,10 +35,10 @@
 //!     tokio::spawn(async move {
 //!         while let Ok(change) = rx.recv().await {
 //!             match change {
-//!                 knight_config::ConfigChangeEvent::MainConfigChanged(config) => {
+//!                 configuration::ConfigChangeEvent::MainConfigChanged(config) => {
 //!                     // Handle main config change
 //!                 }
-//!                 knight_config::ConfigChangeEvent::SystemConfigChanged { name, config } => {
+//!                 configuration::ConfigChangeEvent::SystemConfigChanged { name, config } => {
 //!                     // Handle system config change
 //!                 }
 //!             }
