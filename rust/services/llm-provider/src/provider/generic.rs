@@ -358,6 +358,9 @@ impl GenericLLMProvider {
         if let Some(ref stop) = request.stop {
             body.insert("stop_sequences".to_string(), serde_json::json!(stop));
         }
+        if request.stream {
+            body.insert("stream".to_string(), serde_json::json!(true));
+        }
 
         serde_json::Value::Object(body)
     }
@@ -455,10 +458,20 @@ impl GenericLLMProvider {
         let id = response.get("id").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
         let model = response.get("model").and_then(|v| v.as_str()).unwrap_or("").to_string();
 
+        // MiniMax returns content as array with potentially multiple blocks:
+        // [{"type": "thinking", "thinking": "..."}, {"type": "text", "text": "..."}]
+        // We need to find the element with type="text" to get the actual response
         let content = response
             .get("content")
             .and_then(|v| v.as_array())
-            .and_then(|arr| arr.first())
+            .and_then(|arr| {
+                arr.iter().find(|c| {
+                    c.get("type")
+                        .and_then(|t| t.as_str())
+                        .map(|t| t == "text")
+                        .unwrap_or(false)
+                })
+            })
             .and_then(|c| c.get("text"))
             .and_then(|t| t.as_str())
             .map(|s| s.to_string());
@@ -525,7 +538,9 @@ impl LLMProvider for GenericLLMProvider {
     ) -> LLMResult<ChatCompletionResponse> {
         let model = request.model.clone();
         let url = self.completions_url();
+        println!("[INFO] LLM Request URL: {}", url);
         let body = self.build_request_body(&request);
+        println!("[INFO] LLM Request body: {}", body);
         let (auth_header, auth_value) = self.auth_header();
 
         // Log request messages
@@ -580,9 +595,12 @@ impl LLMProvider for GenericLLMProvider {
             let error_body = response.text().await.unwrap_or_default();
             return Err(LLMError::InvalidRequest(error_body));
         } else if !status.is_success() {
+            let error_body = response.text().await.unwrap_or_default();
+            println!("[ERROR] LLM API error response ({}): {}", status.as_u16(), error_body);
             return Err(LLMError::InferenceFailed(format!(
-                "API returned error: {}",
-                status.as_u16()
+                "API returned error: {} - {}",
+                status.as_u16(),
+                error_body
             )));
         }
 
@@ -839,12 +857,33 @@ impl GenericLLMProvider {
                     .map(|s| s.to_string())
             }
             LLMProtocol::Anthropic => {
-                data.get("content")
-                    .and_then(|v| v.as_array())
-                    .and_then(|arr| arr.first())
-                    .and_then(|c| c.get("text"))
-                    .and_then(|t| t.as_str())
-                    .map(|s| s.to_string())
+                // MiniMax streaming format uses delta.type to indicate "text_delta" or "thinking_delta"
+                // Also handles non-streaming format where content is an array of blocks
+                data.get("delta")
+                    .and_then(|d| {
+                        let delta_type = d.get("type").and_then(|t| t.as_str()).unwrap_or("");
+                        match delta_type {
+                            "text_delta" => d.get("text").and_then(|t| t.as_str()).map(|s| s.to_string()),
+                            "thinking_delta" => d.get("thinking").and_then(|t| t.as_str()).map(|s| s.to_string()),
+                            _ => None,
+                        }
+                    })
+                // Also check for non-streaming format (content array with text blocks)
+                .or_else(|| {
+                    data.get("content")
+                        .and_then(|v| v.as_array())
+                        .and_then(|arr| {
+                            arr.iter().find(|c| {
+                                c.get("type")
+                                    .and_then(|t| t.as_str())
+                                    .map(|t| t == "text")
+                                    .unwrap_or(false)
+                            })
+                        })
+                        .and_then(|c| c.get("text"))
+                        .and_then(|t| t.as_str())
+                        .map(|s| s.to_string())
+                })
             }
         };
 
