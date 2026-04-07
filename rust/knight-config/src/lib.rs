@@ -56,8 +56,17 @@ pub mod types;
 pub use error::{ConfigError, ConfigResult};
 pub use loader::{ConfigChangeEvent, ConfigLoader, SystemConfig};
 pub use types::{
-    AgentConfig, CompressorConfig, KnightConfig, LlmConfig, LlmModelConfig, LlmPricing,
-    LlmProviderConfig, LoggingConfig, MonitoringConfig, SecurityConfig, StorageConfig,
+    AgentConfig, CompressorConfig, CoreConfig, InfrastructureConfig, KnightConfig,
+    LlmConfig, LlmModelConfig, LlmPricing, LlmProviderConfig, LoggingConfig, MonitoringConfig,
+    SecurityConfig, ServicesConfig, StorageConfig, ToolsConfig,
+    // Config sub-types
+    AgentRuntimeConfig, SkillEngineConfig, TaskManagerConfig, WorkflowConfig,
+    CommandConfig, CliConfig, EventLoopConfig, HooksConfig, OrchestratorConfig,
+    RouterConfig, SessionConfig, BootstrapConfig,
+    McpConfig, ReportConfig, TimerConfig,
+    ToolsBuiltinConfig, ToolsCustomConfig, ToolsMcpConfig,
+    IpcConfig,
+    CliConnectionConfig, CliOutputConfig,
 };
 
 /// Get the default Knight Agent configuration directory

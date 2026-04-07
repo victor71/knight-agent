@@ -1,6 +1,6 @@
 //! Configuration loader with hot reload support
 
-use crate::error::{ConfigError, ConfigResult};
+use crate::error::ConfigResult;
 use crate::types::*;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use parking_lot::RwLock;
@@ -22,6 +22,16 @@ pub enum ConfigChangeEvent {
 /// System configuration variants (from config/*.yaml files)
 #[derive(Debug, Clone)]
 pub enum SystemConfig {
+    /// Agent configuration (config/agent.yaml)
+    Agent(AgentConfig),
+    /// Core configuration (config/core.yaml)
+    Core(CoreConfig),
+    /// Services configuration (config/services.yaml)
+    Services(ServicesConfig),
+    /// Tools configuration (config/tools.yaml)
+    Tools(ToolsConfig),
+    /// Infrastructure configuration (config/infrastructure.yaml)
+    Infrastructure(InfrastructureConfig),
     /// Logging configuration (config/logging.yaml)
     Logging(LoggingConfig),
     /// Monitoring configuration (config/monitoring.yaml)
@@ -32,8 +42,6 @@ pub enum SystemConfig {
     Storage(StorageConfig),
     /// Security configuration (config/security.yaml)
     Security(SecurityConfig),
-    /// Agent configuration (config/agent.yaml)
-    Agent(AgentConfig),
 }
 
 /// Configuration loader
@@ -125,6 +133,18 @@ impl ConfigLoader {
             ("agent", |content| {
                 serde_yaml::from_str(content).map(SystemConfig::Agent)
             }),
+            ("core", |content| {
+                serde_yaml::from_str(content).map(SystemConfig::Core)
+            }),
+            ("services", |content| {
+                serde_yaml::from_str(content).map(SystemConfig::Services)
+            }),
+            ("tools", |content| {
+                serde_yaml::from_str(content).map(SystemConfig::Tools)
+            }),
+            ("infrastructure", |content| {
+                serde_yaml::from_str(content).map(SystemConfig::Infrastructure)
+            }),
             ("logging", |content| {
                 serde_yaml::from_str(content).map(SystemConfig::Logging)
             }),
@@ -144,6 +164,10 @@ impl ConfigLoader {
 
         let default_configs: &[(&str, SystemConfig)] = &[
             ("agent", SystemConfig::Agent(AgentConfig::default())),
+            ("core", SystemConfig::Core(CoreConfig::default())),
+            ("services", SystemConfig::Services(ServicesConfig::default())),
+            ("tools", SystemConfig::Tools(ToolsConfig::default())),
+            ("infrastructure", SystemConfig::Infrastructure(InfrastructureConfig::default())),
             ("logging", SystemConfig::Logging(LoggingConfig::default())),
             ("monitoring", SystemConfig::Monitoring(MonitoringConfig::default())),
             ("compressor", SystemConfig::Compressor(CompressorConfig::default())),
@@ -185,24 +209,16 @@ impl ConfigLoader {
         let config_path = config_dir.join(format!("{}.yaml", name));
         let content = match config {
             SystemConfig::Agent(c) => serde_yaml::to_string(c)?,
+            SystemConfig::Core(c) => serde_yaml::to_string(c)?,
+            SystemConfig::Services(c) => serde_yaml::to_string(c)?,
+            SystemConfig::Tools(c) => serde_yaml::to_string(c)?,
+            SystemConfig::Infrastructure(c) => serde_yaml::to_string(c)?,
             SystemConfig::Logging(c) => serde_yaml::to_string(c)?,
             SystemConfig::Monitoring(c) => serde_yaml::to_string(c)?,
             SystemConfig::Compressor(c) => serde_yaml::to_string(c)?,
             SystemConfig::Storage(c) => serde_yaml::to_string(c)?,
             SystemConfig::Security(c) => serde_yaml::to_string(c)?,
         };
-        tokio::fs::write(&config_path, content).await?;
-        info!("Saved system config to: {}", config_path.display());
-        Ok(())
-    }
-
-    /// Save system configuration (legacy, for backward compatibility)
-    async fn save_system_config<T>(config_dir: &Path, name: &str, config: &T) -> ConfigResult<()>
-    where
-        T: serde::Serialize,
-    {
-        let config_path = config_dir.join(format!("{}.json", name));
-        let content = serde_json::to_string_pretty(config)?;
         tokio::fs::write(&config_path, content).await?;
         info!("Saved system config to: {}", config_path.display());
         Ok(())
@@ -244,6 +260,14 @@ impl ConfigLoader {
                                     let sys_config = match config_name {
                                         "agent" => serde_yaml::from_str::<AgentConfig>(&content)
                                             .map(SystemConfig::Agent).ok(),
+                                        "core" => serde_yaml::from_str::<CoreConfig>(&content)
+                                            .map(SystemConfig::Core).ok(),
+                                        "services" => serde_yaml::from_str::<ServicesConfig>(&content)
+                                            .map(SystemConfig::Services).ok(),
+                                        "tools" => serde_yaml::from_str::<ToolsConfig>(&content)
+                                            .map(SystemConfig::Tools).ok(),
+                                        "infrastructure" => serde_yaml::from_str::<InfrastructureConfig>(&content)
+                                            .map(SystemConfig::Infrastructure).ok(),
                                         "logging" => serde_yaml::from_str::<LoggingConfig>(&content)
                                             .map(SystemConfig::Logging).ok(),
                                         "monitoring" => serde_yaml::from_str::<MonitoringConfig>(&content)
@@ -341,6 +365,38 @@ impl ConfigLoader {
         match self.get_system_config("compressor") {
             Some(SystemConfig::Compressor(c)) => c,
             _ => CompressorConfig::default(),
+        }
+    }
+
+    /// Get core configuration
+    pub fn get_core_config(&self) -> CoreConfig {
+        match self.get_system_config("core") {
+            Some(SystemConfig::Core(c)) => c,
+            _ => CoreConfig::default(),
+        }
+    }
+
+    /// Get services configuration
+    pub fn get_services_config(&self) -> ServicesConfig {
+        match self.get_system_config("services") {
+            Some(SystemConfig::Services(c)) => c,
+            _ => ServicesConfig::default(),
+        }
+    }
+
+    /// Get tools configuration
+    pub fn get_tools_config(&self) -> ToolsConfig {
+        match self.get_system_config("tools") {
+            Some(SystemConfig::Tools(c)) => c,
+            _ => ToolsConfig::default(),
+        }
+    }
+
+    /// Get infrastructure configuration
+    pub fn get_infrastructure_config(&self) -> InfrastructureConfig {
+        match self.get_system_config("infrastructure") {
+            Some(SystemConfig::Infrastructure(c)) => c,
+            _ => InfrastructureConfig::default(),
         }
     }
 

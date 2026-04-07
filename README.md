@@ -345,8 +345,12 @@ cargo run -p knight-agent
 ```
 .knight-agent/
 ├── knight.json          # LLM 提供者配置（用户常用）
-├── config/              # 系统配置（YAML 格式）
-│   ├── agent.yaml       # Agent 相关配置（已合并）
+├── config/              # 系统配置（YAML 格式，已合并）
+│   ├── agent.yaml       # Agent 模块（已合并 6 个模块）
+│   ├── core.yaml        # Core 模块（已合并 8 个模块）
+│   ├── services.yaml    # Services（已合并 3 个服务）
+│   ├── tools.yaml       # 工具系统
+│   ├── infrastructure.yaml # 基础设施（IPC）
 │   ├── storage.yaml     # 存储配置
 │   ├── security.yaml    # 安全配置
 │   ├── logging.yaml     # 日志配置
@@ -360,9 +364,13 @@ cargo run -p knight-agent
 ```
 
 **配置说明：**
-- **knight.json** - 唯一用户需要配置的文件，包含 LLM 提供者设置
-- **config/agent.yaml** - Agent 相关配置（已合并 agent-runtime、skill-engine、task-manager、workflows-directory）
+- **knight.json** - 唯一用户需要配置的文件，包含 LLM 提供者设置（JSON 格式）
+- **config/agent.yaml** - Agent 相关配置（已合并 agent-runtime、skill-engine、task-manager、workflows-directory、agent-variants、external-agent）
+- **config/core.yaml** - Core 相关配置（已合并 command、cli、event-loop、hooks、orchestrator、router、session-manager、bootstrap）
+- **config/services.yaml** - Services 相关配置（已合并 mcp-client、report-skill、timer-system）
 - **config/*.yaml** - 系统内部配置，使用 YAML 格式，通常不需要手动修改
+
+**配置合并说明：** 已从 26 个独立配置文件合并为 11 个配置文件，减少配置复杂度。
 
 ### CLI 命令
 

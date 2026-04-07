@@ -17,13 +17,19 @@ Centralized configuration management for Knight Agent with hot-reload support.
 ~/.knight-agent/
 ├── knight.json              # Main user-facing config (LLM only)
 └── config/                  # System configs (YAML format)
-    ├── agent.yaml           # Agent configuration
+    ├── agent.yaml           # Agent modules (6 modules consolidated)
+    ├── core.yaml            # Core modules (8 modules consolidated)
+    ├── services.yaml        # Services (3 services consolidated)
+    ├── tools.yaml           # Tool system
+    ├── infrastructure.yaml  # Infrastructure (IPC)
     ├── storage.yaml         # Storage configuration
     ├── security.yaml        # Security configuration
     ├── logging.yaml         # Logging configuration
     ├── monitoring.yaml      # Monitoring configuration
     └── compressor.yaml      # Context compressor configuration
 ```
+
+**Configuration consolidation**: Reduced from 26 separate config files to 11 consolidated files for better maintainability.
 
 ## Configuration Files
 
@@ -180,6 +186,136 @@ workflow:
     ttl: 3600
 ```
 
+### config/core.yaml
+
+Consolidated configuration for all core modules (command, cli, event-loop, hooks, orchestrator, router, session-manager, bootstrap).
+
+```yaml
+# Command module settings
+command:
+  prefix: "/"
+  commands:
+    help:
+      enabled: true
+      aliases: ["h", "?"]
+    status:
+      enabled: true
+      aliases: ["s"]
+
+# CLI settings
+cli:
+  prompt: "knight> "
+  multilinePrompt: "... "
+  historySize: 1000
+  historyFile: null
+  autoComplete: true
+  syntaxHighlight: true
+
+# Event loop settings
+eventLoop:
+  tickInterval: 100
+  maxEventsPerTick: 100
+  queueSize: 10000
+
+# Hooks settings
+hooks:
+  preCommand: []
+  postCommand: []
+  preAgent: []
+  postAgent: []
+  onError: []
+
+# Orchestrator settings
+orchestrator:
+  maxParallelAgents: 5
+  timeoutSecs: 300
+  retryAttempts: 3
+
+# Router settings
+router:
+  defaultVariant: null
+  routingRules: []
+
+# Session settings
+session:
+  defaultSessionId: "default"
+  maxSessions: 100
+  sessionTimeoutSecs: 3600
+  persistSessions: true
+
+# Bootstrap settings
+bootstrap:
+  parallelInit: true
+  initTimeoutSecs: 120
+  failFast: false
+```
+
+### config/services.yaml
+
+Consolidated configuration for all services (mcp-client, report-skill, timer-system).
+
+```yaml
+# MCP client settings
+mcp:
+  maxConcurrentConnections: 10
+  connectionTimeoutSecs: 30
+  requestTimeoutSecs: 60
+  retryAttempts: 3
+  servers: {}
+
+# Report skill settings
+report:
+  enabled: true
+  format: markdown
+  outputPath: null
+  includeTimestamps: true
+  includeMetadata: true
+
+# Timer settings
+timer:
+  enabled: true
+  resolution: 100
+  maxTimers: 1000
+```
+
+### config/tools.yaml
+
+Tool system configuration.
+
+```yaml
+# Tool system settings
+builtin:
+  enabled: true
+  timeout: 30
+
+custom:
+  enabled: true
+  directories:
+    - "./tools"
+    - "~/.knight-agent/tools"
+  timeout: 60
+  sandboxEnabled: true
+
+mcp:
+  enabled: true
+  timeout: 120
+  maxToolCalls: 50
+```
+
+### config/infrastructure.yaml
+
+Infrastructure configuration (IPC, etc.).
+
+```yaml
+# IPC settings
+ipc:
+  enabled: true
+  mechanism: "memory"  # Options: memory, tcp, unix
+  address: null
+  timeoutSecs: 30
+  bufferSize: 1024
+```
+
 ### config/storage.yaml
 
 Storage service configuration (system internal).
@@ -325,12 +461,17 @@ Main configuration loader with hot-reload support.
 | `new(config_dir)` | `ConfigLoader` | Create loader, auto-creates default configs |
 | `get_main_config()` | `KnightConfig` | Full main configuration (LLM only) |
 | `get_llm_config()` | `Option<LlmConfig>` | LLM provider configuration |
+| `get_agent_config()` | `AgentConfig` | Agent modules (consolidated) |
+| `get_core_config()` | `CoreConfig` | Core modules (consolidated) |
+| `get_services_config()` | `ServicesConfig` | Services (consolidated) |
+| `get_tools_config()` | `ToolsConfig` | Tool system configuration |
+| `get_infrastructure_config()` | `InfrastructureConfig` | Infrastructure config |
 | `get_storage_config()` | `StorageConfig` | Storage configuration |
 | `get_security_config()` | `SecurityConfig` | Security configuration |
-| `get_agent_config()` | `AgentConfig` | Agent configuration |
 | `get_logging_config()` | `LoggingConfig` | Logging configuration |
 | `get_monitoring_config()` | `MonitoringConfig` | Monitoring configuration |
 | `get_compressor_config()` | `CompressorConfig` | Compressor configuration |
+| `get_system_config(name)` | `Option<SystemConfig>` | Get specific system config |
 | `subscribe()` | `Receiver<ConfigChangeEvent>` | Subscribe to config change events |
 | `reload_main_config()` | `Result<()>` | Manually reload main configuration |
 | `config_dir()` | `&Path` | Get config directory path |
@@ -354,14 +495,18 @@ Main configuration - only contains user-facing LLM configuration.
 
 #### System Configs (config/*.yaml)
 
-| Config | Type | Description |
+| Config | File | Description |
 |--------|------|-------------|
-| `AgentConfig` | System | Agent runtime settings |
-| `StorageConfig` | System | Storage/database settings |
-| `SecurityConfig` | System | Security and sandbox settings |
-| `LoggingConfig` | System | Logging configuration |
-| `MonitoringConfig` | System | Monitoring settings |
-| `CompressorConfig` | System | Context compression settings |
+| `AgentConfig` | agent.yaml | Agent modules (runtime, skill, task, workflow) |
+| `CoreConfig` | core.yaml | Core modules (command, cli, event-loop, hooks, orchestrator, router, session, bootstrap) |
+| `ServicesConfig` | services.yaml | Services (mcp, report, timer) |
+| `ToolsConfig` | tools.yaml | Tool system (builtin, custom, mcp) |
+| `InfrastructureConfig` | infrastructure.yaml | Infrastructure (IPC) |
+| `StorageConfig` | storage.yaml | Storage/database settings |
+| `SecurityConfig` | security.yaml | Security and sandbox settings |
+| `LoggingConfig` | logging.yaml | Logging configuration |
+| `MonitoringConfig` | monitoring.yaml | Monitoring settings |
+| `CompressorConfig` | compressor.yaml | Context compression settings |
 
 ## Environment Variables
 

@@ -826,3 +826,756 @@ impl Default for AgentConfig {
         }
     }
 }
+
+/// Core configuration (config/core.yaml)
+///
+/// This consolidates configurations from:
+/// - command (CLI command system)
+/// - cli (REPL interface)
+/// - event-loop (event processing)
+/// - hooks (hook system)
+/// - orchestrator (agent orchestration)
+/// - router (request routing)
+/// - session-manager (session management)
+/// - bootstrap (system bootstrap)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoreConfig {
+    /// Command system configuration
+    #[serde(default)]
+    pub command: CommandConfig,
+    /// CLI configuration
+    #[serde(default)]
+    pub cli: CliConfig,
+    /// Event loop configuration
+    #[serde(default)]
+    pub event_loop: EventLoopConfig,
+    /// Hook engine configuration
+    #[serde(default)]
+    pub hooks: HooksConfig,
+    /// Orchestrator configuration
+    #[serde(default)]
+    pub orchestrator: OrchestratorConfig,
+    /// Router configuration
+    #[serde(default)]
+    pub router: RouterConfig,
+    /// Session manager configuration
+    #[serde(default)]
+    pub session: SessionConfig,
+    /// Bootstrap configuration
+    #[serde(default)]
+    pub bootstrap: BootstrapConfig,
+}
+
+/// Command system configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandConfig {
+    /// Enable command parsing
+    #[serde(default = "default_command_enabled")]
+    pub enabled: bool,
+    /// Command prefix
+    #[serde(default = "default_command_prefix")]
+    pub prefix: String,
+    /// Max command history
+    #[serde(default = "default_command_history")]
+    pub max_history: usize,
+}
+
+/// CLI configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CliConfig {
+    /// Default prompt
+    #[serde(default = "default_cli_prompt")]
+    pub prompt: String,
+    /// History size
+    #[serde(default = "default_cli_history")]
+    pub history_size: usize,
+    /// History file path
+    #[serde(default = "default_cli_history_file")]
+    pub history_file: String,
+    /// Connection configuration
+    #[serde(default)]
+    pub connection: CliConnectionConfig,
+    /// Output configuration
+    #[serde(default)]
+    pub output: CliOutputConfig,
+}
+
+/// Event loop configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EventLoopConfig {
+    /// Event queue size
+    #[serde(default = "default_event_queue_size")]
+    pub queue_size: usize,
+    /// Worker threads
+    #[serde(default = "default_event_workers")]
+    pub worker_threads: usize,
+    /// Event processing timeout
+    #[serde(default = "default_event_timeout")]
+    pub timeout_ms: u64,
+}
+
+/// Hook engine configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HooksConfig {
+    /// Enable hooks
+    #[serde(default = "default_hooks_enabled")]
+    pub enabled: bool,
+    /// Max hooks per event
+    #[serde(default = "default_max_hooks")]
+    pub max_hooks: usize,
+    /// Hook timeout
+    #[serde(default = "default_hook_timeout")]
+    pub timeout_ms: u64,
+}
+
+/// Orchestrator configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OrchestratorConfig {
+    /// Max concurrent agents
+    #[serde(default = "default_max_concurrent_agents")]
+    pub max_concurrent_agents: usize,
+    /// Agent timeout
+    #[serde(default = "default_agent_orchestration_timeout")]
+    pub agent_timeout_secs: u64,
+    /// Enable load balancing
+    #[serde(default = "default_load_balancing")]
+    pub load_balancing: bool,
+}
+
+/// Router configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RouterConfig {
+    /// Default route
+    #[serde(default = "default_router_default_route")]
+    pub default_route: String,
+    /// Routing strategy
+    #[serde(default = "default_routing_strategy")]
+    pub routing_strategy: String,
+    /// Max routes
+    #[serde(default = "default_max_routes")]
+    pub max_routes: usize,
+}
+
+/// Session configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionConfig {
+    /// Session timeout
+    #[serde(default = "default_session_timeout")]
+    pub timeout_secs: u64,
+    /// Max sessions
+    #[serde(default = "default_max_sessions")]
+    pub max_sessions: usize,
+    /// Session persistence
+    #[serde(default = "default_session_persistence")]
+    pub persistence_enabled: bool,
+}
+
+/// Bootstrap configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BootstrapConfig {
+    /// Bootstrap stages
+    #[serde(default = "default_bootstrap_stages")]
+    pub stages: Vec<String>,
+    /// Stage timeout
+    #[serde(default = "default_bootstrap_stage_timeout")]
+    pub stage_timeout_secs: u64,
+    /// Continue on error
+    #[serde(default = "default_bootstrap_continue_on_error")]
+    pub continue_on_error: bool,
+}
+
+/// CLI connection configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CliConnectionConfig {
+    /// Auto start daemon
+    #[serde(default = "default_auto_start_daemon")]
+    pub auto_start_daemon: bool,
+    /// Connect timeout
+    #[serde(default = "default_connect_timeout")]
+    pub connect_timeout_secs: u64,
+    /// Retry count
+    #[serde(default = "default_retry_count")]
+    pub retry_count: usize,
+}
+
+/// CLI output configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CliOutputConfig {
+    /// Color output
+    #[serde(default = "default_color_output")]
+    pub color: bool,
+    /// Show timestamp
+    #[serde(default = "default_show_timestamp")]
+    pub timestamp: bool,
+    /// Table alignment
+    #[serde(default = "default_table_align")]
+    pub table_align: bool,
+}
+
+/// Services configuration (config/services.yaml)
+///
+/// This consolidates configurations from:
+/// - mcp-client (MCP protocol client)
+/// - report-skill (report generation skill)
+/// - timer-system (scheduled tasks)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServicesConfig {
+    /// MCP client configuration
+    #[serde(default)]
+    pub mcp: McpConfig,
+    /// Report skill configuration
+    #[serde(default)]
+    pub report: ReportConfig,
+    /// Timer system configuration
+    #[serde(default)]
+    pub timer: TimerConfig,
+}
+
+/// MCP client configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpConfig {
+    /// Enable MCP
+    #[serde(default = "default_mcp_enabled")]
+    pub enabled: bool,
+    /// Auto discover servers
+    #[serde(default = "default_mcp_auto_discover")]
+    pub auto_discover: bool,
+    /// Server timeout
+    #[serde(default = "default_mcp_timeout")]
+    pub timeout_secs: u64,
+}
+
+/// Report configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReportConfig {
+    /// Enable reports
+    #[serde(default = "default_reports_enabled")]
+    pub enabled: bool,
+    /// Report schedule
+    #[serde(default = "default_report_schedule")]
+    pub schedule: String,
+    /// Output directory
+    #[serde(default = "default_report_output_dir")]
+    pub output_directory: String,
+}
+
+/// Timer configuration (already exists in TimerSystemConfig but keeping separate for services.yaml)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimerConfig {
+    /// Enable timer
+    #[serde(default = "default_timer_enabled")]
+    pub enabled: bool,
+    /// Max scheduled tasks
+    #[serde(default = "default_max_scheduled_tasks")]
+    pub max_scheduled_tasks: usize,
+}
+
+/// Tools configuration (config/tools.yaml)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolsConfig {
+    /// Built-in tools
+    #[serde(default)]
+    pub builtin: ToolsBuiltinConfig,
+    /// Custom tools
+    #[serde(default)]
+    pub custom: ToolsCustomConfig,
+    /// MCP tools
+    #[serde(default)]
+    pub mcp: ToolsMcpConfig,
+}
+
+/// Built-in tools configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolsBuiltinConfig {
+    /// Enabled built-in tools
+    #[serde(default = "default_builtin_tools")]
+    pub enabled: Vec<String>,
+}
+
+/// Custom tools configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolsCustomConfig {
+    /// Enable custom tools
+    #[serde(default = "default_custom_tools_enabled")]
+    pub enabled: bool,
+    /// Custom tools directory
+    #[serde(default = "default_custom_tools_dir")]
+    pub directory: String,
+}
+
+/// MCP tools configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolsMcpConfig {
+    /// Enable MCP tools
+    #[serde(default = "default_mcp_tools_enabled")]
+    pub enabled: bool,
+    /// Auto discover tools
+    #[serde(default = "default_mcp_tools_auto_discover")]
+    pub auto_discover: bool,
+}
+
+/// Infrastructure configuration (config/infrastructure.yaml)
+///
+/// This consolidates IPC and other infrastructure configurations.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InfrastructureConfig {
+    /// IPC configuration
+    #[serde(default)]
+    pub ipc: IpcConfig,
+}
+
+/// IPC configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IpcConfig {
+    /// IPC mechanism
+    #[serde(default = "default_ipc_mechanism")]
+    pub mechanism: String,
+    /// Buffer size
+    #[serde(default = "default_ipc_buffer_size")]
+    pub buffer_size: usize,
+    /// Timeout
+    #[serde(default = "default_ipc_timeout")]
+    pub timeout_ms: u64,
+}
+
+// ========== Default Functions for Core Config ==========
+
+fn default_command_enabled() -> bool {
+    true
+}
+
+fn default_command_prefix() -> String {
+    "/".to_string()
+}
+
+fn default_command_history() -> usize {
+    1000
+}
+
+fn default_cli_prompt() -> String {
+    "> ".to_string()
+}
+
+fn default_cli_history() -> usize {
+    1000
+}
+
+fn default_cli_history_file() -> String {
+    "~/.knight-agent/.cli_history".to_string()
+}
+
+fn default_auto_start_daemon() -> bool {
+    true
+}
+
+fn default_connect_timeout() -> u64 {
+    30
+}
+
+fn default_retry_count() -> usize {
+    3
+}
+
+fn default_color_output() -> bool {
+    true
+}
+
+fn default_show_timestamp() -> bool {
+    false
+}
+
+fn default_table_align() -> bool {
+    true
+}
+
+fn default_event_queue_size() -> usize {
+    10000
+}
+
+fn default_event_workers() -> usize {
+    4
+}
+
+fn default_event_timeout() -> u64 {
+    5000
+}
+
+fn default_hooks_enabled() -> bool {
+    true
+}
+
+fn default_max_hooks() -> usize {
+    100
+}
+
+fn default_hook_timeout() -> u64 {
+    5000
+}
+
+fn default_max_concurrent_agents() -> usize {
+    10
+}
+
+fn default_agent_orchestration_timeout() -> u64 {
+    300
+}
+
+fn default_load_balancing() -> bool {
+    true
+}
+
+fn default_router_default_route() -> String {
+    "default".to_string()
+}
+
+fn default_routing_strategy() -> String {
+    "round_robin".to_string()
+}
+
+fn default_max_routes() -> usize {
+    100
+}
+
+fn default_session_timeout() -> u64 {
+    3600
+}
+
+fn default_max_sessions() -> usize {
+    10
+}
+
+fn default_session_persistence() -> bool {
+    true
+}
+
+fn default_bootstrap_stages() -> Vec<String> {
+    vec![
+        "config".to_string(),
+        "infrastructure".to_string(),
+        "security".to_string(),
+        "services".to_string(),
+        "core".to_string(),
+        "agent".to_string(),
+        "tools".to_string(),
+        "cli".to_string(),
+    ]
+}
+
+fn default_bootstrap_stage_timeout() -> u64 {
+    30
+}
+
+fn default_bootstrap_continue_on_error() -> bool {
+    false
+}
+
+// ========== Default Functions for Services Config ==========
+
+fn default_mcp_enabled() -> bool {
+    true
+}
+
+fn default_mcp_auto_discover() -> bool {
+    true
+}
+
+fn default_mcp_timeout() -> u64 {
+    30
+}
+
+fn default_reports_enabled() -> bool {
+    false
+}
+
+fn default_report_schedule() -> String {
+    "0 9 * * *".to_string() // Daily at 9 AM
+}
+
+fn default_report_output_dir() -> String {
+    "~/.knight-agent/reports".to_string()
+}
+
+fn default_timer_enabled() -> bool {
+    true
+}
+
+fn default_max_scheduled_tasks() -> usize {
+    1000
+}
+
+// ========== Default Functions for Tools Config ==========
+
+fn default_builtin_tools() -> Vec<String> {
+    vec![
+        "read".to_string(),
+        "write".to_string(),
+        "edit".to_string(),
+        "grep".to_string(),
+        "glob".to_string(),
+        "bash".to_string(),
+        "git".to_string(),
+    ]
+}
+
+fn default_custom_tools_enabled() -> bool {
+    true
+}
+
+fn default_custom_tools_dir() -> String {
+    "./tools".to_string()
+}
+
+fn default_mcp_tools_enabled() -> bool {
+    true
+}
+
+fn default_mcp_tools_auto_discover() -> bool {
+    true
+}
+
+// ========== Default Functions for Infrastructure Config ==========
+
+fn default_ipc_mechanism() -> String {
+    "ipc".to_string()
+}
+
+fn default_ipc_buffer_size() -> usize {
+    65536
+}
+
+fn default_ipc_timeout() -> u64 {
+    5000
+}
+
+// ========== Default Implementations ==========
+
+impl Default for CommandConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_command_enabled(),
+            prefix: default_command_prefix(),
+            max_history: default_command_history(),
+        }
+    }
+}
+
+impl Default for CliConfig {
+    fn default() -> Self {
+        Self {
+            prompt: default_cli_prompt(),
+            history_size: default_cli_history(),
+            history_file: default_cli_history_file(),
+            connection: CliConnectionConfig::default(),
+            output: CliOutputConfig::default(),
+        }
+    }
+}
+
+impl Default for CliConnectionConfig {
+    fn default() -> Self {
+        Self {
+            auto_start_daemon: default_auto_start_daemon(),
+            connect_timeout_secs: default_connect_timeout(),
+            retry_count: default_retry_count(),
+        }
+    }
+}
+
+impl Default for CliOutputConfig {
+    fn default() -> Self {
+        Self {
+            color: default_color_output(),
+            timestamp: default_show_timestamp(),
+            table_align: default_table_align(),
+        }
+    }
+}
+
+impl Default for EventLoopConfig {
+    fn default() -> Self {
+        Self {
+            queue_size: default_event_queue_size(),
+            worker_threads: default_event_workers(),
+            timeout_ms: default_event_timeout(),
+        }
+    }
+}
+
+impl Default for HooksConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_hooks_enabled(),
+            max_hooks: default_max_hooks(),
+            timeout_ms: default_hook_timeout(),
+        }
+    }
+}
+
+impl Default for OrchestratorConfig {
+    fn default() -> Self {
+        Self {
+            max_concurrent_agents: default_max_concurrent_agents(),
+            agent_timeout_secs: default_agent_orchestration_timeout(),
+            load_balancing: default_load_balancing(),
+        }
+    }
+}
+
+impl Default for RouterConfig {
+    fn default() -> Self {
+        Self {
+            default_route: default_router_default_route(),
+            routing_strategy: default_routing_strategy(),
+            max_routes: default_max_routes(),
+        }
+    }
+}
+
+impl Default for SessionConfig {
+    fn default() -> Self {
+        Self {
+            timeout_secs: default_session_timeout(),
+            max_sessions: default_max_sessions(),
+            persistence_enabled: default_session_persistence(),
+        }
+    }
+}
+
+impl Default for BootstrapConfig {
+    fn default() -> Self {
+        Self {
+            stages: default_bootstrap_stages(),
+            stage_timeout_secs: default_bootstrap_stage_timeout(),
+            continue_on_error: default_bootstrap_continue_on_error(),
+        }
+    }
+}
+
+impl Default for CoreConfig {
+    fn default() -> Self {
+        Self {
+            command: CommandConfig::default(),
+            cli: CliConfig::default(),
+            event_loop: EventLoopConfig::default(),
+            hooks: HooksConfig::default(),
+            orchestrator: OrchestratorConfig::default(),
+            router: RouterConfig::default(),
+            session: SessionConfig::default(),
+            bootstrap: BootstrapConfig::default(),
+        }
+    }
+}
+
+impl Default for McpConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_mcp_enabled(),
+            auto_discover: default_mcp_auto_discover(),
+            timeout_secs: default_mcp_timeout(),
+        }
+    }
+}
+
+impl Default for ReportConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_reports_enabled(),
+            schedule: default_report_schedule(),
+            output_directory: default_report_output_dir(),
+        }
+    }
+}
+
+impl Default for TimerConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_timer_enabled(),
+            max_scheduled_tasks: default_max_scheduled_tasks(),
+        }
+    }
+}
+
+impl Default for ServicesConfig {
+    fn default() -> Self {
+        Self {
+            mcp: McpConfig::default(),
+            report: ReportConfig::default(),
+            timer: TimerConfig::default(),
+        }
+    }
+}
+
+impl Default for ToolsBuiltinConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_builtin_tools(),
+        }
+    }
+}
+
+impl Default for ToolsCustomConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_custom_tools_enabled(),
+            directory: default_custom_tools_dir(),
+        }
+    }
+}
+
+impl Default for ToolsMcpConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_mcp_tools_enabled(),
+            auto_discover: default_mcp_tools_auto_discover(),
+        }
+    }
+}
+
+impl Default for ToolsConfig {
+    fn default() -> Self {
+        Self {
+            builtin: ToolsBuiltinConfig::default(),
+            custom: ToolsCustomConfig::default(),
+            mcp: ToolsMcpConfig::default(),
+        }
+    }
+}
+
+impl Default for IpcConfig {
+    fn default() -> Self {
+        Self {
+            mechanism: default_ipc_mechanism(),
+            buffer_size: default_ipc_buffer_size(),
+            timeout_ms: default_ipc_timeout(),
+        }
+    }
+}
+
+impl Default for InfrastructureConfig {
+    fn default() -> Self {
+        Self {
+            ipc: IpcConfig::default(),
+        }
+    }
+}

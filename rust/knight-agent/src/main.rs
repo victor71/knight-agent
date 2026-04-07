@@ -324,9 +324,13 @@ fn display_banner(version: &str, config_dir: &Path) {
     println!();
     println!("Configuration:");
     println!("  Config dir: {}", config_dir.display());
-    println!("    - knight.json    (LLM providers)");
+    println!("    - knight.json        (LLM providers)");
     println!("    - config/");
-    println!("      - agent.yaml      (runtime + skill + task + workflow)");
+    println!("      - agent.yaml       (agent modules)");
+    println!("      - core.yaml        (core modules)");
+    println!("      - services.yaml    (services)");
+    println!("      - tools.yaml       (tool system)");
+    println!("      - infrastructure.yaml");
     println!("      - storage.yaml");
     println!("      - security.yaml");
     println!("      - logging.yaml");
