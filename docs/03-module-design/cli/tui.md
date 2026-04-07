@@ -2,7 +2,7 @@
 
 ## 概述
 
-TUI (Terminal User Interface) 模块提供类似 Claude Code 的交互式终端用户界面，作为 REPL 的增强版本。
+TUI (Terminal User Interface) 模块提供的交互式终端用户界面，作为 REPL 的增强版本。
 
 ## 职责描述
 

@@ -20,7 +20,7 @@ pub use state::{
 };
 
 use anyhow::Result;
-use crossterm::event::{self as crossterm_event, Event, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{self as crossterm_event, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use widgets::*;
@@ -80,7 +80,11 @@ impl TuiApp {
             let timeout = self.tick_rate.saturating_sub(last_tick.elapsed());
             if crossterm_event::poll(timeout)? {
                 if let Event::Key(key) = crossterm_event::read()? {
-                    self.handle_key_event(key)?;
+                    // On Windows, crossterm sends both Press and Release events.
+                    // Only handle Press to avoid processing each key twice.
+                    if key.kind == KeyEventKind::Press {
+                        self.handle_key_event(key)?;
+                    }
                 }
             }
 
@@ -199,15 +203,25 @@ impl TuiApp {
             (KeyCode::Esc, KeyModifiers::NONE) => {
                 self.state.close_popup();
             }
-            // Text input
+            // Text input - insert at cursor position
             (KeyCode::Char(c), KeyModifiers::NONE) => {
-                self.state.input_buffer.push(c);
-                self.state.cursor_position = self.state.input_buffer.chars().count();
+                let chars: Vec<char> = self.state.input_buffer.chars().collect();
+                let pos = self.state.cursor_position.min(chars.len());
+                let mut new_chars = chars;
+                new_chars.insert(pos, c);
+                self.state.input_buffer = new_chars.iter().collect();
+                self.state.cursor_position = pos + 1;
             }
             (KeyCode::Backspace, KeyModifiers::NONE) => {
-                if !self.state.input_buffer.is_empty() {
-                    self.state.input_buffer.pop();
-                    self.state.cursor_position = self.state.cursor_position.saturating_sub(1);
+                if self.state.cursor_position > 0 {
+                    let chars: Vec<char> = self.state.input_buffer.chars().collect();
+                    let pos = self.state.cursor_position;
+                    if pos > 0 {
+                        let mut new_chars = chars;
+                        new_chars.remove(pos - 1);
+                        self.state.input_buffer = new_chars.iter().collect();
+                        self.state.cursor_position = pos - 1;
+                    }
                 }
             }
             (KeyCode::Left, KeyModifiers::NONE) => {

@@ -201,13 +201,23 @@ impl TuiTestHarness {
                 self.state.close_popup();
             }
             (KeyCode::Char(c), KeyModifiers::NONE) => {
-                self.state.input_buffer.push(c);
-                self.state.cursor_position = self.state.input_buffer.chars().count();
+                let chars: Vec<char> = self.state.input_buffer.chars().collect();
+                let pos = self.state.cursor_position.min(chars.len());
+                let mut new_chars = chars;
+                new_chars.insert(pos, c);
+                self.state.input_buffer = new_chars.iter().collect();
+                self.state.cursor_position = pos + 1;
             }
             (KeyCode::Backspace, KeyModifiers::NONE) => {
-                if !self.state.input_buffer.is_empty() {
-                    self.state.input_buffer.pop();
-                    self.state.cursor_position = self.state.cursor_position.saturating_sub(1);
+                if self.state.cursor_position > 0 {
+                    let chars: Vec<char> = self.state.input_buffer.chars().collect();
+                    let pos = self.state.cursor_position;
+                    if pos > 0 {
+                        let mut new_chars = chars;
+                        new_chars.remove(pos - 1);
+                        self.state.input_buffer = new_chars.iter().collect();
+                        self.state.cursor_position = pos - 1;
+                    }
                 }
             }
             (KeyCode::Left, KeyModifiers::NONE) => {
@@ -449,5 +459,72 @@ mod tests {
 
         // /quit is recognized but handled specially
         assert!(h.output_contains("/quit"));
+    }
+
+    #[test]
+    fn test_input_output_consistency_ascii() {
+        let mut h = TuiTestHarness::new();
+        h.type_text("hello");
+        h.press_enter();
+
+        // Output should contain the exact input
+        assert!(h.output_contains("hello"), "Output should contain 'hello'");
+        // Should not contain any extra duplicates
+        assert_eq!(
+            h.output_lines().iter().filter(|l| l.content == "hello".to_string()).count(),
+            1,
+            "Should have exactly one 'hello' line"
+        );
+    }
+
+    #[test]
+    fn test_input_output_consistency_chinese() {
+        let mut h = TuiTestHarness::new();
+        h.type_text("你好世界");
+        h.press_enter();
+
+        // Output should contain the exact Chinese input
+        assert!(h.output_contains("你好世界"), "Output should contain '你好世界'");
+        // Should not contain duplicated characters like "你好好世界世界"
+        assert_eq!(
+            h.output_lines().iter().filter(|l| l.content == "你好世界".to_string()).count(),
+            1,
+            "Should have exactly one '你好世界' line"
+        );
+    }
+
+    #[test]
+    fn test_input_output_consistency_mixed() {
+        let mut h = TuiTestHarness::new();
+        h.type_text("hello你好world");
+        h.press_enter();
+
+        // Output should contain exact input
+        assert!(h.output_contains("hello你好world"), "Output should contain mixed text");
+        // Check no duplication - count occurrences of "hello你好world"
+        assert_eq!(
+            h.output_lines().iter().filter(|l| l.content == "hello你好world".to_string()).count(),
+            1,
+            "Should have exactly one 'hello你好world' line"
+        );
+    }
+
+    #[test]
+    fn test_no_character_duplication_in_output() {
+        let mut h = TuiTestHarness::new();
+
+        // Type text with potential problematic patterns
+        h.type_text("aa");
+        h.press_enter();
+        assert!(h.output_contains("aa"));
+        // Should only have one "aa", not "aaaa"
+
+        h.type_text("对对");
+        h.press_enter();
+        // Should have exactly one "对对", not "对对对对"
+        let count = h.output_lines().iter()
+            .filter(|l| l.content == "对对".to_string())
+            .count();
+        assert_eq!(count, 1, "Should not have duplicated characters");
     }
 }

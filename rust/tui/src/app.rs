@@ -41,7 +41,7 @@ pub struct AppState {
 
     // Session metrics
     pub session_token_usage: SessionTokenUsage,
-    pub context_compression_status: ContextCompressionStatus,
+    pub context_compression_status: Option<ContextCompressionStatus>,
 
     // Channels
     pub event_tx: mpsc::UnboundedSender<AppEvent>,
@@ -79,7 +79,7 @@ impl AppState {
             current_task_start: None,
             current_task_duration: None,
             session_token_usage: SessionTokenUsage::new(0, 200_000),
-            context_compression_status: ContextCompressionStatus::new(0, 25 * 1024 * 1024),
+            context_compression_status: None,
             event_tx,
             current_time: Local::now(),
         }
@@ -128,7 +128,7 @@ impl AppState {
                 self.session_token_usage = usage.clone();
             }
             AppEvent::ContextCompressionUpdate(status) => {
-                self.context_compression_status = status.clone();
+                self.context_compression_status = Some(status.clone());
             }
             _ => {}
         }

@@ -111,16 +111,13 @@ pub fn render_status(f: &mut Frame, area: ratatui::layout::Rect, app: &AppState)
         Color::Green
     };
 
-    let context_color = match app.context_compression_status.warning_level() {
-        CompressionWarningLevel::Critical => Color::Red,
-        CompressionWarningLevel::Warning => Color::Yellow,
-        CompressionWarningLevel::Normal => Color::Green,
-    };
-
-    let compression_warning = match app.context_compression_status.warning_level() {
-        CompressionWarningLevel::Critical => "🔴",
-        CompressionWarningLevel::Warning => "⚠️ ",
-        CompressionWarningLevel::Normal => "",
+    let context_color = match &app.context_compression_status {
+        Some(status) => match status.warning_level() {
+            CompressionWarningLevel::Critical => Color::Red,
+            CompressionWarningLevel::Warning => Color::Yellow,
+            CompressionWarningLevel::Normal => Color::Green,
+        },
+        None => Color::DarkGray,
     };
 
     let metrics_info = vec![
@@ -141,22 +138,26 @@ pub fn render_status(f: &mut Frame, area: ratatui::layout::Rect, app: &AppState)
         ]),
         Line::from(vec![
             Span::styled("Context: ", Style::default().fg(Color::Gray)),
-            Span::styled(
-                AppState::format_bytes(app.context_compression_status.current_size),
-                Style::default().fg(context_color),
-            ),
-            Span::styled(
-                format!("/{} ", AppState::format_bytes(app.context_compression_status.threshold)),
-                Style::default().fg(Color::DarkGray),
-            ),
-            Span::styled(
-                format!("({:.0}%)", app.context_compression_status.percentage),
-                Style::default().fg(context_color),
-            ),
-            Span::styled(
-                compression_warning,
-                Style::default().fg(context_color),
-            ),
+            match &app.context_compression_status {
+                Some(status) => {
+                    let warning = match status.warning_level() {
+                        CompressionWarningLevel::Critical => "🔴",
+                        CompressionWarningLevel::Warning => "⚠️ ",
+                        CompressionWarningLevel::Normal => "",
+                    };
+                    Span::styled(
+                        format!(
+                            "{}/{} ({:.0}%){}",
+                            AppState::format_bytes(status.current_size),
+                            AppState::format_bytes(status.threshold),
+                            status.percentage,
+                            warning,
+                        ),
+                        Style::default().fg(context_color),
+                    )
+                }
+                None => Span::styled("N/A", Style::default().fg(Color::DarkGray)),
+            },
         ]),
     ];
 
