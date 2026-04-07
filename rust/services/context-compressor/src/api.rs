@@ -1,5 +1,6 @@
 //! Context compressor trait definition
 
+use async_trait::async_trait;
 use crate::error::ContextCompressorResult;
 use crate::types::{
     CompressionConfig, CompressionJob, CompressionOptions, CompressionPoint,
@@ -8,6 +9,7 @@ use crate::types::{
 };
 
 /// Context compressor trait
+#[async_trait]
 pub trait ContextCompressor: Send + Sync {
     fn new() -> Result<Self, ContextCompressorError>
     where

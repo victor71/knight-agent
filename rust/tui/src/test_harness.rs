@@ -37,7 +37,6 @@ use tokio::sync::mpsc;
 /// without requiring a real terminal or integration test infrastructure.
 pub struct TuiTestHarness {
     state: AppState,
-    event_tx: mpsc::UnboundedSender<AppEvent>,
     /// Events that were sent during the test
     sent_events: Mutex<Vec<AppEvent>>,
 }
@@ -46,10 +45,9 @@ impl TuiTestHarness {
     /// Create a new test harness
     pub fn new() -> Self {
         let (tx, _rx) = mpsc::unbounded_channel();
-        let state = AppState::new(tx.clone());
+        let state = AppState::new(tx);
         Self {
             state,
-            event_tx: tx,
             sent_events: Mutex::new(Vec::new()),
         }
     }

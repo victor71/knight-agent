@@ -1,5 +1,6 @@
 //! Context compressor implementation
 
+use async_trait::async_trait;
 use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -250,6 +251,7 @@ impl Default for ContextCompressorImpl {
     }
 }
 
+#[async_trait]
 impl ContextCompressor for ContextCompressorImpl {
     fn new() -> Result<Self, ContextCompressorError> {
         Ok(Self::new())

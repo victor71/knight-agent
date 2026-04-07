@@ -20,17 +20,16 @@ const CONFIG_DIR: &str = ".knight-agent";
 struct AppState {
     system: KnightAgentSystem,
     cli: Arc<CliImpl>,
-    config_loader: Arc<ConfigLoader>,
 }
 
 impl AppState {
-    async fn new(config_loader: Arc<ConfigLoader>) -> Result<Self> {
+    async fn new() -> Result<Self> {
         let config = BootstrapConfig::default();
         let system = KnightAgentSystem::with_config(config);
         let cli = CliImpl::new()
             .context("Failed to create CLI")?;
 
-        Ok(Self { system, cli: Arc::new(cli), config_loader })
+        Ok(Self { system, cli: Arc::new(cli) })
     }
 }
 
@@ -433,7 +432,7 @@ async fn main() -> Result<()> {
     info!("Max log file size: {} MB", logging_config.max_file_size_mb);
 
     // Initialize system
-    let state = AppState::new(config_loader.clone()).await?;
+    let state = AppState::new().await?;
 
     // Bootstrap the system through all 8 stages
     info!("Initializing system (8-stage bootstrap)...");
