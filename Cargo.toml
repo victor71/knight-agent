@@ -4,7 +4,7 @@ members = [
     # Shared Libraries
     "rust/configuration",
     # Binary
-    "rust/knight-agent",
+    "rust/entrance",
     # CLI (1)
     "rust/cli",
     "rust/tui",
