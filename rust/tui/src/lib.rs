@@ -23,6 +23,7 @@ use anyhow::Result;
 use crossterm::event::{self as crossterm_event, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
+use tracing::info;
 use widgets::*;
 
 /// Main TUI application
@@ -176,16 +177,19 @@ impl TuiApp {
                     // Submit input
                     if !self.state.input_buffer.is_empty() {
                         let input = self.state.input_buffer.clone();
+                        info!("TUI: User submitted input: \"{}\"", input);
                         self.state.input_buffer.clear();
                         self.state.cursor_position = 0;
 
                         if self.state.processing_state.is_processing {
                             // Already processing - queue the input
+                            info!("TUI: Currently processing, queueing input. Queue size: {}", self.state.processing_state.input_queue.len() + 1);
                             self.state.processing_state.input_queue.push(input);
                         } else {
                             // Start processing - add to queue and start processing
                             self.state.processing_state.input_queue.push(input.clone());
                             self.state.processing_state.is_processing = true;
+                            info!("TUI: Starting processing for input: \"{}\"", input);
 
                             // Add user message to output
                             self.state.event_tx.send(AppEvent::OutputLine(

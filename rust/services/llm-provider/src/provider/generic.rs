@@ -9,7 +9,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::llm_trait::{CompletionStream, LLMError, LLMProvider, LLMResult, TokenCount};
 use crate::types::*;
@@ -523,9 +523,20 @@ impl LLMProvider for GenericLLMProvider {
         &self,
         request: ChatCompletionRequest,
     ) -> LLMResult<ChatCompletionResponse> {
+        let model = request.model.clone();
         let url = self.completions_url();
         let body = self.build_request_body(&request);
         let (auth_header, auth_value) = self.auth_header();
+
+        // Log request messages
+        for (i, msg) in request.messages.iter().enumerate() {
+            let role = format!("{:?}", msg.role);
+            let content_str = msg.content.as_ref().map(|c| match c {
+                crate::types::Content::Text(s) => s.clone(),
+                crate::types::Content::Blocks(blocks) => format!("[blocks: {}]", blocks.len()),
+            }).unwrap_or_default();
+            debug!("LLM Request [{}] message[{}]: role={}, content=\"{}\"", model, i, role, content_str);
+        }
 
         let start = Instant::now();
 
@@ -579,16 +590,37 @@ impl LLMProvider for GenericLLMProvider {
             LLMError::InferenceFailed(format!("failed to parse response: {}", e))
         })?;
 
-        self.parse_response(data)
+        let result = self.parse_response(data)?;
+
+        // Log response
+        if let Some(content) = &result.content {
+            debug!("LLM Response [{}]: content=\"{}\"", model, content);
+        }
+
+        Ok(result)
     }
 
     async fn stream_completion(
         &self,
         request: ChatCompletionRequest,
     ) -> LLMResult<CompletionStream> {
+        let model = request.model.clone();
+
+        // Log streaming request messages
+        for (i, msg) in request.messages.iter().enumerate() {
+            let role = format!("{:?}", msg.role);
+            let content_str = msg.content.as_ref().map(|c| match c {
+                crate::types::Content::Text(s) => s.clone(),
+                crate::types::Content::Blocks(blocks) => format!("[blocks: {}]", blocks.len()),
+            }).unwrap_or_default();
+            debug!("LLM Stream Request [{}] message[{}]: role={}, content=\"{}\"", model, i, role, content_str);
+        }
+
         let url = self.completions_url();
         let body = self.build_request_body(&request);
         let (auth_header, auth_value) = self.auth_header();
+
+        info!("LLM streaming request starting for model: {}", model);
 
         let mut req_builder = self.client.post(&url);
         req_builder = req_builder
