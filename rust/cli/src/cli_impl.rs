@@ -1,12 +1,13 @@
 //! CLI implementation
 
 use std::sync::Arc;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::RwLock;
 
 use crate::error::{CliError, CliResult};
 use crate::r#trait::Cli;
 use crate::repl::CliRepl;
 use crate::types::DaemonAction;
+use tui::event::SystemStatusSnapshot;
 
 /// CLI implementation
 #[derive(Clone)]
@@ -69,16 +70,13 @@ impl Cli for CliImpl {
         self.repl.run().await
     }
 
-    async fn run_tui(&self) -> CliResult<()> {
+    async fn run_tui(&self, initial_status: Option<SystemStatusSnapshot>) -> CliResult<()> {
         if !self.is_initialized() {
             return Err(CliError::NotInitialized);
         }
 
-        // Create event channel for TUI
-        let (event_tx, _event_rx) = mpsc::unbounded_channel();
-
-        // Run the TUI
-        tui::run_tui(event_tx)
+        // Run the TUI with initial status
+        tui::run_tui(initial_status)
             .await
             .map_err(|e| CliError::Other(e.to_string()))?;
 

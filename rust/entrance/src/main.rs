@@ -3,15 +3,17 @@
 //! This binary initializes and runs the Knight Agent system.
 
 use anyhow::{Context, Result};
-use bootstrap::{BootstrapConfig, KnightAgentSystem};
+use bootstrap::{BootstrapConfig, KnightAgentSystem, BootstrapStage};
 use cli::{Cli, CliImpl};
 use configuration::{ConfigLoader, LoggingConfig};
 use std::io::Write as IoWrite;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tracing::{info, warn, Level};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::FmtSpan;
+use tui::event::{SystemHealth, SystemStatusSnapshot};
 
 /// Default configuration directory name
 const CONFIG_DIR: &str = ".knight-agent";
@@ -460,7 +462,22 @@ async fn main() -> Result<()> {
 
     if use_tui {
         info!("Starting TUI...");
-        state.cli.run_tui().await?;
+
+        // Create initial system status snapshot for TUI
+        let stage_name = BootstrapStage::from_u8(status.stage)
+            .map(|s| s.name().to_string())
+            .unwrap_or_else(|| "Unknown".to_string());
+        let initial_status = SystemStatusSnapshot {
+            system_status: if status.ready { SystemHealth::Healthy } else { SystemHealth::Degraded },
+            stage: stage_name,
+            module_count: status.module_count,
+            initialized_count: status.initialized_count,
+            uptime: Duration::ZERO,
+            cpu_usage: 0.0,
+            memory_usage: 0,
+        };
+
+        state.cli.run_tui(Some(initial_status)).await?;
     } else {
         // Run CLI REPL (fallback)
         display_banner(&state.system.version().version, &config_dir);

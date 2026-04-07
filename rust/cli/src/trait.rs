@@ -2,6 +2,7 @@
 
 use crate::error::CliResult;
 use crate::types::DaemonAction;
+use tui::event::SystemStatusSnapshot;
 
 /// CLI trait
 #[async_trait::async_trait]
@@ -24,7 +25,7 @@ pub trait Cli: Send + Sync {
     async fn run_repl(&self) -> CliResult<()>;
 
     /// Run the TUI (Terminal User Interface)
-    async fn run_tui(&self) -> CliResult<()>;
+    async fn run_tui(&self, initial_status: Option<SystemStatusSnapshot>) -> CliResult<()>;
 
     /// Execute a daemon action
     async fn daemon_action(&self, action: DaemonAction) -> CliResult<()>;

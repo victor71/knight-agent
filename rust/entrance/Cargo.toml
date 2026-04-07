@@ -13,6 +13,9 @@ bootstrap = { path = "../core/bootstrap" }
 # CLI (for REPL)
 cli = { path = "../cli" }
 
+# TUI
+tui = { path = "../tui" }
+
 # Core modules
 event-loop = { path = "../core/event-loop" }
 hook-engine = { path = "../core/hook-engine" }

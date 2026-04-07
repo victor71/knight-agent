@@ -22,6 +22,21 @@ impl BootstrapStage {
         self as u8
     }
 
+    /// Create from stage number (u8)
+    pub fn from_u8(stage: u8) -> Option<Self> {
+        match stage {
+            1 => Some(BootstrapStage::Stage1Infrastructure),
+            2 => Some(BootstrapStage::Stage2SecurityAndStorage),
+            3 => Some(BootstrapStage::Stage3BasicServicesAndEvent),
+            4 => Some(BootstrapStage::Stage4CoreEngineLayer),
+            5 => Some(BootstrapStage::Stage5AgentLayer),
+            6 => Some(BootstrapStage::Stage6Report),
+            7 => Some(BootstrapStage::Stage7ContextCompression),
+            8 => Some(BootstrapStage::Stage8SecurityLayer),
+            _ => None,
+        }
+    }
+
     /// Get stage name
     pub fn name(&self) -> &'static str {
         match self {

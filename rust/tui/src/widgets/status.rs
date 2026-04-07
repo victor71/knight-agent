@@ -51,11 +51,12 @@ pub fn render_status(f: &mut Frame, area: ratatui::layout::Rect, app: &AppState)
         ]),
     ];
 
+    // Left section: System status (no right border - shares with center)
     let system_paragraph = Paragraph::new(system_status)
-        .block(Block::default().borders(Borders::ALL));
+        .block(Block::default().borders(Borders::TOP | Borders::BOTTOM | Borders::LEFT));
     f.render_widget(system_paragraph, chunks.left);
 
-    // Center section: Current task
+    // Center section: Current task (no borders - shares with left and right)
     let current_task = app.tasks.iter().find(|t| matches!(t.status, crate::state::TaskStatus::Running));
 
     let task_info = if let Some(task) = current_task {
@@ -98,11 +99,11 @@ pub fn render_status(f: &mut Frame, area: ratatui::layout::Rect, app: &AppState)
     };
 
     let task_paragraph = Paragraph::new(task_info)
-        .block(Block::default().borders(Borders::ALL))
+        .block(Block::default().borders(Borders::TOP | Borders::BOTTOM))
         .alignment(Alignment::Center);
     f.render_widget(task_paragraph, chunks.center);
 
-    // Right section: Session metrics (token usage + context compression)
+    // Right section: Session metrics
     let metrics_info = vec![
         Line::from(vec![
             Span::styled("Tokens: ", Style::default().fg(Color::Gray)),
@@ -142,7 +143,7 @@ pub fn render_status(f: &mut Frame, area: ratatui::layout::Rect, app: &AppState)
     ];
 
     let metrics_paragraph = Paragraph::new(metrics_info)
-        .block(Block::default().borders(Borders::ALL))
+        .block(Block::default().borders(Borders::TOP | Borders::BOTTOM | Borders::RIGHT))
         .alignment(Alignment::Right);
     f.render_widget(metrics_paragraph, chunks.right);
 }
