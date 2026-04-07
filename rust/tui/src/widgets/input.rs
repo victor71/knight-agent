@@ -12,31 +12,29 @@ use ratatui::{
 
 /// Render the input widget
 pub fn render_input(f: &mut Frame, area: ratatui::layout::Rect, app: &AppState) {
-    // Create spans with cursor
-    let mut spans = vec![
-        Span::styled("knight", Style::default().fg(Color::Cyan)),
-        Span::styled("> ", Style::default().fg(Color::Cyan)),
-    ];
-
-    // Use char indices to properly handle multi-byte UTF-8 characters (like Chinese)
     let char_count = app.input_buffer.chars().count();
-    let cursor_char_index = app.cursor_position.min(char_count);
 
-    // Collect chars before cursor
-    let text_before_cursor: String = app.input_buffer.chars().take(cursor_char_index).collect();
-    spans.push(Span::styled(text_before_cursor, Style::default().fg(Color::White)));
+    // Build content: prompt + text with cursor as block character
+    let mut content = String::new();
 
-    // Cursor character with inverted colors (block cursor style)
-    let cursor_char = app.input_buffer.chars().nth(cursor_char_index).unwrap_or(' ');
-    spans.push(Span::styled(cursor_char.to_string(), Style::default()
-        .fg(Color::Black)
-        .bg(Color::White)));
+    // Add prompt
+    content.push_str("knight> ");
 
-    // Text after cursor
-    let text_after_cursor: String = app.input_buffer.chars().skip(cursor_char_index + 1).collect();
-    spans.push(Span::styled(text_after_cursor, Style::default().fg(Color::White)));
+    // Add characters before cursor
+    for (i, c) in app.input_buffer.chars().enumerate() {
+        if i == app.cursor_position {
+            // Insert cursor before this character
+            content.push('█');
+        }
+        content.push(c);
+    }
 
-    let line = Line::from(spans);
+    // If cursor is at end, add cursor there
+    if app.cursor_position >= char_count {
+        content.push('█');
+    }
+
+    let line = Line::from(vec![Span::raw(content)]);
     let paragraph = Paragraph::new(vec![line])
         .block(Block::default()
             .title("Input")
