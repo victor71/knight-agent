@@ -2,7 +2,7 @@
 //!
 //! Tests for text input handling including ASCII and UTF-8 (Chinese) characters.
 
-use tui::{AppState, AppEvent, PopupType};
+use tui::{AppState, PopupType};
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
 use tokio::sync::mpsc;
 
@@ -17,10 +17,9 @@ fn make_key(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
 }
 
 /// Helper to create AppState for testing
-fn make_test_state() -> (AppState, mpsc::UnboundedReceiver<AppEvent>) {
+fn make_test_state() -> AppState {
     let (tx, rx) = mpsc::unbounded_channel();
-    let state = AppState::new(tx);
-    (state, rx)
+    AppState::new(tx, rx)
 }
 
 /// Simulates the input handling logic from TuiApp
@@ -81,7 +80,7 @@ fn handle_key(state: &mut AppState, key: KeyEvent) {
 
 #[test]
 fn test_ascii_text_input() {
-    let (mut state, _rx) = make_test_state();
+    let mut state = make_test_state();
 
     // Type "hello"
     handle_key(&mut state, make_key(KeyCode::Char('h'), KeyModifiers::NONE));
@@ -96,7 +95,7 @@ fn test_ascii_text_input() {
 
 #[test]
 fn test_chinese_text_input() {
-    let (mut state, _rx) = make_test_state();
+    let mut state = make_test_state();
 
     // Type "你好" (2 Chinese characters)
     handle_key(&mut state, make_key(KeyCode::Char('你'), KeyModifiers::NONE));
@@ -108,7 +107,7 @@ fn test_chinese_text_input() {
 
 #[test]
 fn test_mixed_chinese_and_ascii() {
-    let (mut state, _rx) = make_test_state();
+    let mut state = make_test_state();
 
     // Type "hello你好"
     handle_key(&mut state, make_key(KeyCode::Char('h'), KeyModifiers::NONE));
@@ -125,7 +124,7 @@ fn test_mixed_chinese_and_ascii() {
 
 #[test]
 fn test_backspace() {
-    let (mut state, _rx) = make_test_state();
+    let mut state = make_test_state();
 
     // Type "hello" then backspace twice
     handle_key(&mut state, make_key(KeyCode::Char('h'), KeyModifiers::NONE));
@@ -142,7 +141,7 @@ fn test_backspace() {
 
 #[test]
 fn test_chinese_backspace() {
-    let (mut state, _rx) = make_test_state();
+    let mut state = make_test_state();
 
     // Type "你好" then backspace once
     handle_key(&mut state, make_key(KeyCode::Char('你'), KeyModifiers::NONE));
@@ -155,7 +154,7 @@ fn test_chinese_backspace() {
 
 #[test]
 fn test_backspace_at_start() {
-    let (mut state, _rx) = make_test_state();
+    let mut state = make_test_state();
 
     // Type "hi" then backspace when cursor at start
     // Current simplified model: backspace deletes last char regardless of cursor
@@ -173,7 +172,7 @@ fn test_backspace_at_start() {
 
 #[test]
 fn test_cursor_left_right() {
-    let (mut state, _rx) = make_test_state();
+    let mut state = make_test_state();
 
     // Type "hello"
     handle_key(&mut state, make_key(KeyCode::Char('h'), KeyModifiers::NONE));
@@ -196,7 +195,7 @@ fn test_cursor_left_right() {
 
 #[test]
 fn test_cursor_left_at_start() {
-    let (mut state, _rx) = make_test_state();
+    let mut state = make_test_state();
 
     handle_key(&mut state, make_key(KeyCode::Char('a'), KeyModifiers::NONE));
     handle_key(&mut state, make_key(KeyCode::Char('b'), KeyModifiers::NONE));
@@ -211,7 +210,7 @@ fn test_cursor_left_at_start() {
 
 #[test]
 fn test_cursor_right_at_end() {
-    let (mut state, _rx) = make_test_state();
+    let mut state = make_test_state();
 
     handle_key(&mut state, make_key(KeyCode::Char('a'), KeyModifiers::NONE));
     handle_key(&mut state, make_key(KeyCode::Char('b'), KeyModifiers::NONE));
@@ -225,7 +224,7 @@ fn test_cursor_right_at_end() {
 
 #[test]
 fn test_chinese_cursor_navigation() {
-    let (mut state, _rx) = make_test_state();
+    let mut state = make_test_state();
 
     // Type "你好世界"
     handle_key(&mut state, make_key(KeyCode::Char('你'), KeyModifiers::NONE));
@@ -249,7 +248,7 @@ fn test_chinese_cursor_navigation() {
 
 #[test]
 fn test_popup_toggle() {
-    let (mut state, _rx) = make_test_state();
+    let mut state = make_test_state();
 
     assert_eq!(state.active_popup, None);
 
@@ -271,7 +270,7 @@ fn test_popup_navigation() {
     use tui::SessionListItem;
     use chrono::Local;
 
-    let (mut state, _rx) = make_test_state();
+    let mut state = make_test_state();
 
     // Add some sessions
     state.sessions = vec![
@@ -319,7 +318,7 @@ fn test_popup_navigation() {
 
 #[test]
 fn test_long_chinese_text() {
-    let (mut state, _rx) = make_test_state();
+    let mut state = make_test_state();
 
     // Type a long Chinese sentence
     let chinese_text = "锄禾日当午汗滴禾下土谁知盘中餐粒粒皆辛苦";
@@ -333,7 +332,7 @@ fn test_long_chinese_text() {
 
 #[test]
 fn test_quit_command() {
-    let (mut state, _rx) = make_test_state();
+    let mut state = make_test_state();
 
     // Type /quit
     handle_key(&mut state, make_key(KeyCode::Char('/'), KeyModifiers::NONE));
@@ -348,7 +347,7 @@ fn test_quit_command() {
 
 #[test]
 fn test_input_buffer_clear_on_submit() {
-    let (mut state, _rx) = make_test_state();
+    let mut state = make_test_state();
 
     // Type something
     handle_key(&mut state, make_key(KeyCode::Char('h'), KeyModifiers::NONE));
@@ -366,7 +365,7 @@ fn test_input_buffer_clear_on_submit() {
 
 #[test]
 fn test_zero_width_characters() {
-    let (mut state, _rx) = make_test_state();
+    let mut state = make_test_state();
 
     // Test combining characters (zero-width joiner examples)
     // Chinese punctuation that might cause issues

@@ -21,7 +21,7 @@ pub fn render_main_output(f: &mut Frame, area: ratatui::layout::Rect, app: &AppS
     }
 
     // If no output, show placeholder
-    if lines.is_empty() {
+    if lines.is_empty() && !app.processing_state.is_processing {
         lines.push(Line::from(vec![
             Span::styled(
                 "Knight Agent TUI",
@@ -32,6 +32,21 @@ pub fn render_main_output(f: &mut Frame, area: ratatui::layout::Rect, app: &AppS
                 "Type a message or command to get started",
                 Style::default().fg(Color::DarkGray),
             ),
+        ]));
+    }
+
+    // Add processing animation if active
+    if let Some(spinner) = app.get_processing_animation() {
+        // Count queued inputs if any
+        let queue_info = if app.processing_state.input_queue.len() > 1 {
+            format!(" ({} queued)", app.processing_state.input_queue.len())
+        } else {
+            String::new()
+        };
+        lines.push(Line::from(vec![
+            Span::styled(spinner, Style::default().fg(Color::Cyan)),
+            Span::styled(" Processing...", Style::default().fg(Color::Gray)),
+            Span::styled(queue_info, Style::default().fg(Color::DarkGray)),
         ]));
     }
 
@@ -133,6 +148,13 @@ fn style_output_line(output_line: &crate::state::OutputLine) -> Line<'_> {
             Span::styled(status, Style::default()),
             Span::styled(" ", Style::default()),
             Span::styled(output_line.content.clone(), Style::default().fg(Color::Gray)),
+        ]),
+        OutputStyle::Processing => Line::from(vec![
+            Span::styled(
+                format!("{} ", output_line.timestamp.format("%H:%M:%S")),
+                Style::default().fg(Color::DarkGray),
+            ),
+            Span::styled(output_line.content.clone(), Style::default().fg(Color::Cyan)),
         ]),
     }
 }

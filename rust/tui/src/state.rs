@@ -113,6 +113,77 @@ pub enum OutputStyle {
     Error,
     Code(String),  // language
     Status(String), // emoji/status text
+    Processing,      // animated processing indicator
+}
+
+/// Processing state for input queue
+#[derive(Debug, Clone)]
+pub struct ProcessingState {
+    pub is_processing: bool,
+    pub input_queue: Vec<String>,
+}
+
+impl Default for ProcessingState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ProcessingState {
+    pub fn new() -> Self {
+        Self {
+            is_processing: false,
+            input_queue: Vec::new(),
+        }
+    }
+
+    /// Start processing - queue the input if not empty
+    pub fn start_processing(&mut self, input: String) {
+        if self.is_processing {
+            // Queue the input if we're already processing
+            if !input.is_empty() {
+                self.input_queue.push(input);
+            }
+        } else {
+            // Start processing immediately
+            self.is_processing = true;
+            if !input.is_empty() {
+                self.input_queue.push(input);
+            }
+        }
+    }
+
+    /// Get the next queued input (does not start processing)
+    pub fn peek_next(&self) -> Option<String> {
+        self.input_queue.first().cloned()
+    }
+
+    /// Pop the next queued input and start processing
+    pub fn pop_next(&mut self) -> Option<String> {
+        if self.input_queue.is_empty() {
+            self.is_processing = false;
+            None
+        } else {
+            self.input_queue.remove(0);
+            Some(self.input_queue.first().cloned().unwrap_or_default())
+        }
+    }
+
+    /// Finish current processing and optionally start next
+    pub fn finish_processing(&mut self) {
+        if !self.input_queue.is_empty() {
+            self.input_queue.remove(0);
+        }
+        if self.input_queue.is_empty() {
+            self.is_processing = false;
+        }
+    }
+
+    /// Clear all queued inputs
+    pub fn clear_queue(&mut self) {
+        self.input_queue.clear();
+        self.is_processing = false;
+    }
 }
 
 /// Project info

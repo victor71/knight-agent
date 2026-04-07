@@ -3,7 +3,7 @@
 //! Terminal User Interface for Knight Agent.
 
 mod app;
-mod event;
+pub mod event;
 mod layout;
 mod renderer;
 mod state;
@@ -12,7 +12,7 @@ pub mod widgets;
 pub mod test_harness;
 
 pub use app::{AppState, PopupType};
-pub use event::{AppEvent, EventHandler};
+pub use event::{AppEvent, SystemStatusSnapshot};
 pub use renderer::AppTerminal;
 pub use state::{
     CompressionWarningLevel, ContextCompressionStatus, OutputLine, OutputStyle,
@@ -29,16 +29,17 @@ use widgets::*;
 pub struct TuiApp {
     state: AppState,
     terminal: AppTerminal,
-    event_handler: EventHandler,
     tick_rate: Duration,
 }
 
 impl TuiApp {
     /// Create a new TUI application
-    pub fn new(event_tx: mpsc::UnboundedSender<AppEvent>) -> Result<Self> {
+    pub fn new() -> Result<Self> {
         let terminal = AppTerminal::new()?;
-        let state = AppState::new(event_tx.clone());
-        let (_, event_handler) = EventHandler::new();
+
+        // Create a single event channel for both sending and receiving
+        let (event_tx, event_rx) = mpsc::unbounded_channel();
+        let state = AppState::new(event_tx, event_rx);
 
         // Get initial terminal size
         let size = terminal.size();
@@ -50,9 +51,13 @@ impl TuiApp {
         Ok(Self {
             state,
             terminal,
-            event_handler,
             tick_rate: Duration::from_millis(16), // ~60 FPS
         })
+    }
+
+    /// Get the event sender for external use
+    pub fn event_tx(&self) -> mpsc::UnboundedSender<AppEvent> {
+        self.state.event_tx.clone()
     }
 
     /// Run the TUI application
@@ -90,12 +95,12 @@ impl TuiApp {
 
             // Send tick event
             if last_tick.elapsed() >= self.tick_rate {
-                self.state.event_tx.send(AppEvent::Tick)?;
+                let _ = self.state.event_tx.send(AppEvent::Tick);
                 last_tick = Instant::now();
             }
 
-            // Process pending events
-            while let Some(event) = self.event_handler.try_next() {
+            // Process pending events from the same channel
+            while let Ok(event) = self.state.event_rx.try_recv() {
                 self.state.update(&event);
 
                 // Check for exit condition
@@ -174,27 +179,32 @@ impl TuiApp {
                         self.state.input_buffer.clear();
                         self.state.cursor_position = 0;
 
-                        // Add user message to output
-                        self.state.event_tx.send(AppEvent::OutputLine(
-                            crate::state::OutputLine {
-                                content: input.clone(),
-                                style: crate::state::OutputStyle::UserMessage,
-                                timestamp: chrono::Local::now(),
-                            },
-                        ))?;
-
-                        // Process command or show processing indicator
-                        if input.starts_with('/') {
-                            self.handle_command(&input)?;
+                        if self.state.processing_state.is_processing {
+                            // Already processing - queue the input
+                            self.state.processing_state.input_queue.push(input);
                         } else {
-                            // Show processing indicator for non-command input
+                            // Start processing - add to queue and start processing
+                            self.state.processing_state.input_queue.push(input.clone());
+                            self.state.processing_state.is_processing = true;
+
+                            // Add user message to output
                             self.state.event_tx.send(AppEvent::OutputLine(
                                 crate::state::OutputLine {
-                                    content: "正在处理中...".to_string(),
-                                    style: crate::state::OutputStyle::Status("processing".to_string()),
+                                    content: input.clone(),
+                                    style: crate::state::OutputStyle::UserMessage,
                                     timestamp: chrono::Local::now(),
                                 },
                             ))?;
+
+                            // Process command or just start processing
+                            if input.starts_with('/') {
+                                self.handle_command(&input)?;
+                                // Commands complete immediately
+                                self.state.processing_state.finish_processing();
+                            } else {
+                                // Non-command inputs are "processing" - the animation will show
+                                self.state.event_tx.send(AppEvent::StartProcessing)?;
+                            }
                         }
                     }
                 }
@@ -282,8 +292,14 @@ impl TuiApp {
 }
 
 /// Run the TUI application
-pub async fn run_tui(event_tx: mpsc::UnboundedSender<AppEvent>) -> Result<()> {
-    let mut app = TuiApp::new(event_tx)?;
+pub async fn run_tui(initial_status: Option<SystemStatusSnapshot>) -> Result<()> {
+    let mut app = TuiApp::new()?;
+
+    // Send initial system status if provided
+    if let Some(status) = initial_status {
+        let _ = app.state.event_tx.send(AppEvent::SystemStatusUpdate(status));
+    }
+
     app.run().await?;
     Ok(())
 }

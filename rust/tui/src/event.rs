@@ -43,6 +43,10 @@ pub enum AppEvent {
     // Session metrics events
     TokenUsageUpdate(SessionTokenUsage),
     ContextCompressionUpdate(ContextCompressionStatus),
+
+    // Processing state events
+    StartProcessing,
+    StopProcessing,
 }
 
 /// System status snapshot for rendering
@@ -101,13 +105,13 @@ pub enum ConfigChangeEvent {
 
 use tokio::sync::mpsc;
 
-/// Event handler
+/// Event handler - manages the event channel receiver
 pub struct EventHandler {
     rx: mpsc::UnboundedReceiver<AppEvent>,
 }
 
 impl EventHandler {
-    /// Create a new event handler
+    /// Create a new event handler with its own channel
     pub fn new() -> (mpsc::UnboundedSender<AppEvent>, Self) {
         let (tx, rx) = mpsc::unbounded_channel();
         (tx, Self { rx })

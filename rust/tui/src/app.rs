@@ -43,8 +43,12 @@ pub struct AppState {
     pub session_token_usage: SessionTokenUsage,
     pub context_compression_status: Option<ContextCompressionStatus>,
 
-    // Channels
+    // Processing state
+    pub processing_state: ProcessingState,
+
+    // Channels - event_tx for sending, event_rx for receiving (same channel)
     pub event_tx: mpsc::UnboundedSender<AppEvent>,
+    pub event_rx: mpsc::UnboundedReceiver<AppEvent>,
 
     // Time
     pub current_time: DateTime<Local>,
@@ -59,7 +63,7 @@ pub enum PopupType {
 
 impl AppState {
     /// Create a new application state
-    pub fn new(event_tx: mpsc::UnboundedSender<AppEvent>) -> Self {
+    pub fn new(event_tx: mpsc::UnboundedSender<AppEvent>, event_rx: mpsc::UnboundedReceiver<AppEvent>) -> Self {
         Self {
             terminal_size: (80, 24),
             input_buffer: String::new(),
@@ -80,7 +84,9 @@ impl AppState {
             current_task_duration: None,
             session_token_usage: SessionTokenUsage::new(0),
             context_compression_status: None,
+            processing_state: ProcessingState::new(),
             event_tx,
+            event_rx,
             current_time: Local::now(),
         }
     }
@@ -129,6 +135,15 @@ impl AppState {
             }
             AppEvent::ContextCompressionUpdate(status) => {
                 self.context_compression_status = Some(status.clone());
+            }
+            AppEvent::SystemStatusUpdate(status) => {
+                self.system_status = status.clone();
+            }
+            AppEvent::StartProcessing => {
+                self.processing_state.is_processing = true;
+            }
+            AppEvent::StopProcessing => {
+                self.processing_state.finish_processing();
             }
             _ => {}
         }
@@ -186,6 +201,18 @@ impl AppState {
     pub fn close_popup(&mut self) {
         self.active_popup = None;
         self.popup_selected_index = 0;
+    }
+
+    /// Get the current processing animation frame
+    pub fn get_processing_animation(&self) -> Option<String> {
+        if !self.processing_state.is_processing {
+            return None;
+        }
+        // Animate based on current time - cycle through spinner characters
+        let spinner_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+        let elapsed = self.current_time.timestamp_millis();
+        let frame_index = ((elapsed / 100) as usize) % spinner_chars.len();
+        Some(spinner_chars[frame_index].to_string())
     }
 }
 

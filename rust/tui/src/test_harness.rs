@@ -44,8 +44,8 @@ pub struct TuiTestHarness {
 impl TuiTestHarness {
     /// Create a new test harness
     pub fn new() -> Self {
-        let (tx, _rx) = mpsc::unbounded_channel();
-        let state = AppState::new(tx);
+        let (tx, rx) = mpsc::unbounded_channel();
+        let state = AppState::new(tx, rx);
         Self {
             state,
             sent_events: Mutex::new(Vec::new()),
@@ -246,38 +246,47 @@ impl TuiTestHarness {
                     self.state.input_buffer.clear();
                     self.state.cursor_position = 0;
 
-                    let event = AppEvent::OutputLine(crate::state::OutputLine {
-                        content: input.clone(),
-                        style: crate::state::OutputStyle::UserMessage,
-                        timestamp: chrono::Local::now(),
-                    });
-                    self.record_event(event);
-
-                    if input.starts_with('/') {
-                        // Command handling
-                        match input.as_str() {
-                            "/help" | "/h" => {
-                                self.record_event(AppEvent::OutputLine(crate::state::OutputLine {
-                                    content: "Available commands: /help, /sessions, /tasks, /quit".to_string(),
-                                    style: crate::state::OutputStyle::SystemInfo,
-                                    timestamp: chrono::Local::now(),
-                                }));
-                            }
-                            "/quit" | "/exit" => {}
-                            _ => {
-                                self.record_event(AppEvent::OutputLine(crate::state::OutputLine {
-                                    content: format!("Unknown command: {}", input),
-                                    style: crate::state::OutputStyle::Error,
-                                    timestamp: chrono::Local::now(),
-                                }));
-                            }
-                        }
+                    if self.state.processing_state.is_processing {
+                        // Already processing - queue the input
+                        self.state.processing_state.input_queue.push(input);
                     } else {
-                        self.record_event(AppEvent::OutputLine(crate::state::OutputLine {
-                            content: "正在处理中...".to_string(),
-                            style: crate::state::OutputStyle::Status("processing".to_string()),
+                        // Start processing - add to queue and start processing
+                        self.state.processing_state.input_queue.push(input.clone());
+                        self.state.processing_state.is_processing = true;
+
+                        // Add user message to output
+                        let event = AppEvent::OutputLine(crate::state::OutputLine {
+                            content: input.clone(),
+                            style: crate::state::OutputStyle::UserMessage,
                             timestamp: chrono::Local::now(),
-                        }));
+                        });
+                        self.record_event(event);
+
+                        if input.starts_with('/') {
+                            // Command handling - commands complete immediately
+                            match input.as_str() {
+                                "/help" | "/h" => {
+                                    self.record_event(AppEvent::OutputLine(crate::state::OutputLine {
+                                        content: "Available commands: /help, /sessions, /tasks, /quit".to_string(),
+                                        style: crate::state::OutputStyle::SystemInfo,
+                                        timestamp: chrono::Local::now(),
+                                    }));
+                                }
+                                "/quit" | "/exit" => {}
+                                _ => {
+                                    self.record_event(AppEvent::OutputLine(crate::state::OutputLine {
+                                        content: format!("Unknown command: {}", input),
+                                        style: crate::state::OutputStyle::Error,
+                                        timestamp: chrono::Local::now(),
+                                    }));
+                                }
+                            }
+                            // Commands complete immediately
+                            self.state.processing_state.finish_processing();
+                        } else {
+                            // Non-command inputs are "processing"
+                            self.record_event(AppEvent::StartProcessing);
+                        }
                     }
                 }
             }
@@ -309,12 +318,30 @@ impl TuiTestHarness {
 
     /// Simulate receiving an agent response
     pub fn simulate_agent_response(&mut self, content: &str) {
+        // Stop processing when response comes back
+        self.state.processing_state.finish_processing();
+
         let event = AppEvent::OutputLine(crate::state::OutputLine {
             content: content.to_string(),
             style: crate::state::OutputStyle::AgentMessage,
             timestamp: chrono::Local::now(),
         });
         self.record_event(event);
+    }
+
+    /// Check if currently processing
+    pub fn is_processing(&self) -> bool {
+        self.state.processing_state.is_processing
+    }
+
+    /// Get queue size
+    pub fn queued_input_count(&self) -> usize {
+        self.state.processing_state.input_queue.len()
+    }
+
+    /// Finish current processing manually (simulates timeout or completion)
+    pub fn finish_processing(&mut self) {
+        self.state.processing_state.finish_processing();
     }
 }
 
@@ -365,7 +392,9 @@ mod tests {
         h.press_enter();
 
         assert!(h.output_contains("hello"));
-        assert!(h.output_contains("正在处理中"));
+        // Processing state is set, but the animation is rendered by the UI
+        // based on is_processing flag, not an OutputLine
+        assert!(h.is_processing());
         assert_eq!(h.input_buffer(), "");
         assert_eq!(h.cursor_position(), 0);
     }
@@ -515,14 +544,126 @@ mod tests {
         h.type_text("aa");
         h.press_enter();
         assert!(h.output_contains("aa"));
-        // Should only have one "aa", not "aaaa"
+        assert!(h.is_processing());
 
+        // Second input is queued
         h.type_text("对对");
         h.press_enter();
-        // Should have exactly one "对对", not "对对对对"
-        let count = h.output_lines().iter()
-            .filter(|l| l.content == "对对".to_string())
-            .count();
-        assert_eq!(count, 1, "Should not have duplicated characters");
+        assert!(h.is_processing());
+        assert_eq!(h.queued_input_count(), 2);
+
+        // Verify "aa" is in output (first input)
+        assert!(h.output_contains("aa"));
+    }
+
+    #[test]
+    fn test_event_channel_integration() {
+        // This test verifies that events flow through the channel correctly
+        // and are received by the state
+        use crate::state::OutputLine;
+        use crate::state::OutputStyle;
+
+        let mut h = TuiTestHarness::new();
+
+        // Send an event directly through the channel
+        let event = AppEvent::OutputLine(OutputLine {
+            content: "Direct channel test".to_string(),
+            style: OutputStyle::UserMessage,
+            timestamp: chrono::Local::now(),
+        });
+
+        // Send via event_tx (simulating what the TUI does)
+        h.state.event_tx.send(event).unwrap();
+
+        // Process events - in the real TUI this happens in the run() loop
+        while let Ok(evt) = h.state.event_rx.try_recv() {
+            h.state.update(&evt);
+        }
+
+        // Verify the event was processed
+        assert!(h.output_contains("Direct channel test"));
+    }
+
+    #[test]
+    fn test_multiple_inputs_and_outputs() {
+        let mut h = TuiTestHarness::new();
+
+        // First input
+        h.type_text("first message");
+        h.press_enter();
+        assert!(h.output_contains("first message"));
+        assert!(h.is_processing());
+
+        // Second input while processing - goes to queue
+        h.type_text("second message");
+        h.press_enter();
+        // Second input is queued while first is still processing
+        assert!(h.is_processing());
+        assert_eq!(h.queued_input_count(), 2);
+
+        // First message should still be in output
+        assert!(h.output_contains("first message"));
+    }
+
+    #[test]
+    fn test_processing_state_queued_input() {
+        let mut h = TuiTestHarness::new();
+
+        // First input starts processing - it goes into the queue
+        h.type_text("first");
+        h.press_enter();
+        assert!(h.is_processing());
+        assert_eq!(h.queued_input_count(), 1, "First input is in the queue");
+
+        // Second input while processing should queue (now 2 in queue)
+        h.type_text("second");
+        h.press_enter();
+        assert!(h.is_processing());
+        assert_eq!(h.queued_input_count(), 2, "Second input should be queued");
+
+        // Third input while processing should queue (now 3 in queue)
+        h.type_text("third");
+        h.press_enter();
+        assert_eq!(h.queued_input_count(), 3, "Third input should be queued");
+    }
+
+    #[test]
+    fn test_processing_state_finish_processing() {
+        let mut h = TuiTestHarness::new();
+
+        // Start processing - first goes into queue
+        h.type_text("first");
+        h.press_enter();
+        assert!(h.is_processing());
+        assert_eq!(h.queued_input_count(), 1);
+
+        // Queue another
+        h.type_text("second");
+        h.press_enter();
+        assert_eq!(h.queued_input_count(), 2);
+
+        // Finish processing - removes first, "second" is still queued
+        h.finish_processing();
+        assert!(h.is_processing());
+        assert_eq!(h.queued_input_count(), 1, "Second input should remain queued");
+
+        // Finish again - removes second, queue empty
+        h.finish_processing();
+        assert!(!h.is_processing());
+        assert_eq!(h.queued_input_count(), 0);
+    }
+
+    #[test]
+    fn test_agent_response_stops_processing() {
+        let mut h = TuiTestHarness::new();
+
+        // Start processing
+        h.type_text("hello");
+        h.press_enter();
+        assert!(h.is_processing());
+
+        // Simulate agent response
+        h.simulate_agent_response("Hi! How can I help?");
+        assert!(!h.is_processing());
     }
 }
