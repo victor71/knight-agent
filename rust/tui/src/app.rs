@@ -71,7 +71,7 @@ impl AppState {
     pub fn new(event_tx: mpsc::UnboundedSender<AppEvent>) -> Self {
         Self {
             terminal_size: (80, 24),
-            input_mode: InputMode::Normal,
+            input_mode: InputMode::Insert,  // Direct typing by default (Claude Code style)
             input_buffer: String::new(),
             cursor_position: 0,
             active_popup: None,

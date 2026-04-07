@@ -7,6 +7,8 @@
 ```
 03-module-design/
 ├── README.md                    # 本文件 - 模块设计索引
+├── configuration/               # 配置管理模块 (1个)
+│   └── configuration.md         # 集中配置管理、热更新
 ├── cli/                         # CLI 模块 (1个)
 │   └── cli.md                   # 命令行接口 (System CLI + REPL)
 ├── core/                        # 核心引擎模块 (8个)
@@ -92,6 +94,7 @@
 - [x] [llm-provider](services/llm-provider.md) - LLM 提供者抽象
 - [x] [tool-system](tools/tool-system.md) - 工具框架
 - [x] [cli](cli/cli.md) - 命令行接口 (System CLI + REPL)
+- [x] [configuration](configuration/configuration.md) - 配置管理（热更新支持）
 
 ### P1 - 扩展模块 (已完成)
 - [x] [orchestrator](core/orchestrator.md) - 编排器
@@ -137,3 +140,4 @@
 | 1.3.0 | 2026-04-02 | 添加 ipc-contract.md 进程间通信契约设计（Rust/TS） |
 | 1.4.0 | 2026-04-02 | 添加 workflows-directory.md 工作流目录设计；更新 Command/Task Manager/Orchestrator 支持工作流命令 |
 | 1.5.0 | 2026-04-03 | 添加 cli.md CLI 模块设计（System CLI + REPL） |
+| 1.6.0 | 2026-04-07 | 添加 configuration.md 配置管理模块设计（热更新、配置合并） |

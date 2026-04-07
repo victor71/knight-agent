@@ -109,7 +109,7 @@ bootstrap:
   # 系统启动
   start:
     inputs:
-      - config_path: string      # 可选，默认 ~/.knight-agent/config.yaml
+      - config_path: string      # 可选，默认 ~/.knight-agent/
       - workspace: string         # 可选，默认当前目录
     outputs:
       system: KnightAgentSystem
@@ -200,6 +200,56 @@ bootstrap:
 ```
 
 详细设计参见: [`03-module-design/core/bootstrap.md`](03-module-design/core/bootstrap.md)
+
+---
+
+### Configuration (配置管理)
+
+**职责**: 集中配置管理、热更新、环境变量替换
+
+Configuration 模块是 Knight Agent 的配置中心，提供：
+- **用户配置**：LLM 提供者配置（knight.json，JSON 格式）
+- **系统配置**：11 个 YAML 配置文件（已合并 26 个独立配置）
+- **热更新**：文件变更自动检测并通知订阅者
+- **环境变量**：支持 `${VAR}` 语法
+
+```yaml
+# 配置目录结构
+~/.knight-agent/
+├── knight.json              # 主配置（LLM 提供者）
+└── config/                  # 系统配置（YAML）
+    ├── agent.yaml           # Agent 模块
+    ├── core.yaml            # Core 模块
+    ├── services.yaml        # Services
+    ├── tools.yaml           # 工具系统
+    ├── infrastructure.yaml   # 基础设施
+    ├── storage.yaml         # 存储
+    ├── security.yaml        # 安全
+    ├── logging.yaml         # 日志
+    ├── monitoring.yaml      # 监控
+    └── compressor.yaml      # 上下文压缩
+```
+
+**配置变更流程**:
+```
+文件变更 → notify 监控 → 解析配置 → 更新 RwLock → 广播事件 → 订阅者处理
+```
+
+**核心接口**:
+```rust
+// 获取 LLM 配置
+get_llm_config() -> Option<LlmConfig>
+
+// 获取系统配置
+get_agent_config() -> AgentConfig
+get_core_config() -> CoreConfig
+get_logging_config() -> LoggingConfig
+
+// 订阅配置变更
+subscribe() -> broadcast::Receiver<ConfigChangeEvent>
+```
+
+详细设计参见: [`03-module-design/configuration/configuration.md`](03-module-design/configuration/configuration.md)
 
 ---
 

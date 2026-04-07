@@ -422,7 +422,7 @@ tokio::spawn(async move {
 
 ### Module Integration
 
-All modules should use `knight-config` to access LLM configuration instead of defining their own:
+All modules should use `configuration` to access LLM configuration instead of defining their own:
 
 ```rust
 // In skill-engine, agent-runtime, etc.
@@ -537,7 +537,7 @@ For LLM configuration across modules:
 ## Testing
 
 ```bash
-cargo test -p knight-config
+cargo test -p configuration
 ```
 
 ## License
