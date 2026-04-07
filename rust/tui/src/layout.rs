@@ -21,7 +21,7 @@ pub fn calculate_main_layout(area: Rect) -> LayoutChunks {
             [
                 Constraint::Length(3),  // Header
                 Constraint::Min(0),     // Main output
-                Constraint::Length(2),  // Input
+                Constraint::Length(3),  // Input (needs 3 lines: border + title + content)
                 Constraint::Length(2),  // Status bar
             ]
             .as_ref(),
