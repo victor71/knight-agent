@@ -290,6 +290,7 @@ impl TuiApp {
     /// Route non-command input to agent via daemon client
     async fn route_to_agent(&mut self, input: String) -> Result<()> {
         if let Some(ref daemon_client) = self.daemon_client {
+            info!("[DEBUG] route_to_agent: session_id={}, input={}", self.session_id, input);
             let result = daemon_client.handle_input(input.clone(), self.session_id.clone()).await;
 
             match result {
@@ -416,7 +417,10 @@ pub async fn run_tui(
         app = app.with_daemon_client(d);
     }
     if let Some(s) = session_id {
+        info!("[DEBUG] Setting session_id to: {}", s);
         app = app.with_session_id(s);
+    } else {
+        info!("[DEBUG] session_id is None, using default");
     }
 
     // Send initial system status if provided

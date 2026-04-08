@@ -538,9 +538,9 @@ impl LLMProvider for GenericLLMProvider {
     ) -> LLMResult<ChatCompletionResponse> {
         let model = request.model.clone();
         let url = self.completions_url();
-        println!("[INFO] LLM Request URL: {}", url);
+        info!("LLM Request URL: {}", url);
         let body = self.build_request_body(&request);
-        println!("[INFO] LLM Request body: {}", body);
+        info!("LLM Request body: {}", body);
         let (auth_header, auth_value) = self.auth_header();
 
         // Log request messages
@@ -596,7 +596,7 @@ impl LLMProvider for GenericLLMProvider {
             return Err(LLMError::InvalidRequest(error_body));
         } else if !status.is_success() {
             let error_body = response.text().await.unwrap_or_default();
-            println!("[ERROR] LLM API error response ({}): {}", status.as_u16(), error_body);
+            warn!("LLM API error response ({}): {}", status.as_u16(), error_body);
             return Err(LLMError::InferenceFailed(format!(
                 "API returned error: {} - {}",
                 status.as_u16(),
@@ -610,9 +610,13 @@ impl LLMProvider for GenericLLMProvider {
 
         let result = self.parse_response(data)?;
 
-        // Log response
+        // Log response content or warn if empty
         if let Some(content) = &result.content {
             debug!("LLM Response [{}]: content=\"{}\"", model, content);
+        } else {
+            warn!("LLM Response [{}]: content extraction failed, choices count: {}", model, result.choices.len());
+            // Log the raw response structure for debugging
+            debug!("LLM Response raw: id={}, content={:?}, choices.len={}", result.id, result.content, result.choices.len());
         }
 
         Ok(result)

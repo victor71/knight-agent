@@ -369,14 +369,70 @@ pub(crate) fn init_logging(log_dir: &Path, config: &configuration::LoggingConfig
 
 /// Create an LLM provider from configuration
 async fn create_llm_provider(
-    _config_loader: &Arc<ConfigLoader>,
+    config_loader: &Arc<ConfigLoader>,
 ) -> Result<Option<llm_provider::GenericLLMProvider>> {
-    // Try to load LLM config from knight.json
-    // For now, return None to indicate no provider is configured
-    // In production, this would load from config and create a real provider
+    use llm_provider::LLMProtocol;
 
-    info!("LLM provider configuration not yet implemented, using placeholder");
-    Ok(None)
+    // Try to load LLM config from knight.json
+    let llm_config = config_loader.get_llm_config();
+
+    if let Some(config) = llm_config {
+        // Get default provider
+        let default_provider_name = config.default_provider
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No default LLM provider configured"))?;
+
+        let provider_config = config.providers.get(default_provider_name)
+            .ok_or_else(|| anyhow::anyhow!("Provider '{}' not found in config", default_provider_name))?;
+
+        // Resolve API key (supports ${ENV_VAR} syntax)
+        let api_key = resolve_env_var(&provider_config.api_key);
+
+        // Determine protocol type
+        let protocol = match provider_config.provider_type.to_lowercase().as_str() {
+            "anthropic" => LLMProtocol::Anthropic,
+            _ => LLMProtocol::OpenAI,
+        };
+
+        // Extract model IDs
+        let models: Vec<String> = provider_config.models.iter()
+            .map(|m| m.id.clone())
+            .collect();
+
+        let default_model = provider_config.default_model.clone();
+
+        // Create provider config
+        let provider_cfg = llm_provider::ProviderConfig {
+            name: default_provider_name.clone(),
+            api_key,
+            base_url: provider_config.base_url.clone(),
+            protocol,
+            models,
+            default_model: Some(default_model),
+            timeout_secs: provider_config.timeout_secs,
+            model_pricing: Default::default(),
+        };
+
+        // Create the provider
+        let provider = llm_provider::GenericLLMProvider::new(provider_cfg)
+            .map_err(|e| anyhow::anyhow!("Failed to create LLM provider: {}", e))?;
+
+        info!("LLM provider '{}' initialized successfully", default_provider_name);
+        Ok(Some(provider))
+    } else {
+        info!("No LLM provider configured");
+        Ok(None)
+    }
+}
+
+/// Resolve environment variable references in a string (supports ${VAR} syntax)
+fn resolve_env_var(value: &str) -> String {
+    if value.starts_with("${") && value.ends_with('}') {
+        let env_var = &value[2..value.len()-1];
+        std::env::var(env_var).unwrap_or_else(|_| value.to_string())
+    } else {
+        value.to_string()
+    }
 }
 
 /// Run the in-process mode
@@ -470,14 +526,27 @@ pub(crate) async fn run_in_process() -> Result<()> {
     session_manager.set_agent_runtime(Arc::new(adapter)).await;
     info!("Session Manager initialized and connected to Agent Runtime");
 
-    // Create default session for TUI
-    let default_session = session_manager::CreateSessionRequest::new(".")
+    // Create default session for TUI and get the actual session ID
+    let default_session_request = session_manager::CreateSessionRequest::new(".")
         .name("default".to_string());
-    if let Err(e) = session_manager.create_session(default_session).await {
-        info!("Note: Default session may already exist: {}", e);
-    } else {
-        info!("Created default session");
-    }
+    let default_session_id = match session_manager.create_session(default_session_request).await {
+        Ok(session) => {
+            info!("Created default session with ID: {}", session.id);
+            session.id
+        }
+        Err(e) => {
+            info!("Note: Default session may already exist: {}", e);
+            // Try to use existing session - list sessions and find "default" or use first one
+            let sessions = session_manager.list_sessions(None).await;
+            if let Some(session) = sessions.iter().find(|s| s.metadata.name == "default") {
+                session.id.clone()
+            } else if let Some(session) = sessions.first() {
+                session.id.clone()
+            } else {
+                "default".to_string()
+            }
+        }
+    };
 
     // Run CLI TUI (check for --no-tui flag)
     let use_tui = !std::env::args().any(|arg| arg == "--no-tui");
@@ -509,7 +578,7 @@ pub(crate) async fn run_in_process() -> Result<()> {
         state.cli.run_tui(
             Some(initial_status),
             Some(daemon_client),
-            Some("default".to_string()),
+            Some(default_session_id.clone()),
         ).await?;
     } else {
         // Run CLI REPL (fallback)
