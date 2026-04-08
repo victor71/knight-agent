@@ -10,9 +10,47 @@ use llm_provider::{
     LLMProvider,
 };
 
+/// Get API key from knight.json config or fallback to environment variable
+fn get_api_key() -> String {
+    // Try to read from ~/.knight-agent/knight.json first
+    let home_dir = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .expect("Cannot determine home directory");
+
+    let config_path = std::path::PathBuf::from(home_dir)
+        .join(".knight-agent")
+        .join("knight.json");
+
+    // Try to parse knight.json and extract minimaxi provider's api_key
+    if let Ok(content) = std::fs::read_to_string(&config_path) {
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&content) {
+            // Navigate to llm.providers.minimaxi.apiKey
+            if let Some(api_key) = value
+                .get("llm")
+                .and_then(|l| l.get("providers"))
+                .and_then(|p| p.get("minimaxi"))
+                .and_then(|m| m.get("apiKey"))
+                .and_then(|k| k.as_str())
+            {
+                // Support ${ENV_VAR} syntax in config
+                if let Some(env_var) = api_key.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
+                    if let Ok(key) = std::env::var(env_var) {
+                        return key;
+                    }
+                } else {
+                    return api_key.to_string();
+                }
+            }
+        }
+    }
+
+    // Fallback to environment variable
+    std::env::var("ANTHROPIC_API_KEY")
+        .expect("ANTHROPIC_API_KEY must be set or configured in ~/.knight-agent/knight.json")
+}
+
 fn create_minimaxi_provider() -> GenericLLMProvider {
-    let api_key = std::env::var("ANTHROPIC_API_KEY")
-        .expect("ANTHROPIC_API_KEY must be set");
+    let api_key = get_api_key();
 
     let mut model_pricing = HashMap::new();
     model_pricing.insert(
