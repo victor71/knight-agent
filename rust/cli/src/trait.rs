@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use crate::error::CliResult;
 use crate::types::DaemonAction;
-use tui::event::SystemStatusSnapshot;
+use tui::{DaemonClient, SystemStatusSnapshot};
 
 /// CLI trait
 #[async_trait::async_trait]
@@ -29,8 +29,7 @@ pub trait Cli: Send + Sync {
     async fn run_tui(
         &self,
         initial_status: Option<SystemStatusSnapshot>,
-        router: Option<Arc<dyn router::RouterHandle>>,
-        session_manager: Option<Arc<session_manager::SessionManagerImpl>>,
+        daemon_client: Option<Arc<dyn DaemonClient>>,
         session_id: Option<String>,
     ) -> CliResult<()>;
 

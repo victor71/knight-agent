@@ -306,6 +306,7 @@ impl TuiTestHarness {
         self.state.sessions.push(crate::state::SessionListItem {
             id: id.to_string(),
             name: name.to_string(),
+            status: "Active".to_string(),
             created_at: chrono::Local::now(),
             message_count: 0,
         });

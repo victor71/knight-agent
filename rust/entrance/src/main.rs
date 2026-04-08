@@ -3,7 +3,6 @@
 //! This binary initializes and runs the Knight Agent system.
 
 use anyhow::{Context, Result};
-use async_trait::async_trait;
 use bootstrap::{BootstrapConfig, KnightAgentSystem, BootstrapStage};
 use cli::{Cli, CliImpl};
 use configuration::{ConfigLoader, LoggingConfig};
@@ -15,7 +14,8 @@ use std::time::Duration;
 use tracing::{info, warn, Level};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::FmtSpan;
-use tui::event::{SystemHealth, SystemStatusSnapshot};
+use tui::{DaemonClient, DirectDaemonClient, SystemStatusSnapshot};
+use tui::event::SystemHealth;
 
 /// Default configuration directory name
 const CONFIG_DIR: &str = ".knight-agent";
@@ -555,10 +555,16 @@ async fn main() -> Result<()> {
             memory_usage: 0,
         };
 
+        // Create daemon client with router and session manager
+        let daemon_client: Arc<dyn DaemonClient> = Arc::new(
+            DirectDaemonClient::new()
+                .with_router(router.clone())
+                .with_session_manager(session_manager.clone())
+        );
+
         state.cli.run_tui(
             Some(initial_status),
-            Some(router.clone()),
-            Some(session_manager.clone()),
+            Some(daemon_client),
             Some("default".to_string()),
         ).await?;
     } else {

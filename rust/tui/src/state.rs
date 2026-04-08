@@ -66,6 +66,7 @@ pub enum CompressionWarningLevel {
 pub struct SessionListItem {
     pub id: String,
     pub name: String,
+    pub status: String,
     pub created_at: DateTime<Local>,
     pub message_count: usize,
 }

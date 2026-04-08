@@ -7,7 +7,7 @@ use crate::error::{CliError, CliResult};
 use crate::r#trait::Cli;
 use crate::repl::CliRepl;
 use crate::types::DaemonAction;
-use tui::event::SystemStatusSnapshot;
+use tui::{DaemonClient, SystemStatusSnapshot};
 
 /// CLI implementation
 #[derive(Clone)]
@@ -73,16 +73,15 @@ impl Cli for CliImpl {
     async fn run_tui(
         &self,
         initial_status: Option<SystemStatusSnapshot>,
-        router: Option<Arc<dyn router::RouterHandle>>,
-        session_manager: Option<Arc<session_manager::SessionManagerImpl>>,
+        daemon_client: Option<Arc<dyn DaemonClient>>,
         session_id: Option<String>,
     ) -> CliResult<()> {
         if !self.is_initialized() {
             return Err(CliError::NotInitialized);
         }
 
-        // Run the TUI with initial status and handles
-        tui::run_tui(initial_status, router, session_manager, session_id)
+        // Run the TUI with initial status and daemon client
+        tui::run_tui(initial_status, daemon_client, session_id)
             .await
             .map_err(|e| CliError::Other(e.to_string()))?;
 

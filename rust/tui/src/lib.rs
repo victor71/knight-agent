@@ -3,6 +3,7 @@
 //! Terminal User Interface for Knight Agent.
 
 mod app;
+pub mod client;
 pub mod event;
 mod layout;
 mod renderer;
@@ -12,6 +13,8 @@ pub mod widgets;
 pub mod test_harness;
 
 pub use app::{AppState, PopupType};
+pub use client::{DaemonClient, DirectDaemonClient, DaemonClientError, DaemonClientResult};
+pub use router::HandleInputResult;
 pub use event::{AppEvent, SystemStatusSnapshot};
 pub use renderer::AppTerminal;
 pub use state::{
@@ -32,10 +35,8 @@ pub struct TuiApp {
     state: AppState,
     terminal: AppTerminal,
     tick_rate: Duration,
-    /// Router for handling input
-    router: Option<Arc<dyn router::RouterHandle>>,
-    /// Session manager for agent interactions
-    session_manager: Option<Arc<session_manager::SessionManagerImpl>>,
+    /// Daemon client for communication
+    daemon_client: Option<Arc<dyn DaemonClient>>,
     /// Current session ID
     session_id: String,
     /// Pending agent input to process (set by sync event handler, processed by async loop)
@@ -62,22 +63,15 @@ impl TuiApp {
             state,
             terminal,
             tick_rate: Duration::from_millis(16), // ~60 FPS
-            router: None,
-            session_manager: None,
+            daemon_client: None,
             session_id: "default".to_string(),
             pending_agent_input: None,
         })
     }
 
-    /// Set the router handle
-    pub fn with_router(mut self, router: Arc<dyn router::RouterHandle>) -> Self {
-        self.router = Some(router);
-        self
-    }
-
-    /// Set the session manager
-    pub fn with_session_manager(mut self, session_manager: Arc<session_manager::SessionManagerImpl>) -> Self {
-        self.session_manager = Some(session_manager);
+    /// Set the daemon client
+    pub fn with_daemon_client(mut self, daemon_client: Arc<dyn DaemonClient>) -> Self {
+        self.daemon_client = Some(daemon_client);
         self
     }
 
@@ -292,68 +286,69 @@ impl TuiApp {
         Ok(())
     }
 
-    /// Route non-command input to agent via router and agent runtime
+    /// Route non-command input to agent via daemon client
     async fn route_to_agent(&mut self, input: String) -> Result<()> {
-        // First, check with router
-        if let Some(ref router) = self.router {
-            let result = router.handle_input(input.clone(), self.session_id.clone()).await;
-            info!("Router result: to_agent={}", result.to_agent);
+        if let Some(ref daemon_client) = self.daemon_client {
+            let result = daemon_client.handle_input(input.clone(), self.session_id.clone()).await;
 
-            if result.to_agent {
-                // Router says to forward to agent - use session manager
-                if let Some(ref session_mgr) = self.session_manager {
-                    info!("Calling session manager for input: \"{}\"", input);
+            match result {
+                Ok(result) => {
+                    info!("Daemon client result: to_agent={}", result.to_agent);
 
-                    match session_mgr.send_message_to_session(&self.session_id, input).await {
-                        Ok(response) => {
-                            info!("Agent response received: \"{}\"", response);
-                            // Send agent response to output
-                            self.state.event_tx.send(AppEvent::OutputLine(
-                                crate::state::OutputLine {
-                                    content: response,
-                                    style: crate::state::OutputStyle::AgentMessage,
-                                    timestamp: chrono::Local::now(),
-                                },
-                            ))?;
+                    if result.to_agent {
+                        // Forward to agent - use daemon client's send_message
+                        match daemon_client.send_message(&self.session_id, input).await {
+                            Ok(response) => {
+                                info!("Agent response received: \"{}\"", response);
+                                // Send agent response to output
+                                self.state.event_tx.send(AppEvent::OutputLine(
+                                    crate::state::OutputLine {
+                                        content: response,
+                                        style: crate::state::OutputStyle::AgentMessage,
+                                        timestamp: chrono::Local::now(),
+                                    },
+                                ))?;
+                            }
+                            Err(e) => {
+                                warn!("Daemon client send_message error: {:?}", e);
+                                self.state.event_tx.send(AppEvent::OutputLine(
+                                    crate::state::OutputLine {
+                                        content: format!("Error: {:?}", e),
+                                        style: crate::state::OutputStyle::Error,
+                                        timestamp: chrono::Local::now(),
+                                    },
+                                ))?;
+                            }
                         }
-                        Err(e) => {
-                            warn!("Session manager error: {:?}", e);
+                    } else {
+                        // Daemon client handled it - show response if any
+                        if !result.response.message.is_empty() {
                             self.state.event_tx.send(AppEvent::OutputLine(
                                 crate::state::OutputLine {
-                                    content: format!("Error: {:?}", e),
-                                    style: crate::state::OutputStyle::Error,
+                                    content: result.response.message,
+                                    style: crate::state::OutputStyle::SystemInfo,
                                     timestamp: chrono::Local::now(),
                                 },
                             ))?;
                         }
                     }
-                } else {
-                    warn!("No session manager configured");
-                    self.state.event_tx.send(AppEvent::OutputLine(
-                        crate::state::OutputLine {
-                            content: "No session manager configured".to_string(),
-                            style: crate::state::OutputStyle::Error,
-                            timestamp: chrono::Local::now(),
-                        },
-                    ))?;
                 }
-            } else {
-                // Router handled it - show response if any
-                if !result.response.message.is_empty() {
+                Err(e) => {
+                    warn!("Daemon client error: {:?}", e);
                     self.state.event_tx.send(AppEvent::OutputLine(
                         crate::state::OutputLine {
-                            content: result.response.message,
-                            style: crate::state::OutputStyle::SystemInfo,
+                            content: format!("Error: {:?}", e),
+                            style: crate::state::OutputStyle::Error,
                             timestamp: chrono::Local::now(),
                         },
                     ))?;
                 }
             }
         } else {
-            warn!("No router configured");
+            warn!("No daemon client configured");
             self.state.event_tx.send(AppEvent::OutputLine(
                 crate::state::OutputLine {
-                    content: "No router configured".to_string(),
+                    content: "No daemon client configured".to_string(),
                     style: crate::state::OutputStyle::Error,
                     timestamp: chrono::Local::now(),
                 },
@@ -410,18 +405,14 @@ impl TuiApp {
 /// Run the TUI application
 pub async fn run_tui(
     initial_status: Option<SystemStatusSnapshot>,
-    router: Option<Arc<dyn router::RouterHandle>>,
-    session_manager: Option<Arc<session_manager::SessionManagerImpl>>,
+    daemon_client: Option<Arc<dyn DaemonClient>>,
     session_id: Option<String>,
 ) -> Result<()> {
     let mut app = TuiApp::new()?;
 
-    // Configure router and session manager if provided
-    if let Some(r) = router {
-        app = app.with_router(r);
-    }
-    if let Some(s) = session_manager {
-        app = app.with_session_manager(s);
+    // Configure daemon client if provided
+    if let Some(d) = daemon_client {
+        app = app.with_daemon_client(d);
     }
     if let Some(s) = session_id {
         app = app.with_session_id(s);
