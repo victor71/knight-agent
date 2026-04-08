@@ -13,3 +13,7 @@ tracing.workspace = true
 async-trait.workspace = true
 uuid.workspace = true
 chrono.workspace = true
+bytes = "1.8"
+tokio-util = { version = "0.7", features = ["codec"] }
+tokio-stream = "0.1"
+futures = "0.3"

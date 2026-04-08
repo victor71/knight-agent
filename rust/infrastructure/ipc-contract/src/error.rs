@@ -121,6 +121,8 @@ pub enum IPCError {
     InternalError(String),
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
 }
 
 impl IPCError {
@@ -143,6 +145,7 @@ impl IPCError {
             IPCError::UserInteractionError(_) => ErrorCode::AwaitNotFound,
             IPCError::InternalError(_) => ErrorCode::InternalError,
             IPCError::JsonError(_) => ErrorCode::ParseError,
+            IPCError::IoError(_) => ErrorCode::InternalError,
         }
     }
 
