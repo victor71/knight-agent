@@ -367,73 +367,6 @@ pub(crate) fn init_logging(log_dir: &Path, config: &configuration::LoggingConfig
     Ok((guard, log_writer))
 }
 
-/// Create an LLM provider from configuration
-async fn create_llm_provider(
-    config_loader: &Arc<ConfigLoader>,
-) -> Result<Option<(llm_provider::GenericLLMProvider, Option<String>)>> {
-    use llm_provider::LLMProtocol;
-
-    // Try to load LLM config from knight.json
-    let llm_config = config_loader.get_llm_config();
-
-    if let Some(config) = llm_config {
-        // Get default provider
-        let default_provider_name = config.default_provider
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("No default LLM provider configured"))?;
-
-        let provider_config = config.providers.get(default_provider_name)
-            .ok_or_else(|| anyhow::anyhow!("Provider '{}' not found in config", default_provider_name))?;
-
-        // Resolve API key (supports ${ENV_VAR} syntax)
-        let api_key = resolve_env_var(&provider_config.api_key);
-
-        // Determine protocol type
-        let protocol = match provider_config.provider_type.to_lowercase().as_str() {
-            "anthropic" => LLMProtocol::Anthropic,
-            _ => LLMProtocol::OpenAI,
-        };
-
-        // Extract model IDs
-        let models: Vec<String> = provider_config.models.iter()
-            .map(|m| m.id.clone())
-            .collect();
-
-        let default_model = provider_config.default_model.clone();
-
-        // Create provider config
-        let provider_cfg = llm_provider::ProviderConfig {
-            name: default_provider_name.clone(),
-            api_key,
-            base_url: provider_config.base_url.clone(),
-            protocol,
-            models,
-            default_model: Some(default_model.clone()),
-            timeout_secs: provider_config.timeout_secs,
-            model_pricing: Default::default(),
-        };
-
-        // Create the provider
-        let provider = llm_provider::GenericLLMProvider::new(provider_cfg)
-            .map_err(|e| anyhow::anyhow!("Failed to create LLM provider: {}", e))?;
-
-        info!("LLM provider '{}' initialized successfully", default_provider_name);
-        Ok(Some((provider, Some(default_model))))
-    } else {
-        info!("No LLM provider configured");
-        Ok(None)
-    }
-}
-
-/// Resolve environment variable references in a string (supports ${VAR} syntax)
-fn resolve_env_var(value: &str) -> String {
-    if value.starts_with("${") && value.ends_with('}') {
-        let env_var = &value[2..value.len()-1];
-        std::env::var(env_var).unwrap_or_else(|_| value.to_string())
-    } else {
-        value.to_string()
-    }
-}
 
 /// Run the in-process mode
 pub(crate) async fn run_in_process() -> Result<()> {
@@ -501,16 +434,6 @@ pub(crate) async fn run_in_process() -> Result<()> {
     info!("Creating Agent Runtime...");
     let mut agent_runtime_impl = agent_runtime::AgentRuntimeImpl::new();
     agent_runtime_impl.initialize().await?;
-
-    // Create LLM Provider from config (using default/minimal config for now)
-    // In production, this would be configured via knight.json
-    info!("Creating LLM Provider...");
-    let llm_provider = create_llm_provider(&config_loader).await?;
-    if let Some((provider, default_model)) = llm_provider {
-        let provider = Arc::new(provider);
-        agent_runtime_impl.set_llm_provider(provider.clone(), default_model.clone());
-        info!("LLM Provider configured with default model: {:?}", default_model);
-    }
 
     // Wrap in Arc for sharing
     let agent_runtime: Arc<dyn agent_runtime::AgentHandle> = Arc::new(agent_runtime_impl);
