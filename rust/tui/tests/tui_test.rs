@@ -277,18 +277,21 @@ fn test_popup_navigation() {
         SessionListItem {
             id: "1".to_string(),
             name: "Session 1".to_string(),
+            status: "active".to_string(),
             created_at: Local::now(),
             message_count: 5,
         },
         SessionListItem {
             id: "2".to_string(),
             name: "Session 2".to_string(),
+            status: "active".to_string(),
             created_at: Local::now(),
             message_count: 10,
         },
         SessionListItem {
             id: "3".to_string(),
             name: "Session 3".to_string(),
+            status: "idle".to_string(),
             created_at: Local::now(),
             message_count: 15,
         },
