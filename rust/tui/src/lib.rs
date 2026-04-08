@@ -136,9 +136,19 @@ impl TuiApp {
                 }
             }
 
-            // Process pending agent input if any
+            // Process pending agent input if any (spawn as background task to avoid blocking)
             if let Some(input) = self.pending_agent_input.take() {
-                self.route_to_agent(input).await?;
+                // Take ownership of what we need for the spawned task
+                let daemon_client = self.daemon_client.clone();
+                let session_id = self.session_id.clone();
+                let event_tx = self.state.event_tx.clone();
+
+                // Spawn background task so event loop can continue processing/rendering
+                tokio::spawn(async move {
+                    if let Err(e) = Self::route_to_agent_bg(daemon_client, session_id, input, event_tx).await {
+                        warn!("route_to_agent error: {:?}", e);
+                    }
+                });
             }
 
             // Check exit condition
@@ -360,6 +370,75 @@ impl TuiApp {
         // Stop processing after handling
         self.state.event_tx.send(AppEvent::StopProcessing)?;
         self.state.processing_state.finish_processing();
+        Ok(())
+    }
+
+    /// Route non-command input to agent via daemon client (background task version)
+    async fn route_to_agent_bg(
+        daemon_client: Option<Arc<dyn DaemonClient>>,
+        session_id: String,
+        input: String,
+        event_tx: mpsc::UnboundedSender<AppEvent>,
+    ) -> Result<()> {
+        if let Some(ref client) = daemon_client {
+            info!("[DEBUG] route_to_agent_bg: session_id={}, input={}", session_id, input);
+            let result = client.handle_input(input.clone(), session_id.clone()).await;
+
+            match result {
+                Ok(result) => {
+                    info!("Daemon client result: to_agent={}", result.to_agent);
+
+                    if result.to_agent {
+                        // Forward to agent - use daemon client's send_message
+                        match client.send_message(&session_id, input).await {
+                            Ok(response) => {
+                                info!("Agent response received: \"{}\"", response);
+                                // Send agent response to output
+                                let _ = event_tx.send(AppEvent::OutputLine(
+                                    crate::state::OutputLine {
+                                        content: response,
+                                        style: crate::state::OutputStyle::AgentMessage,
+                                        timestamp: chrono::Local::now(),
+                                    },
+                                ));
+                            }
+                            Err(e) => {
+                                warn!("Daemon client send_message error: {:?}", e);
+                                let _ = event_tx.send(AppEvent::OutputLine(
+                                    crate::state::OutputLine {
+                                        content: format!("Error: {:?}", e),
+                                        style: crate::state::OutputStyle::Error,
+                                        timestamp: chrono::Local::now(),
+                                    },
+                                ));
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!("Daemon client error: {:?}", e);
+                    let _ = event_tx.send(AppEvent::OutputLine(
+                        crate::state::OutputLine {
+                            content: format!("Error: {:?}", e),
+                            style: crate::state::OutputStyle::Error,
+                            timestamp: chrono::Local::now(),
+                        },
+                    ));
+                }
+            }
+        } else {
+            warn!("No daemon client configured");
+            let _ = event_tx.send(AppEvent::OutputLine(
+                crate::state::OutputLine {
+                    content: "No daemon client configured".to_string(),
+                    style: crate::state::OutputStyle::Error,
+                    timestamp: chrono::Local::now(),
+                },
+            ));
+        }
+
+        // Stop processing after handling
+        let _ = event_tx.send(AppEvent::StopProcessing);
         Ok(())
     }
 
