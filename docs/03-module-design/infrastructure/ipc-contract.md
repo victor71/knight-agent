@@ -4,44 +4,60 @@
 
 ### 职责描述
 
-IPC Contract 定义 Knight-Agent 系统中 Rust 核心服务与 TypeScript UI 层之间的进程间通信协议，包括：
+IPC Contract 定义 Knight-Agent 系统中两个进程间通信边界的协议规范，包括：
 
-- 消息格式定义 (Request/Response)
-- 通信协议规范 (WebSocket/stdio)
+- 两个 IPC 边界的消息格式定义 (Request/Response/Event)
+- 通信协议规范 (Unix Socket / TCP / stdin-stdout)
 - 错误处理和重试机制
-- 类型安全保证
+- 类型安全保证 (Rust-to-Rust)
 - 版本兼容性策略
 
 ### 架构背景
 
-Knight-Agent 采用混合架构：
+Knight-Agent 采用多进程架构，包含两个 IPC 边界：
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    TypeScript UI                        │
-│  (Electron/Vite/Web) - 用户界面、交互逻辑               │
+│                     TUI Process                         │
+│  (ratatui) - 用户界面、交互逻辑                         │
 └─────────────────────────────────────────────────────────┘
+                          │
+                   IPC #1 (Unix Socket / TCP)
+                   JSON-RPC style messages
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────┐
-│                    IPC Boundary                         │
-│  - WebSocket / stdio / JSON-RPC                         │
+│                   Daemon Process                        │
+│  Session Manager, Router, Orchestrator                  │
+│  Manages session lifecycle, routes messages             │
 └─────────────────────────────────────────────────────────┘
+                          │
+                   IPC #2 (Unix Socket / stdin-stdout)
+                   JSON-RPC style messages
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────┐
-│                    Rust Core                            │
-│  Session Manager, Orchestrator, Agent Runtime, etc.     │
+│                  Session Process(es)                    │
+│  Agent Runtime, Tool System                            │
+│  Each session runs in its own process                  │
 └─────────────────────────────────────────────────────────┘
 ```
+
+### IPC 边界说明
+
+| IPC 边界 | 参与方 | 传输层 | 用途 |
+|----------|--------|--------|------|
+| **IPC #1** | TUI <-> Daemon | Unix Socket / TCP | 用户输入、状态显示、会话管理 |
+| **IPC #2** | Daemon <-> Session Process | Unix Socket / stdin-stdout | Agent 生命周期、消息路由、状态上报 |
 
 ### 设计目标
 
-1. **类型安全**: 跨语言类型一致性保证
+1. **类型安全**: Rust-to-Rust 类型一致性保证
 2. **高性能**: 低延迟通信，支持流式传输
 3. **可靠性**: 错误恢复、断线重连
 4. **可维护性**: 清晰的版本管理和兼容策略
 5. **安全性**: 消息验证、权限检查
+6. **进程隔离**: 每个会话独立进程，故障不扩散
 
 ### 依赖模块
 
@@ -55,37 +71,50 @@ Knight-Agent 采用混合架构：
 
 | 模块 | 依赖类型 | 说明 |
 |------|---------|------|
-| TypeScript UI | 被依赖 | UI 层调用 Rust 核心 |
-| CLI Frontend | 被依赖 | 命令行接口 |
+| TUI (ratatui) | 被依赖 | 用户界面通过 IPC #1 与 Daemon 通信 |
+| Session Process | 被依赖 | 会话进程通过 IPC #2 与 Daemon 通信 |
 
 ---
 
 ## 通信协议
 
-### 传输层选择
+### IPC #1: TUI <-> Daemon 传输层
 
-| 协议 | 用途 | 优点 | 缺点 |
+| 协议 | 场景 | 优点 | 缺点 |
 |------|------|------|------|
-| **WebSocket** | UI 模式 | 双向通信、低延迟、支持流式 | 需要 HTTP 升级 |
-| **stdio (JSON-RPC)** | CLI 模式 | 简单、无端口占用 | 单向请求响应 |
-| **Unix Socket** | 本地通信 | 高性能、安全 | 跨平台复杂 |
+| **Unix Socket** | 本地模式 (默认) | 高性能、安全、无需端口 | 跨平台需适配 (Windows named pipe) |
+| **TCP** | 远程模式 / 跨平台备选 | 跨平台、支持远程连接 | 需端口管理、安全性依赖防火墙 |
 
-### 推荐方案
+### IPC #2: Daemon <-> Session Process 传输层
+
+| 协议 | 场景 | 优点 | 缺点 |
+|------|------|------|------|
+| **Unix Socket** | 本地模式 (默认) | 高性能、安全 | 跨平台需适配 |
+| **stdin-stdout** | 简单模式 / 调试 | 无需额外端口、进程管道原生支持 | 仅支持请求-响应模式 |
+
+### 传输层配置
 
 ```yaml
 # 根据运行模式选择传输层
 transport:
-  ui_mode:
-    protocol: websocket
-    port: 0  # 自动分配
-    path: /ws/knight
+  ipc1_tui_daemon:
+    default: unix_socket
+    fallback: tcp
+    unix_socket:
+      path: /tmp/knight-agent/daemon.sock   # Linux/macOS
+      # Windows: \\.\pipe\knight-agent-daemon
+    tcp:
+      host: "127.0.0.1"
+      port: 0  # 自动分配
 
-  cli_mode:
-    protocol: stdio
-    format: json_rpc
-
-  embedded_mode:
-    protocol: direct_call  # 直接函数调用（编译时链接）
+  ipc2_daemon_session:
+    default: unix_socket
+    fallback: stdin_stdout
+    unix_socket:
+      path_template: /tmp/knight-agent/session-{session_id}.sock
+    stdin_stdout:
+      format: json_rpc
+      line_delimited: true   # 每行一条 JSON-RPC 消息
 ```
 
 ---
@@ -94,36 +123,17 @@ transport:
 
 ### 基础消息结构
 
-```typescript
-// TypeScript 端
-interface BaseMessage {
-  id: string;           // 消息唯一 ID
-  type: MessageType;    // 消息类型
-  timestamp: number;    // Unix 时间戳 (毫秒)
-  session_id?: string;  // 会话 ID (可选)
-}
-
-enum MessageType {
-  Request = "request",
-  Response = "response",
-  Notification = "notification",
-  StreamChunk = "stream_chunk",
-  Error = "error",
-  UserQuery = "user_query",       // Agent 询问用户
-  UserResponse = "user_response", // 用户响应
-}
-```
+两个 IPC 边界共享相同的基础消息格式，以 JSON 作为序列化格式：
 
 ```rust
-// Rust 端
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BaseMessage {
-    pub id: String,
-    pub r#type: MessageType,
-    pub timestamp: i64,
-    pub session_id: Option<String>,
+    pub id: String,           // 消息唯一 ID (UUID v4)
+    pub r#type: MessageType,  // 消息类型
+    pub timestamp: i64,       // Unix 时间戳 (毫秒)
+    pub session_id: Option<String>,  // 会话 ID (可选)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -147,21 +157,6 @@ pub enum MessageType {
 
 ### 请求消息
 
-```typescript
-interface RequestMessage extends BaseMessage {
-  type: MessageType.Request;
-  method: string;        // 方法名 (如 "session.create")
-  params: unknown;       // 参数
-  options?: RequestOptions;
-}
-
-interface RequestOptions {
-  timeout?: number;      // 超时时间 (毫秒)
-  stream?: boolean;      // 是否流式响应
-  priority?: number;     // 优先级
-}
-```
-
 ```rust
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RequestMessage {
@@ -182,23 +177,6 @@ pub struct RequestOptions {
 ```
 
 ### 响应消息
-
-```typescript
-interface ResponseMessage extends BaseMessage {
-  type: MessageType.Response;
-  request_id: string;    // 关联的请求 ID
-  result?: unknown;      // 成功结果
-  error?: ErrorResponse; // 错误信息
-  streaming?: boolean;   // 是否还有后续流式数据
-}
-
-interface ErrorResponse {
-  code: number;          // 错误码
-  message: string;       // 错误消息
-  details?: unknown;     // 详细信息
-  stack?: string;        // 堆栈跟踪
-}
-```
 
 ```rust
 #[derive(Debug, Serialize, Deserialize)]
@@ -223,14 +201,6 @@ pub struct ErrorResponse {
 
 ### 通知消息
 
-```typescript
-interface NotificationMessage extends BaseMessage {
-  type: MessageType.Notification;
-  event: string;         // 事件名
-  data: unknown;         // 事件数据
-}
-```
-
 ```rust
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NotificationMessage {
@@ -243,16 +213,6 @@ pub struct NotificationMessage {
 ```
 
 ### 流式数据消息
-
-```typescript
-interface StreamChunkMessage extends BaseMessage {
-  type: MessageType.StreamChunk;
-  request_id: string;    // 关联的请求 ID
-  sequence: number;      // 序列号
-  chunk: string;         // 数据块
-  done: boolean;         // 是否结束
-}
-```
 
 ```rust
 #[derive(Debug, Serialize, Deserialize)]
@@ -268,41 +228,6 @@ pub struct StreamChunkMessage {
 ```
 
 ### 用户询问消息
-
-```typescript
-interface UserQueryMessage extends BaseMessage {
-  type: MessageType.UserQuery;
-  await_id: string;        // 等待 ID，用于匹配响应
-  query_type: QueryType;   // 询问类型
-  agent_id: string;        // 发起询问的 Agent
-  message: string;          // 询问内容
-  options?: string[];      // 可选的回答选项
-  context: {
-    // 触发询问的上下文信息
-    resource?: string;      // 相关资源路径
-    action?: string;       // 正在执行的操作
-    reason?: string;       // 询问原因
-  };
-  // 跨 Agent 依赖检测
-  dependencies?: {
-    // 此询问依赖的其他 Agent
-    depends_on_agents?: string[];     // 依赖的 Agent ID 列表
-    // 此询问依赖的其他查询的回答
-    depends_on_queries?: string[];    // 依赖的 await_id 列表
-    // 等待其他 Agent 完成工作
-    waiting_for_agent?: string;       // 等待哪个 Agent 的输出
-  };
-  timeout: number;         // 超时时间（毫秒），0 表示不超时
-  created_at: number;      // 创建时间戳
-}
-
-enum QueryType {
-  Permission = "permission",       // 权限询问
-  Clarification = "clarification", // 澄清询问
-  Confirmation = "confirmation",   // 确认询问
-  Information = "information",     // 信息请求
-}
-```
 
 ```rust
 #[derive(Debug, Serialize, Deserialize)]
@@ -335,21 +260,6 @@ pub enum QueryType {
 
 ### 用户响应消息
 
-```typescript
-interface UserResponseMessage extends BaseMessage {
-  type: MessageType.UserResponse;
-  await_id: string;        // 对应的等待 ID
-  response: UserResponseData;
-  responded_at: number;    // 响应时间戳
-}
-
-interface UserResponseData {
-  accepted: boolean;        // 用户是否接受
-  value?: string;          // 用户输入的值（当有选项时）
-  custom_input?: string;   // 用户的自定义输入
-}
-```
-
 ```rust
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserResponseMessage {
@@ -371,271 +281,205 @@ pub struct UserResponseData {
 
 ### 等待注册表 (Await Registry)
 
-IPC 层内部维护等待注册表，用于路由用户响应到正确的 Agent：
+Daemon 内部维护等待注册表，用于路由用户响应到正确的 Agent：
 
-```typescript
-// IPC 层内部数据结构
-interface AwaitRegistry {
-  mappings: Map<string, AwaitInfo>;
+```rust
+use std::collections::HashMap;
+
+/// Daemon 内部数据结构
+pub struct AwaitRegistry {
+    pub mappings: HashMap<String, AwaitInfo>,
 }
 
-interface AwaitInfo {
-  agent_id: string;
-  session_id: string;
-  query_type: QueryType;
-  created_at: number;
-  timeout: number;
+pub struct AwaitInfo {
+    pub agent_id: String,
+    pub session_id: String,
+    pub query_type: QueryType,
+    pub created_at: i64,
+    pub timeout: u64,
 }
 ```
 
 ---
 
-## API 契约定义
+## IPC #1: TUI <-> Daemon 协议
 
-### 方法命名规范
+TUI 进程通过 Unix Socket 或 TCP 与 Daemon 通信，使用 JSON-RPC 风格消息。
 
-```
-{module}.{entity}.{action}
-
-例如:
-- session.create       // 创建会话
-- session.get          // 获取会话
-- session.destroy      // 销毁会话
-- agent.spawn          // 启动 Agent
-- agent.send_message   // 发送消息到 Agent
-- agent.list           // 列出 Agent
-```
-
-### 核心 API
+### TUI -> Daemon 请求
 
 ```yaml
-# Session 管理
-session.create:
-  description: 创建新会话
-  params:
-    name:
-      type: string
-      required: false
-    workspace:
-      type: string
-      required: false
-  result:
-    session_id: string
-    session: Session
-    description: |
-      会话对象，类型定义见 [Session Manager](../core/session-manager.md#session-数据结构)
+tui_daemon_protocol:
+  requests:
+    - method: "session.list"
+      description: 列出所有会话
+      params: {}
+      returns: { sessions: "array<SessionInfo>" }
 
-session.get:
-  description: 获取会话信息
-  params:
-    session_id:
-      type: string
-      required: true
-  result:
-    session: Session | null
-    description: |
-      会话对象，类型定义见 [Session Manager](../core/session-manager.md#session-数据结构)
+    - method: "session.create"
+      description: 创建新会话
+      params:
+        name: { type: string, required: false }
+        workspace: { type: string, required: false }
+      returns: { session_id: string }
 
-session.destroy:
-  description: 销毁会话
-  params:
-    session_id:
-      type: string
-      required: true
-  result:
-    success: boolean
+    - method: "session.switch"
+      description: 切换到指定会话
+      params:
+        session_id: { type: string, required: true }
+      returns: { success: boolean }
 
-# Agent 管理
-agent.spawn:
-  description: 启动 Agent
-  params:
-    agent_definition:
-      type: object
-      required: true
-    session_id:
-      type: string
-      required: true
-  result:
-    agent_id: string
+    - method: "session.send_message"
+      description: 向会话发送用户消息
+      params:
+        session_id: { type: string, required: true }
+        content: { type: string, required: true }
+      returns: { response: string }
 
-agent.send_message:
-  description: 发送消息到 Agent
-  params:
-    agent_id:
-      type: string
-      required: true
-    message:
-      type: string
-      required: true
-    options:
-      type: object
-      required: false
-  result:
-    response_stream: boolean  # 是否流式响应
+    - method: "session.get_status"
+      description: 获取会话状态快照
+      params:
+        session_id: { type: string, required: true }
+      returns: SystemStatusSnapshot
 
-agent.list:
-  description: 列出 Agent
-  params:
-    session_id:
-      type: string
-      required: true
-  result:
-    agents: array<AgentInfo>
-    description: |
-      Agent 信息数组，类型定义见 [Orchestrator](../core/orchestrator.md#agentinfo)
+    - method: "daemon.status"
+      description: 获取 Daemon 整体状态
+      params: {}
+      returns: DaemonStatus
 
-# 工具调用
-tools.call:
-  description: 调用工具
-  params:
-    tool_name:
-      type: string
-      required: true
-    args:
-      type: object
-      required: true
-  result:
-    result: ToolResult
-    description: |
-      工具执行结果，类型定义见 [Tool System](../tools/tool-system.md#工具结果)
+    - method: "daemon.stop"
+      description: 停止 Daemon 进程
+      params: {}
+      returns: { success: boolean }
+```
 
-# 流式订阅
-stream.subscribe:
-  description: 订阅流式输出
-  params:
-    request_id:
-      type: string
-      required: true
-  result:
-    subscribed: boolean
+### Daemon -> TUI 事件 (推送)
 
-stream.unsubscribe:
-  description: 取消订阅
-  params:
-    request_id:
-      type: string
-      required: true
-  result:
-    success: boolean
+```yaml
+tui_daemon_protocol:
+  events:
+    - type: "agent.response_stream"
+      description: Agent 响应流式数据块
+      payload:
+        session_id: string
+        chunk: string
 
-# 用户交互
-user.query:
-  description: |
-    Agent 发起用户询问（内部由 Agent Runtime 调用，UI 层订阅此类型消息）
-    此方法不会直接返回响应，而是将询问通过 IPC 消息发送，UI 通过 stream.subscribe 接收
-    响应处理：UI 调用 user.respond()，最终由 Agent Runtime.handle_user_response() 处理
-    见 [Agent Runtime 用户交互流程](../agent/agent-runtime.md#tool-调用流程)
-  params:
-    agent_id:
-      type: string
-      required: true
-      description: 发起询问的 Agent ID
-    query_type:
-      type: string
-      enum: [permission, clarification, confirmation, information]
-      required: true
-    message:
-      type: string
-      required: true
-      description: 询问内容
-    options:
-      type: array<string>
-      required: false
-      description: 可选的选项列表
-    context:
-      type: object
-      required: false
-      description: 触发询问的上下文信息
-    timeout:
-      type: integer
-      required: false
-      default: 0
-      description: 超时时间（毫秒），0 表示不超时
-  result:
-    await_id: string
-    description: 等待 ID，UI 响应时需要携带此 ID
+    - type: "agent.status_change"
+      description: Agent 状态变更通知
+      payload:
+        session_id: string
+        agent_id: string
+        status: string
 
-user.respond:
-  description: 用户响应询问
-  params:
-    await_id:
-      type: string
-      required: true
-      description: 对应的等待 ID
-    accepted:
-      type: boolean
-      required: true
-      description: 用户是否接受
-    value:
-      type: string
-      required: false
-      description: 用户选择的选项值
-    custom_input:
-      type: string
-      required: false
-      description: 用户的自定义输入
-  result:
-    success: boolean
-    description: 响应是否成功投递到 Agent
+    - type: "session.status_update"
+      description: 会话状态更新
+      payload:
+        session_id: string
+        status: string
 
-user.cancel:
-  description: |
-    取消等待用户响应
-    取消后，Agent 会收到一个被拒绝的响应（accepted: false, value: "cancelled"）
-    并从 AwaitRegistry 中移除
-  params:
-    await_id:
-      type: string
-      required: true
-      description: 对应的等待 ID
-  result:
-    success: boolean
-    description: 取消是否成功（如果 await_id 已超时则返回 false）
+    - type: "system.metrics"
+      description: 系统资源指标
+      payload:
+        token_usage: object
+        memory: integer
+        cpu: float
+```
 
-user.list_pending:
-  description: 列出当前等待用户响应的事件
-  params:
-    session_id:
-      type: string
-      required: false
-      description: 过滤特定会话的询问（省略则返回所有）
-  result:
-    queries: array<PendingQuery>
-    description: 待处理的询问列表
+---
 
-# Agent 操作取消
-agent.cancel_operation:
-  description: |
-    取消 Agent 的当前操作
-    - 当 Agent 处于 acting 状态时：中断正在执行的工具
-    - 当 Agent 处于 awaiting_user 状态时：取消等待中的用户询问
-    - 取消后 Agent 进入 idle 状态，可接收新消息
-    与 stop_agent 的区别：cancel_operation 只取消当前操作，stop_agent 停止整个 Agent
-  params:
-    agent_id:
-      type: string
-      required: true
-      description: Agent ID
-    reason:
-      type: string
-      required: false
-      description: 取消原因
-  result:
-    success: boolean
-    description: 是否成功取消
-    cancelled_await_id: string | null
-    description: 如果取消了用户询问，返回对应的 await_id
+## IPC #2: Daemon <-> Session Process 协议
 
-PendingQuery:
-  await_id: string
-  agent_id: string
-  session_id: string
-  query_type: string
-  message: string
-  options: array<string> | null
-  created_at: string
-  timeout: integer
-  context: object | null
+Daemon 与每个 Session Process 通过 Unix Socket 或 stdin-stdout 通信，使用 JSON-RPC 风格消息。
+
+### Daemon -> Session 请求
+
+```yaml
+daemon_session_protocol:
+  requests:
+    - method: "agent.create"
+      description: 在会话中创建 Agent
+      params:
+        agent_id: { type: string, required: true }
+        definition: { type: AgentDefinition, required: true }
+      returns: { success: boolean }
+
+    - method: "agent.send_message"
+      description: 向 Agent 发送消息
+      params:
+        agent_id: { type: string, required: true }
+        content: { type: string, required: true }
+      returns: { response: string }
+
+    - method: "agent.list"
+      description: 列出会话中的所有 Agent
+      params: {}
+      returns: { agents: "array<AgentInfo>" }
+
+    - method: "task.list"
+      description: 列出会话中的所有任务
+      params: {}
+      returns: { tasks: "array<TaskInfo>" }
+
+    - method: "session.shutdown"
+      description: 关闭会话进程
+      params:
+        graceful: { type: boolean, required: false, default: true }
+      returns: { success: boolean }
+```
+
+### Session -> Daemon 事件 (推送)
+
+```yaml
+daemon_session_protocol:
+  events:
+    - type: "heartbeat"
+      description: 会话进程心跳
+      payload:
+        session_id: string
+        memory: integer
+        agents: integer
+
+    - type: "agent.response"
+      description: Agent 响应结果
+      payload:
+        agent_id: string
+        content: string
+
+    - type: "task.status_change"
+      description: 任务状态变更
+      payload:
+        task_id: string
+        status: string
+
+    - type: "error"
+      description: 错误事件
+      payload:
+        code: integer
+        message: string
+```
+
+---
+
+## 方法命名规范
+
+```
+{entity}.{action}
+
+IPC #1 (TUI <-> Daemon) 示例:
+- session.list           // 列出会话
+- session.create         // 创建会话
+- session.switch         // 切换会话
+- session.send_message   // 发送消息
+- session.get_status     // 获取状态
+- daemon.status          // Daemon 状态
+- daemon.stop            // 停止 Daemon
+
+IPC #2 (Daemon <-> Session) 示例:
+- agent.create           // 创建 Agent
+- agent.send_message     // 发送消息到 Agent
+- agent.list             // 列出 Agent
+- task.list              // 列出任务
+- session.shutdown       // 关闭会话
 ```
 
 ---
@@ -644,47 +488,56 @@ PendingQuery:
 
 ### 错误码定义
 
-```typescript
-enum ErrorCode {
-  // 通用错误 (1-999)
-  UnknownError = 1,
-  ParseError = 2,           // 消息解析失败
-  InvalidRequest = 3,       // 无效请求
-  MethodNotFound = 4,       // 方法不存在
-  Timeout = 5,             // 超时
+两个 IPC 边界共享统一的错误码体系：
 
-  // Session 错误 (1000-1999)
-  SessionNotFound = 1000,
-  SessionExpired = 1001,
-  SessionDestroyed = 1002,
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum ErrorCode {
+    // 通用错误 (1-999)
+    UnknownError = 1,
+    ParseError = 2,           // 消息解析失败
+    InvalidRequest = 3,       // 无效请求
+    MethodNotFound = 4,       // 方法不存在
+    Timeout = 5,              // 超时
 
-  // Agent 错误 (2000-2999)
-  AgentNotFound = 2000,
-  AgentSpawnFailed = 2001,
-  AgentTimeout = 2002,
+    // Session 错误 (1000-1999)
+    SessionNotFound = 1000,
+    SessionExpired = 1001,
+    SessionDestroyed = 1002,
 
-  // 工具错误 (3000-3999)
-  ToolNotFound = 3000,
-  ToolExecutionFailed = 3001,
+    // Agent 错误 (2000-2999)
+    AgentNotFound = 2000,
+    AgentSpawnFailed = 2001,
+    AgentTimeout = 2002,
 
-  // 安全错误 (4000-4999)
-  Unauthorized = 4001,
-  Forbidden = 4002,
-  PermissionDenied = 4003,
+    // 工具错误 (3000-3999)
+    ToolNotFound = 3000,
+    ToolExecutionFailed = 3001,
 
-  // 用户交互错误 (6000-6999)
-  AwaitTimeout = 6000,           // 等待用户响应超时
-  AwaitCancelled = 6001,           // 等待被取消
-  InvalidUserResponse = 6002,      // 无效的用户响应
-  AwaitNotFound = 6003,            // 等待 ID 不存在
+    // 安全错误 (4000-4999)
+    Unauthorized = 4001,
+    Forbidden = 4002,
+    PermissionDenied = 4003,
 
-  // 系统错误 (5000-5999)
-  InternalError = 5000,
-  ResourceExhausted = 5001,
+    // 用户交互错误 (6000-6999)
+    AwaitTimeout = 6000,           // 等待用户响应超时
+    AwaitCancelled = 6001,         // 等待被取消
+    InvalidUserResponse = 6002,    // 无效的用户响应
+    AwaitNotFound = 6003,          // 等待 ID 不存在
+
+    // 系统错误 (5000-5999)
+    InternalError = 5000,
+    ResourceExhausted = 5001,
+
+    // IPC 连接错误 (7000-7999)
+    ConnectionRefused = 7000,      // 连接被拒绝
+    ConnectionReset = 7001,        // 连接被重置
+    SessionProcessCrashed = 7002,  // Session 进程崩溃
+    DaemonUnavailable = 7003,      // Daemon 不可用
 }
 ```
 
-**说明**: 以上为 IPC 层的错误码规范。内部模块（如 Session Manager、Security Manager）的错误码在传播到 IPC 层时应映射到上述错误码。各模块的错误码定义仅供参考，实际 IPC 通信统一使用本节定义的错误码。
+**说明**: 以上为 IPC 层的错误码规范。内部模块（如 Session Manager、Security Manager）的错误码在传播到 IPC 层时应映射到上述错误码。IPC 连接错误 (7000+) 专用于两个 IPC 边界的连接管理。
 
 ### 错误处理策略
 
@@ -716,31 +569,39 @@ retry:
 
 ### 用户交互流程
 
-当 Agent 需要与用户交互（权限确认、信息补充、危险操作确认等）时，通过以下流程进行：
+当 Agent 需要与用户交互（权限确认、信息补充、危险操作确认等）时，消息通过两个 IPC 边界传递：
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         Agent Runtime                             │
+│                      Session Process                             │
+│                    (Agent Runtime)                                │
 │                                                                   │
 │  Agent 执行中遇到需要用户确认的场景                               │
 │        │                                                         │
 │        ▼                                                         │
 │  ┌──────────────────────────────┐                                │
-│  │ 调用 user.query()            │                                │
+│  │ 发出 user_query 事件         │                                │
 │  │ - await_id: 唯一标识         │                                │
 │  │ - query_type: 询问类型       │                                │
 │  │ - message: 询问内容          │                                │
 │  │ - context: 上下文信息        │                                │
 │  └──────────────────────────────┘                                │
 │        │                                                         │
-│        ▼                                                         │
-│  Agent 进入 AwaitingUser 状态                                    │
+└────────┼─────────────────────────────────────────────────────────┘
+         │ IPC #2 (Session -> Daemon event: user_query)
+         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      Daemon Process                               │
+│                                                                   │
+│  1. 接收 user_query 事件                                         │
+│  2. 注册到 AwaitRegistry (await_id -> agent_id, session_id)      │
+│  3. 转发到 TUI                                                   │
 │        │                                                         │
 └────────┼─────────────────────────────────────────────────────────┘
-         │
-         ▼ IPC Message (UserQuery)
+         │ IPC #1 (Daemon -> TUI event: user_query)
+         ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                         TypeScript UI                             │
+│                       TUI (ratatui)                              │
 │                                                                   │
 │  接收 UserQuery 消息                                             │
 │        │                                                         │
@@ -751,10 +612,21 @@ retry:
 │  用户输入响应（接受/拒绝/输入值）                                 │
 │        │                                                         │
 └────────┼─────────────────────────────────────────────────────────┘
-         │
-         ▼ IPC Message (UserResponse)
+         │ IPC #1 (TUI -> Daemon request: user.respond)
+         ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                         Agent Runtime                             │
+│                      Daemon Process                               │
+│                                                                   │
+│  1. 接收 user.respond 请求                                       │
+│  2. 查询 AwaitRegistry[await_id]                                 │
+│  3. 路由到目标 Session Process                                    │
+│        │                                                         │
+└────────┼─────────────────────────────────────────────────────────┘
+         │ IPC #2 (Daemon -> Session request: agent.user_response)
+         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      Session Process                             │
+│                    (Agent Runtime)                                │
 │                                                                   │
 │  接收 UserResponse 消息                                          │
 │        │                                                         │
@@ -806,50 +678,52 @@ Agent B ─┬─ await_id_3 ──▶ 用户询问 3
          └─ await_id_4 ──▶ 用户询问 4
 ```
 
-**IPC 层维护等待表 (Await Registry)**：
+**Daemon 维护等待表 (Await Registry)**：
 
-```typescript
-interface AwaitRegistry {
-  // await_id -> 映射信息
-  mappings: Map<string, AwaitMapping>;
+```rust
+use std::collections::HashMap;
+
+pub struct AwaitRegistry {
+    // await_id -> 映射信息
+    pub mappings: HashMap<String, AwaitMapping>,
 }
 
-interface AwaitMapping {
-  agent_id: string;       // 目标 Agent ID
-  session_id: string;      // 会话 ID
-  query_type: QueryType;   // 询问类型
-  created_at: number;       // 创建时间
-  timeout: number;        // 超时时间
+pub struct AwaitMapping {
+    pub agent_id: String,       // 目标 Agent ID
+    pub session_id: String,     // 会话 ID
+    pub query_type: QueryType,  // 询问类型
+    pub created_at: i64,        // 创建时间
+    pub timeout: u64,           // 超时时间
 }
 
-interface PendingQuery {
-  await_id: string;
-  agent_id: string;
-  session_id: string;
-  query_type: QueryType;
-  message: string;
-  created_at: number;
-  timeout: number;
+pub struct PendingQuery {
+    pub await_id: String,
+    pub agent_id: String,
+    pub session_id: String,
+    pub query_type: QueryType,
+    pub message: String,
+    pub created_at: i64,
+    pub timeout: u64,
 }
 ```
 
 **消息路由流程**：
 
 ```
-1. Agent Runtime 调用 user.query()
-   └─> IPC 层创建 await_id，注册到 AwaitRegistry
-   └─> 发送 UserQuery 消息到 UI
+1. Session Process 发出 user_query 事件 (IPC #2)
+   └─> Daemon 接收，创建 await_id，注册到 AwaitRegistry
+   └─> Daemon 转发 UserQuery 事件到 TUI (IPC #1)
 
-2. UI 收到 UserQuery 消息
+2. TUI 收到 UserQuery 事件
    └─> 显示给用户
    └─> 用户选择响应（选择对应的 await_id）
 
-3. UI 调用 user.respond(await_id, response)
-   └─> IPC 层查询 AwaitRegistry[await_id]
-   └─> 获取目标 agent_id
-   └─> 调用 Agent Runtime.handle_user_response(agent_id, await_id, response)
+3. TUI 调用 user.respond(await_id, response) (IPC #1)
+   └─> Daemon 查询 AwaitRegistry[await_id]
+   └─> 获取目标 agent_id 和 session_id
+   └─> Daemon 路由到目标 Session Process (IPC #2)
 
-4. Agent 收到响应，恢复执行
+4. Session Process 收到响应，恢复 Agent 执行
 ```
 
 **用户响应匹配**：
@@ -886,46 +760,46 @@ Agent A 继续执行（收到拒绝/超时响应）
 
 ## 类型同步
 
-### 代码生成策略
+### 共享类型定义策略
 
-使用 TypeScript/Rust 类型定义作为单一真实来源 (Single Source of Truth)，自动生成对应语言的类型代码：
+由于两个 IPC 边界都是 Rust-to-Rust 通信，类型定义通过共享 crate 实现：
 
 ```yaml
 # 类型定义目录结构
-types/
-├── shared/
-│   ├── message-types.ts    # TypeScript 类型定义
-│   ├── api-contracts.ts    # API 契约定义
-│   └── error-codes.ts      # 错误码定义
-├── generated/
-│   ├── rust/
-│   │   ├── message_types.rs
-│   │   ├── api_contracts.rs
-│   │   └── error_codes.rs
-│   └── ts/
-│       └── (符号链接到 ../shared)
+crates/
+├── knight-ipc/                  # 共享 IPC 类型 crate
+│   ├── src/
+│   │   ├── lib.rs               # 公共导出
+│   │   ├── message.rs           # 基础消息类型
+│   │   ├── ipc1_tui_daemon.rs   # IPC #1 消息类型
+│   │   ├── ipc2_daemon_session.rs # IPC #2 消息类型
+│   │   ├── error_codes.rs       # 错误码定义
+│   │   └── events.rs            # 事件类型定义
+│   └── Cargo.toml
 ```
 
-### 生成工具
+### 使用方式
 
-```typescript
-// scripts/generate-rust-types.ts
-import { compile } from 'json-schema-to-typescript';
-import { writeFileSync } from 'fs';
+```rust
+// TUI 依赖 knight-ipc
+// Daemon 依赖 knight-ipc
+// Session Process 依赖 knight-ipc
 
-// 从 TypeScript 类型生成 JSON Schema
-async function generateRustTypes() {
-  // 1. 解析 TypeScript 类型
-  // 2. 生成 JSON Schema
-  // 3. 使用 serde-rs/jsonschema_codegen 生成 Rust 类型
-  // 4. 输出到 generated/rust/
-}
-
-generateRustTypes();
+use knight_ipc::ipc1::{TuiDaemonRequest, TuiDaemonEvent};
+use knight_ipc::ipc2::{DaemonSessionRequest, SessionDaemonEvent};
+use knight_ipc::{BaseMessage, ResponseMessage, ErrorCode};
 ```
 
-```bash
-# cargo generate --type=typescript --input=types/shared --output=types/generated/rust
+### 序列化保证
+
+所有消息类型使用 `serde::Serialize` / `serde::Deserialize`，确保 JSON 序列化一致：
+
+```rust
+// 消息在传输前序列化为 JSON
+let json = serde_json::to_string(&message)?;
+
+// 接收后反序列化
+let message: RequestMessage = serde_json::from_str(&json)?;
 ```
 
 ---
@@ -963,41 +837,74 @@ impl MessageValidator {
 ### 权限检查
 
 ```yaml
-# API 权限矩阵
-permissions:
+# IPC #1: TUI <-> Daemon 权限矩阵
+ipc1_permissions:
+  session.list:
+    level: user
+    description: TUI 可以列出会话
+
   session.create:
-    level: public
-    description: 任何人都可以创建会话
-
-  agent.spawn:
     level: user
-    description: 需要用户权限
+    description: TUI 可以创建会话
 
-  tools.call:
-    level: restricted
-    description: 需要 Security Manager 验证
-    validator: security_manager.check_tool_permission
-
-  # 用户交互 API
-  user.query:
-    level: agent
-    description: 仅限 Agent 调用（由 Agent Runtime 内部使用）
-
-  user.respond:
+  session.switch:
     level: user
-    description: 仅限用户调用
+    description: TUI 可以切换会话
 
-  user.cancel:
+  session.send_message:
     level: user
-    description: 仅限用户调用
+    description: TUI 可以发送用户消息
 
-  user.list_pending:
+  session.get_status:
     level: user
-    description: 仅限用户调用
+    description: TUI 可以查询会话状态
 
-  agent.cancel_operation:
+  daemon.status:
     level: user
-    description: 仅限用户调用（取消 Agent 当前操作）
+    description: TUI 可以查询 Daemon 状态
+
+  daemon.stop:
+    level: admin
+    description: 需要 admin 权限停止 Daemon
+
+# IPC #2: Daemon <-> Session Process 权限矩阵
+ipc2_permissions:
+  agent.create:
+    level: daemon
+    description: 仅 Daemon 可以请求创建 Agent
+
+  agent.send_message:
+    level: daemon
+    description: 仅 Daemon 可以发送消息到 Agent
+
+  agent.list:
+    level: daemon
+    description: 仅 Daemon 可以查询 Agent 列表
+
+  task.list:
+    level: daemon
+    description: 仅 Daemon 可以查询任务列表
+
+  session.shutdown:
+    level: daemon
+    description: 仅 Daemon 可以关闭会话进程
+
+  # Session -> Daemon 事件 (无需权限检查，由 Daemon 验证来源)
+  heartbeat:
+    level: session
+    description: Session Process 定期发送心跳
+
+  agent.response:
+    level: session
+    description: Session Process 上报 Agent 响应
+
+  task.status_change:
+    level: session
+    description: Session Process 上报任务状态
+
+  error:
+    level: session
+    description: Session Process 上报错误
 ```
 
 ---
@@ -1016,34 +923,50 @@ permissions:
 
 ### 兼容性策略
 
+两个 IPC 边界独立版本化：
+
 ```yaml
 versioning:
-  # 协议版本
-  protocol_version: "1.0.0"
-
-  # 支持的客户端版本范围
-  supported_client_range:
+  # IPC #1 协议版本 (TUI <-> Daemon)
+  ipc1_protocol_version: "1.0.0"
+  ipc1_supported_range:
     min: "1.0.0"
     max: "2.0.0"  # 不包含 2.0.0
 
-  # 版本协商
-  handshake:
-    # 连接时交换版本信息
-    client_send:
-      type: "hello"
-      version: "1.2.3"
-      protocol_version: "1.0.0"
+  # IPC #2 协议版本 (Daemon <-> Session Process)
+  ipc2_protocol_version: "1.0.0"
+  ipc2_supported_range:
+    min: "1.0.0"
+    max: "2.0.0"
 
-    server_respond:
+  # 版本协商 (IPC #1: TUI 连接 Daemon 时)
+  ipc1_handshake:
+    tui_send:
+      type: "hello"
+      version: "1.0.0"
+      protocol_version: "1.0.0"
+    daemon_respond:
       type: "hello_ack"
-      server_version: "1.0.5"
+      daemon_version: "1.0.0"
+      compatible: true
+      selected_protocol: "1.0.0"
+
+  # 版本协商 (IPC #2: Daemon 启动 Session Process 时)
+  ipc2_handshake:
+    daemon_send:
+      type: "init"
+      protocol_version: "1.0.0"
+      session_id: "<session_id>"
+    session_respond:
+      type: "init_ack"
+      session_version: "1.0.0"
       compatible: true
       selected_protocol: "1.0.0"
 
   # 废弃 API 处理
   deprecation:
-    warning_header: "X-API-Deprecated"
-    sunset_header: "X-API-Sunset"
+    warning_field: "deprecated"
+    sunset_field: "sunset_version"
     alternative_method: "<new_method>"
 ```
 
@@ -1067,21 +990,29 @@ compression:
 
 ### 批量处理
 
-```typescript
-interface BatchRequest {
-  requests: Array<{
-    id: string;
-    method: string;
-    params: unknown;
-  }>;
+```rust
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BatchRequest {
+    pub requests: Vec<BatchRequestItem>,
 }
 
-interface BatchResponse {
-  responses: Array<{
-    id: string;
-    result?: unknown;
-    error?: ErrorResponse;
-  }>;
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BatchRequestItem {
+    pub id: String,
+    pub method: String,
+    pub params: serde_json::Value,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BatchResponse {
+    pub responses: Vec<BatchResponseItem>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BatchResponseItem {
+    pub id: String,
+    pub result: Option<serde_json::Value>,
+    pub error: Option<ErrorResponse>,
 }
 ```
 
@@ -1091,27 +1022,48 @@ interface BatchResponse {
 
 ### 契约测试
 
-```typescript
-// tests/contract/ipc-contract.test.ts
-describe('IPC Contract', () => {
-  it('should match Rust types', async () => {
-    // 1. 从 Rust 端获取类型定义
-    const rustTypes = await fetchRustTypeDefinitions();
+```rust
+// tests/ipc_contract.rs
 
-    // 2. 从 TypeScript 端获取类型定义
-    const tsTypes = getTSTypeDefinitions();
+#[cfg(test)]
+mod tests {
+    use knight_ipc::*;
 
-    // 3. 验证一致性
-    expect(compareTypes(rustTypes, tsTypes)).toBe(true);
-  });
+    #[test]
+    fn test_ipc1_request_serialization_roundtrip() {
+        // IPC #1 请求消息序列化/反序列化往返测试
+        let request = RequestMessage {
+            base: BaseMessage::new(MessageType::Request),
+            method: "session.create".to_string(),
+            params: serde_json::json!({"name": "test", "workspace": "/tmp"}),
+            options: None,
+        };
+        let json = serde_json::to_string(&request).unwrap();
+        let decoded: RequestMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(request.method, decoded.method);
+    }
 
-  it('should handle all error codes', () => {
-    const rustErrorCodes = getRustErrorCodes();
-    const tsErrorCodes = getTSErrorCodes();
+    #[test]
+    fn test_ipc2_event_serialization_roundtrip() {
+        // IPC #2 事件消息序列化/反序列化往返测试
+        let event = NotificationMessage {
+            base: BaseMessage::new(MessageType::Notification),
+            event: "heartbeat".to_string(),
+            data: serde_json::json!({"session_id": "s1", "memory": 1024, "agents": 2}),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let decoded: NotificationMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(event.event, decoded.event);
+    }
 
-    expect(rustErrorCodes).toEqual(tsErrorCodes);
-  });
-});
+    #[test]
+    fn test_error_codes_consistency() {
+        // 验证错误码在两个 IPC 边界中一致
+        let ipc1_codes = get_all_error_codes();
+        let ipc2_codes = get_all_error_codes();
+        assert_eq!(ipc1_codes, ipc2_codes);
+    }
+}
 ```
 
 ---
@@ -1121,51 +1073,83 @@ describe('IPC Contract', () => {
 ```yaml
 # config/ipc.yaml
 ipc:
-  # 传输配置
-  transport:
-    ui_mode:
-      protocol: websocket
-      port: 0
-      path: /ws/knight
+  # IPC #1: TUI <-> Daemon 传输配置
+  ipc1_tui_daemon:
+    transport:
+      protocol: unix_socket           # unix_socket | tcp
+      unix_socket:
+        path: /tmp/knight-agent/daemon.sock
+      tcp:
+        host: "127.0.0.1"
+        port: 0                       # 自动分配
       compression: true
 
-    cli_mode:
-      protocol: stdio
-      format: json_rpc
+    # 消息配置 (传输层限制)
+    message:
+      max_size: 10485760              # 10MB - 单条消息最大大小
+      timeout: 300000                 # 5 分钟 - 消息处理超时
+      queue_size: 1000                # 消息队列大小
 
-  # 消息配置 (传输层限制)
-  message:
-    max_size: 10485760  # 10MB - 单条消息最大大小
-    timeout: 300000     # 5 分钟 - 消息处理超时
-    queue_size: 1000    # 消息队列大小
+    # 安全配置
+    security:
+      enable_validation: true
+      max_message_depth: 100
+      rate_limit:
+        enabled: true
+        max_per_minute: 1000
 
-  # 安全配置
-  security:
-    enable_validation: true
-    max_message_depth: 100
-    rate_limit:
-      enabled: true
-      max_per_minute: 1000
+  # IPC #2: Daemon <-> Session Process 传输配置
+  ipc2_daemon_session:
+    transport:
+      protocol: unix_socket           # unix_socket | stdin_stdout
+      unix_socket:
+        path_template: /tmp/knight-agent/session-{session_id}.sock
+      stdin_stdout:
+        line_delimited: true
+      compression: false              # 本地短距离通信无需压缩
+
+    # 消息配置
+    message:
+      max_size: 52428800              # 50MB - Session 可能有更大的消息
+      timeout: 600000                 # 10 分钟 - Agent 操作可能较长时间
+      queue_size: 500
+
+    # 心跳配置
+    heartbeat:
+      interval: 5000                  # 5 秒心跳间隔
+      timeout: 15000                  # 15 秒无心跳视为断开
+      max_missed: 3                   # 连续 3 次未响应则标记为不可用
+
+    # 安全配置
+    security:
+      enable_validation: true
+      max_message_depth: 100
 
   # 版本配置
   version:
-    current: "1.0.0"
-    min_compatible: "1.0.0"
-    max_compatible: "2.0.0"
+    ipc1_current: "1.0.0"
+    ipc1_min_compatible: "1.0.0"
+    ipc1_max_compatible: "2.0.0"
+    ipc2_current: "1.0.0"
+    ipc2_min_compatible: "1.0.0"
+    ipc2_max_compatible: "2.0.0"
 ```
 
 **配置说明**:
 
 | 配置路径 | 说明 | 作用域 |
 |---------|------|--------|
-| `message.max_size` | 单条消息最大大小 | IPC 传输层 |
-| `message.timeout` | 消息处理超时时间 | IPC 传输层 |
-| `message.queue_size` | 消息队列大小 | IPC 传输层 |
-| `security.max_message_depth` | 消息最大嵌套深度 | IPC 传输层 |
+| `ipc1_tui_daemon.message.max_size` | IPC #1 单条消息最大大小 | IPC #1 传输层 |
+| `ipc1_tui_daemon.message.timeout` | IPC #1 消息处理超时时间 | IPC #1 传输层 |
+| `ipc1_tui_daemon.message.queue_size` | IPC #1 消息队列大小 | IPC #1 传输层 |
+| `ipc2_daemon_session.message.max_size` | IPC #2 单条消息最大大小 | IPC #2 传输层 |
+| `ipc2_daemon_session.message.timeout` | IPC #2 消息处理超时时间 | IPC #2 传输层 |
+| `ipc2_daemon_session.heartbeat.interval` | Session 心跳间隔 | IPC #2 连接管理 |
+| `ipc2_daemon_session.heartbeat.timeout` | 心跳超时时间 | IPC #2 连接管理 |
 | `session.limits.max_sessions` | 最大会话数 | Session Manager (见 session-manager.md) |
 | `session.limits.max_message_count` | 单会话最大消息数 | Session Manager (见 session-manager.md) |
 
-**说明**: IPC 层配置负责传输层限制，Session Manager 配置负责应用层限制。两者作用域不同，但共同影响系统性能和资源使用。
+**说明**: IPC 配置负责传输层限制，Session Manager 配置负责应用层限制。两者作用域不同，但共同影响系统性能和资源使用。
 
 ### 用户交互配置
 
@@ -1179,13 +1163,10 @@ ipc:
     max_timeout: 3600000             # 最大超时（毫秒），1 小时
     max_concurrent_queries: 10       # 最大并发询问数
     auto_reject_on_timeout: false   # 超时后自动拒绝
-    notification:
-      sound_enabled: true            # 收到询问时播放提示音
-      desktop_notification: true     # 发送桌面通知
 
-    # CLI 模式串行队列（REPL 是顺序的）
-    cli_mode:
-      serial_queue: true             # CLI 模式下串行处理询问
+    # TUI 模式配置
+    tui_mode:
+      serial_queue: true             # TUI 模式下串行处理询问
       queue_priority:
         - permission                 # 权限询问优先级最高
         - confirmation
@@ -1207,8 +1188,8 @@ ipc:
 | `user_interaction.max_timeout` | 最大等待超时 | 3600000ms (1小时) |
 | `user_interaction.max_concurrent_queries` | 最大并发询问数 | 10 |
 | `user_interaction.auto_reject_on_timeout` | 超时后自动拒绝 | false |
-| `user_interaction.cli_mode.serial_queue` | CLI 串行队列模式 | true |
-| `user_interaction.cli_mode.show_pending_count` | 显示等待中的询问数量 | true |
+| `user_interaction.tui_mode.serial_queue` | TUI 串行队列模式 | true |
+| `user_interaction.tui_mode.show_pending_count` | 显示等待中的询问数量 | true |
 | `dangerous_operation.auto_confirm_on_ci` | CI 环境自动确认 | false |
 
 ### CLI 模式串行队列

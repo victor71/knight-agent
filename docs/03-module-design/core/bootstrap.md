@@ -4,7 +4,7 @@
 
 ### 职责描述
 
-Bootstrap 负责 Knight-Agent 系统的启动、初始化和关闭,包括:
+Bootstrap 负责 Knight-Agent 系统的启动、初始化和关闭,支持双模式启动：守护进程模式和会话进程模式,包括:
 
 - 按依赖顺序初始化所有模块
 - 配置文件加载和验证
@@ -32,6 +32,7 @@ Bootstrap 负责 Knight-Agent 系统的启动、初始化和关闭,包括:
 | **优雅关闭** | 处理信号并正确清理资源 | P1 |
 | **启动恢复** | 失败重试和降级策略 | P1 |
 | **延迟初始化** | 按需加载非核心模块 | P2 |
+| **双模式启动** | **守护进程模式和会话进程模式使用不同的模块初始化链** | **P0** |
 
 ### 依赖模块
 
@@ -138,32 +139,32 @@ Bootstrap:
 ```yaml
 # 启动配置
 BootstrapConfig:
-  # 配置文件路径
-  config_path:
-    type: string
-    description: 主配置文件路径
-    default: "~/.knight-agent/config.yaml"
+  mode:
+    type: enum
+    values: [daemon, session]
+    description: 启动模式
 
-  # 工作目录
+  # Only for daemon mode:
+  ipc_listen_addr:
+    type: string
+    description: IPC 监听地址
+    default: "unix://~/.knight-agent/knight.sock"
+
+  # Only for session mode:
+  daemon_addr:
+    type: string
+    description: 守护进程 IPC 地址
+    required: true
+
+  session_id:
+    type: string
+    description: 会话 ID (session mode)
+    required: false
+
   workspace:
     type: string
-    description: 默认工作目录
-    default: "."
-
-  # 日志配置
-  logging:
-    type: LoggingConfig
-    description: 日志系统配置
-
-  # 模块配置
-  modules:
-    type: ModuleConfigs
-    description: 各模块配置
-
-  # 启动选项
-  startup:
-    type: StartupOptions
-    description: 启动选项
+    description: 工作目录 (session mode)
+    required: false
 
 # 启动选项
 StartupOptions:
@@ -400,116 +401,74 @@ bootstrap:
 ### 系统启动流程
 
 ```
-Bootstrap::start()
+knight (TUI) 启动
     │
-    ▼
-┌──────────────────────────────┐
-│ 1. 加载配置                  │
-│    - 读取配置文件            │
-│    - 验证配置有效性          │
-│    - 合并环境变量            │
-└──────────────────────────────┘
+    ├── 1. TUI 初始化 (ratatui/crossterm)
     │
-    ▼
-┌──────────────────────────────┐
-│ 2. 初始化日志系统            │
-│    - 最早初始化              │
-│    - 记录启动日志            │
-└──────────────────────────────┘
+    ├── 2. 检查守护进程状态 (connect to Unix Socket)
+    │     ├── 已运行 → 跳到步骤 4
+    │     └── 未运行 → 步骤 3
     │
-    ▼
-┌──────────────────────────────┐
-│ 3. 按依赖顺序初始化模块      │
-│    for module in module_order:│
-│      - 检查依赖是否满足      │
-│      - 初始化模块            │
-│      - 记录模块状态          │
-│      - 失败时重试/跳过       │
-└──────────────────────────────┘
+    ├── 3. spawn 守护进程
+    │     └── knight-agent daemon --new-session | --recover <id>
+    │         └── Daemon Bootstrap (守护进程模式初始化)
     │
-    ▼
-┌──────────────────────────────┐
-│ 4. 注册模块间连接            │
-│    - Event Loop 事件源注册  │
-│    - Hook 系统注册           │
-│    - 服务注入                │
-└──────────────────────────────┘
+    ├── 4. TUI 通过 IPC 连接守护进程
     │
-    ▼
-┌──────────────────────────────┐
-│ 5. 启动核心系统              │
-│    - Event Loop::start()     │
-│    - Timer System::start()   │
-└──────────────────────────────┘
-    │
-    ▼
-┌──────────────────────────────┐
-│ 6. 健康检查                  │
-│    - 验证核心模块就绪        │
-│    - 检查依赖连接            │
-└──────────────────────────────┘
-    │
-    ▼
-┌──────────────────────────────┐
-│ 7. 工作流恢复（可选）        │
-│    - 恢复未完成的后台工作流  │
-│    - if config.task.background. │
-│         auto_resume: true      │
-└──────────────────────────────┘
-    │
-    ▼
-┌──────────────────────────────┐
-│ 8. 系统就绪                  │
-│    - 等待用户输入/请求       │
-└──────────────────────────────┘
+    └── 5. 守护进程根据参数决定行为
+          ├── --new-session → spawn 新会话进程 (Session Bootstrap)
+          ├── --recover <id> → spawn 恢复会话进程
+          └── 默认 → 恢复上次活跃会话
 ```
 
 ### 模块初始化顺序
 
+**守护进程模式 (Daemon Mode)**:
 ```
-阶段 1: 基础设施 (无依赖)
-└── logging_system      # 最先初始化,记录所有日志
+阶段 1: 基础设施
+└── logging_system
 
-阶段 2: 安全与存储 (安全优先，防止启动时绕过安全检查)
-├── security_manager     # 权限检查能力需尽早可用（位置 2）
-└── storage_service      # 数据持久化基础
+阶段 2: 配置与安全
+├── config_loader
+└── security_manager (策略)
 
-阶段 3: 基础服务 (依赖基础设施)
-├── llm_provider         # 依赖 storage (缓存)
-└── tool_system          # 无其他依赖
+阶段 3: 核心管理
+├── session_manager
+├── process_monitor
+└── router
 
-阶段 3: 事件系统 (依赖核心服务)
-├── event_loop           # 依赖 logging, tool_system
-└── timer_system         # 依赖 event_loop
+阶段 4: 系统服务
+├── event_loop (全局)
+├── hook_engine (全局)
+└── monitor (聚合)
 
-阶段 4: 核心引擎层 (依赖事件系统)
-├── hook_engine          # 依赖 event_loop
-├── session_manager      # 依赖 storage, logging
-├── router               # CLI 路由,依赖 session_manager (Task Manager 运行时依赖)
-└── monitor              # 监控,依赖所有模块 (Agent Runtime 运行时依赖)
-
-阶段 5: Agent 层 (依赖引擎层)
-├── agent_variants       # Agent 变体系统
-├── agent_runtime        # 依赖 llm_provider, tool_system, hook_engine, agent_variants
-├── external_agent       # 外部 Agent 集成,依赖 agent_runtime
-├── skill_engine         # 依赖 agent_runtime (循环依赖，运行时解决)
-├── orchestrator         # 依赖 agent_runtime, external_agent
-├── task_manager         # 依赖 skill_engine, orchestrator
-├── command              # 命令执行,依赖 router 和 task_manager
-└── workflows_directory  # 工作流目录,依赖 task_manager
-
-阶段 6: 报告和监控
-└── report_skill          # 报告生成,依赖 timer_system
-
-阶段 7: 上下文优化 (可选)
-└── context_compressor    # 上下文压缩,依赖 llm_provider
-
-阶段 8: 安全层 (最后初始化)
-├── sandbox              # 依赖 session_manager, tool_system
-└── ipc_contract         # 进程间通信契约
+阶段 5: IPC 服务
+└── ipc_server (监听 TUI 和会话进程连接)
 ```
 
-**模块统计**: 25 个模块 (8 核心 + 6 Agent + 7 服务 + 1 工具 + 1 基础设施 + 2 安全)
+**会话进程模式 (Session Mode)**:
+```
+阶段 1: 基础设施
+└── logging_system (会话日志)
+
+阶段 2: 安全
+└── security_manager (执行)
+
+阶段 3: 基础服务
+├── llm_provider
+└── tool_system
+
+阶段 4: Agent 运行层
+├── agent_variants
+├── agent_runtime
+├── skill_engine
+├── orchestrator
+├── task_manager
+└── context_compressor
+
+阶段 5: IPC 客户端
+└── ipc_client (连接守护进程)
+```
 
 ### 优雅关闭流程
 

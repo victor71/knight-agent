@@ -17,6 +17,8 @@ TUI 模块负责：
 
 ## 架构概述
 
+TUI 作为独立进程运行（`knight` 二进制），启动时通过 IPC 连接到 knight-agent 守护进程。若守护进程未运行，TUI 会自动拉起守护进程后再建立连接。TUI 不直接访问 Agent Runtime、Session Manager 内部或任何核心模块，所有交互均通过 IPC 完成。
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        TUI Application                      │
@@ -31,20 +33,19 @@ TUI 模块负责：
 │  └─────────────────────────────────────────────────────────┘  │
 │  ┌─────────────────────────────────────────────────────────┐  │
 │  │              Status Update Task                       │  │
-│  │  - Subscribe to Monitor.watch()                        │  │
-│  │  - Subscribe to ConfigLoader.subscribe()               │  │
+│  │  - IPC subscribe: monitor.watch                       │  │
+│  │  - IPC subscribe: config.subscribe                    │  │
 │  └─────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
                           │
-                    Channels (mpsc)
+                IPC (Unix Socket / TCP)
                           │
 ┌─────────────────────────────────────────────────────────────┐
-│              Existing Modules (read-only access)              │
-│  - KnightAgentSystem                                     │
-│  - MonitorImpl                                             │
-│  - OrchestratorImpl                                        │
-│  - SessionManagerImpl                                     │
-│  - AgentRuntimeImpl                                       │
+│                   knight-agent Daemon                        │
+│  - Session Manager                                          │
+│  - Process Monitor                                          │
+│  - Monitor                                                  │
+│  - Router                                                   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -166,8 +167,8 @@ pub struct AppState {
     pub session_token_usage: SessionTokenUsage,
     pub context_compression_status: ContextCompressionStatus,
 
-    // Channels
-    pub event_tx: mpsc::UnboundedSender<AppEvent>,
+    // IPC connection
+    pub ipc_connection: IpcConnection,
 
     // Time
     pub current_time: DateTime<Local>,
@@ -190,15 +191,13 @@ pub struct AppState {
 
 ## 集成点
 
-| 现有模块 | TUI 集成方式 |
+| 守护进程能力 | TUI IPC 调用方式 |
 |---------|-------------|
-| `MonitorImpl` | `watch()` → 状态更新流 |
-| `OrchestratorImpl` | `list_agents()` → Agent 列表 |
-| `SessionManagerImpl` | `get_current_session()`, `list_sessions()` → 会话信息 |
-| `AgentRuntimeImpl` | `list_agents()`, `get_agent_state()` → Agent 状态 |
-| `TaskManagerImpl` | `list_tasks()`, `get_current_task()` → 任务列表 |
-| `KnightAgentSystem` | `status()`, `health_check()`, `version()` → 系统状态 |
-| `ConfigLoader` | `subscribe()` → 配置变更 |
+| Monitor | IPC: `monitor.watch` (subscription stream) → 状态更新流 |
+| Session | IPC: `session.list_agents` → Agent 列表 |
+| Session | IPC: `session.get_current` → 当前会话信息 |
+| Session | IPC: `session.list_tasks` → 任务列表 |
+| Config | IPC: `config.subscribe` (subscription stream) → 配置变更 |
 
 ## 启动方式
 
