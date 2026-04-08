@@ -8,12 +8,17 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use tracing::info;
+use tui::{DaemonClient, IpcDaemonClient};
+
+use daemon_manager::connect_to_daemon;
 
 mod args;
 mod in_process;
 mod daemon;
 mod session;
+mod daemon_manager;
 
 use args::Args;
 
@@ -93,7 +98,33 @@ async fn main() -> Result<()> {
             unreachable!()
         }
     } else {
-        // Default to in-process mode
-        in_process::run_in_process().await
+        // Default mode: Try IPC mode first, fallback to in-process
+        match run_tui_with_ipc().await {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                info!("IPC mode failed: {}, falling back to in-process mode", e);
+                in_process::run_in_process().await
+            }
+        }
     }
+}
+
+/// Run TUI with IPC connection to daemon
+async fn run_tui_with_ipc() -> Result<()> {
+    info!("Starting TUI with IPC connection to daemon...");
+
+    // Connect to daemon (will spawn if needed)
+    let daemon_addr = connect_to_daemon().await?;
+
+    // Create IPC daemon client
+    let daemon_client: Arc<dyn DaemonClient> = Arc::new(
+        IpcDaemonClient::new(daemon_addr).await?
+    );
+
+    // Run TUI with IPC client
+    // TODO: This needs to be integrated with the actual TUI startup
+    // For now, this is a placeholder
+    info!("TUI with IPC not yet fully implemented");
+
+    Ok(())
 }
