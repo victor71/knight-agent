@@ -470,6 +470,15 @@ pub(crate) async fn run_in_process() -> Result<()> {
     session_manager.set_agent_runtime(Arc::new(adapter)).await;
     info!("Session Manager initialized and connected to Agent Runtime");
 
+    // Create default session for TUI
+    let default_session = session_manager::CreateSessionRequest::new(".")
+        .name("default".to_string());
+    if let Err(e) = session_manager.create_session(default_session).await {
+        info!("Note: Default session may already exist: {}", e);
+    } else {
+        info!("Created default session");
+    }
+
     // Run CLI TUI (check for --no-tui flag)
     let use_tui = !std::env::args().any(|arg| arg == "--no-tui");
 
