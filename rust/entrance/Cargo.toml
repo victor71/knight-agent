@@ -71,6 +71,10 @@ chrono = { workspace = true }
 anyhow.workspace = true
 thiserror.workspace = true
 
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
 [[bin]]
 name = "knight-agent"
 path = "src/main.rs"
