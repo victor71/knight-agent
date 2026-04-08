@@ -25,6 +25,7 @@ orchestrator = { path = "../core/orchestrator" }
 session-manager = { path = "../core/session-manager" }
 task-manager = { path = "../agent/task-manager" }
 router = { path = "../core/router" }
+ipc-contract = { path = "../infrastructure/ipc-contract" }
 
 [dev-dependencies]
 # rexpect = "0.7"  # Unix-only, not available on Windows

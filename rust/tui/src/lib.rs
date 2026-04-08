@@ -14,6 +14,7 @@ pub mod test_harness;
 
 pub use app::{AppState, PopupType};
 pub use client::{DaemonClient, DirectDaemonClient, DaemonClientError, DaemonClientResult};
+pub use client::ipc::IpcDaemonClient;
 pub use router::HandleInputResult;
 pub use event::{AppEvent, SystemStatusSnapshot};
 pub use renderer::AppTerminal;

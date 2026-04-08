@@ -2,6 +2,8 @@
 //!
 //! Abstraction layer for TUI to communicate with daemon.
 
+pub mod ipc;
+
 use async_trait::async_trait;
 use std::pin::Pin;
 use std::sync::Arc;
