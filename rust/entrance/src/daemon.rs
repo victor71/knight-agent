@@ -6,40 +6,12 @@
 //! - IPC server for TUI and session processes
 
 use anyhow::{Context, Result};
-use async_trait::async_trait;
 use bootstrap::KnightAgentSystem;
 use session_manager::AgentRuntimeProxy;
 use std::sync::Arc;
 use tracing::info;
 
 use crate::{ensure_dir, get_home_dir, AGENT_SUBDIRS, CONFIG_DIR};
-
-/// Adapter to connect agent-runtime with session-manager
-struct AgentRuntimeAdapter {
-    inner: Arc<dyn agent_runtime::AgentHandle>,
-}
-
-impl AgentRuntimeAdapter {
-    fn new(inner: Arc<dyn agent_runtime::AgentHandle>) -> Self {
-        Self { inner }
-    }
-}
-
-#[async_trait]
-impl AgentRuntimeProxy for AgentRuntimeAdapter {
-    async fn get_or_create_session_agent(&self, session_id: String) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        self.inner.get_or_create_session_agent(session_id).await
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-    }
-
-    async fn send_message(&self, agent_id: &str, content: String) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        use agent_runtime::Message;
-        let message = Message::user(content);
-        let response = self.inner.send_message(agent_id, message, false).await
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
-        Ok(response.content.to_string())
-    }
-}
 
 /// Daemon state
 pub struct DaemonState {
@@ -71,16 +43,15 @@ impl DaemonState {
 
         // TODO: Load LLM provider from config
         // For now, use minimal config
-        let agent_runtime: Arc<dyn agent_runtime::AgentHandle> = Arc::new(agent_runtime_impl);
+        let agent_runtime: Arc<dyn AgentRuntimeProxy> = Arc::new(agent_runtime_impl);
         info!("Agent Runtime initialized");
 
         // Create Session Manager and connect with Agent Runtime
         let session_manager = Arc::new(session_manager::SessionManagerImpl::new());
         session_manager.initialize().await?;
 
-        // Create adapter and set agent runtime for session manager
-        let adapter = AgentRuntimeAdapter::new(agent_runtime.clone());
-        session_manager.set_agent_runtime(Arc::new(adapter)).await;
+        // Set agent runtime for session manager
+        session_manager.set_agent_runtime(agent_runtime).await;
         info!("Session Manager initialized and connected to Agent Runtime");
 
         Ok(Self {

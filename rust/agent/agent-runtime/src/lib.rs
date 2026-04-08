@@ -54,3 +54,30 @@ pub trait AgentHandle: Send + Sync {
     /// Check if the runtime is initialized
     fn is_initialized(&self) -> bool;
 }
+
+// Implement AgentRuntimeProxy for AgentRuntimeImpl
+use agent_proxy::AgentRuntimeProxy as ProxyTrait;
+
+#[async_trait::async_trait]
+impl ProxyTrait for AgentRuntimeImpl {
+    async fn get_or_create_session_agent(
+        &self,
+        session_id: String,
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        AgentRuntimeImpl::get_or_create_session_agent(self, session_id)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+    }
+
+    async fn send_message(
+        &self,
+        agent_id: &str,
+        content: String,
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        let message = Message::user(content);
+        let response = AgentRuntimeImpl::send_message(self, agent_id, message, false)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+        Ok(response.content.to_string())
+    }
+}

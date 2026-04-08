@@ -17,6 +17,7 @@ members = [
     "rust/core/orchestrator",
     "rust/core/command",
     "rust/core/bootstrap",
+    "rust/core/agent-proxy",
     # Agent (6)
     "rust/agent/agent-variants",
     "rust/agent/agent-runtime",

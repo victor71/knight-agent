@@ -14,3 +14,4 @@ async-trait.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 llm-provider = { path = "../../services/llm-provider" }
+agent-proxy = { path = "../../core/agent-proxy" }

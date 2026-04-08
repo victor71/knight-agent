@@ -9,7 +9,7 @@ use tokio::sync::RwLock as AsyncRwLock;
 use tracing::{debug, info, warn};
 
 use crate::types::*;
-use llm_provider::LLMProvider;
+use llm_provider::{LLMProvider, LLMRouter};
 
 /// Agent runtime configuration
 #[derive(Debug, Clone)]
@@ -47,8 +47,8 @@ pub struct AgentRuntimeImpl {
     agents: Arc<AsyncRwLock<HashMap<String, Agent>>>,
     /// Execution tracking (agent_id -> start_time)
     execution_tracking: Arc<AsyncRwLock<HashMap<String, Instant>>>,
-    /// LLM Provider for chat completions
-    llm_provider: Option<Arc<dyn LLMProvider>>,
+    /// LLM Router for chat completions
+    llm_router: Option<Arc<LLMRouter>>,
     /// Default model to use when agent doesn't specify one
     default_model: Option<String>,
 }
@@ -61,7 +61,7 @@ impl AgentRuntimeImpl {
             initialized: false,
             agents: Arc::new(AsyncRwLock::new(HashMap::new())),
             execution_tracking: Arc::new(AsyncRwLock::new(HashMap::new())),
-            llm_provider: None,
+            llm_router: None,
             default_model: None,
         }
     }
@@ -73,19 +73,37 @@ impl AgentRuntimeImpl {
             initialized: false,
             agents: Arc::new(AsyncRwLock::new(HashMap::new())),
             execution_tracking: Arc::new(AsyncRwLock::new(HashMap::new())),
-            llm_provider: None,
+            llm_router: None,
             default_model: None,
         }
     }
 
-    /// Set the LLM provider with a default model
-    pub fn set_llm_provider(&mut self, provider: Arc<dyn LLMProvider>, default_model: Option<String>) {
-        self.llm_provider = Some(provider);
-        self.default_model = default_model;
+    /// Initialize the LLM router from environment variables
+    fn initialize_llm_router(&mut self) -> RuntimeResult<()> {
+        let mut router = LLMRouter::new();
+        router.initialize()
+            .map_err(|e| AgentRuntimeError::InitializationFailed(format!("failed to initialize LLM router: {}", e)))?;
+
+        if !router.is_empty() {
+            self.llm_router = Some(Arc::new(router));
+            if let Some(r) = &self.llm_router {
+                let models = r.models();
+                if !models.is_empty() {
+                    self.default_model = models.first().cloned();
+                }
+            }
+            info!("LLM Router initialized from environment");
+        } else {
+            info!("No LLM provider configured");
+        }
+        Ok(())
     }
 
     /// Initialize the runtime
     pub async fn initialize(&mut self) -> RuntimeResult<()> {
+        // Initialize LLM router first
+        self.initialize_llm_router()?;
+
         self.initialized = true;
         info!("AgentRuntime initialized");
         Ok(())
@@ -282,9 +300,9 @@ impl AgentRuntimeImpl {
             agent_id, agent.state.status
         );
 
-        // Call LLM provider if available
-        let response = if let Some(ref llm) = self.llm_provider {
-            info!("Calling LLM provider for agent {}", agent_id);
+        // Call LLM router if available
+        let response = if let Some(ref router) = self.llm_router {
+            info!("Calling LLM router for agent {}", agent_id);
 
             // Convert agent-runtime Message to LLM provider format
             let llm_messages = self.convert_to_llm_messages(&agent.context.messages)?;
@@ -297,7 +315,7 @@ impl AgentRuntimeImpl {
                 ..Default::default()
             };
 
-            match llm.chat_completion(request).await {
+            match router.chat_completion(request).await {
                 Ok(response) => {
                     // Extract content from LLM response
                     let content = response.content
@@ -322,7 +340,7 @@ impl AgentRuntimeImpl {
                 }
             }
         } else {
-            // No LLM provider - return placeholder
+            // No LLM router - return placeholder
             warn!("No LLM provider available for agent {}", agent_id);
             Message::assistant("Message received (no LLM provider configured)".to_string())
         };

@@ -8,5 +8,9 @@
 pub mod types;
 pub mod manager;
 
-pub use types::*;
-pub use manager::{SessionManagerImpl, AgentRuntimeProxy};
+// Re-export AgentRuntimeProxy from agent-proxy for convenience
+pub use agent_proxy::AgentRuntimeProxy;
+
+// Re-export commonly used types
+pub use manager::SessionManagerImpl;
+pub use types::{CreateSessionRequest, Session, SessionStatus, Message, CompressionMethod, PathAction, ProjectType};

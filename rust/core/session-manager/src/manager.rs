@@ -8,13 +8,7 @@ use tokio::sync::RwLock as AsyncRwLock;
 use tracing::{debug, info};
 
 use crate::types::*;
-
-/// Agent runtime trait (simplified - avoid direct dependency)
-#[async_trait::async_trait]
-pub trait AgentRuntimeProxy: Send + Sync {
-    async fn get_or_create_session_agent(&self, session_id: String) -> Result<String, Box<dyn std::error::Error + Send + Sync>>;
-    async fn send_message(&self, agent_id: &str, content: String) -> Result<String, Box<dyn std::error::Error + Send + Sync>>;
-}
+use agent_proxy::AgentRuntimeProxy;
 
 /// Session manager implementation
 pub struct SessionManagerImpl {

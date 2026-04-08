@@ -28,6 +28,8 @@ pub enum AgentRuntimeError {
     OperationCancelled(String),
     #[error("Timeout: {0}")]
     Timeout(String),
+    #[error("Initialization failed: {0}")]
+    InitializationFailed(String),
 }
 
 /// Result type for agent runtime operations
