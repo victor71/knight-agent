@@ -49,6 +49,8 @@ pub struct AgentRuntimeImpl {
     execution_tracking: Arc<AsyncRwLock<HashMap<String, Instant>>>,
     /// LLM Provider for chat completions
     llm_provider: Option<Arc<dyn LLMProvider>>,
+    /// Default model to use when agent doesn't specify one
+    default_model: Option<String>,
 }
 
 impl AgentRuntimeImpl {
@@ -60,6 +62,7 @@ impl AgentRuntimeImpl {
             agents: Arc::new(AsyncRwLock::new(HashMap::new())),
             execution_tracking: Arc::new(AsyncRwLock::new(HashMap::new())),
             llm_provider: None,
+            default_model: None,
         }
     }
 
@@ -71,12 +74,14 @@ impl AgentRuntimeImpl {
             agents: Arc::new(AsyncRwLock::new(HashMap::new())),
             execution_tracking: Arc::new(AsyncRwLock::new(HashMap::new())),
             llm_provider: None,
+            default_model: None,
         }
     }
 
-    /// Set the LLM provider
-    pub fn set_llm_provider(&mut self, provider: Arc<dyn LLMProvider>) {
+    /// Set the LLM provider with a default model
+    pub fn set_llm_provider(&mut self, provider: Arc<dyn LLMProvider>, default_model: Option<String>) {
         self.llm_provider = Some(provider);
+        self.default_model = default_model;
     }
 
     /// Initialize the runtime
@@ -285,7 +290,7 @@ impl AgentRuntimeImpl {
             let llm_messages = self.convert_to_llm_messages(&agent.context.messages)?;
 
             let request = llm_provider::ChatCompletionRequest {
-                model: "claude-sonnet-4-6".to_string(),
+                model: self.default_model.clone().unwrap_or_else(|| "gpt-4o".to_string()),
                 messages: llm_messages,
                 temperature: 0.7,
                 max_tokens: 4096,

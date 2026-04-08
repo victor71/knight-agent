@@ -370,7 +370,7 @@ pub(crate) fn init_logging(log_dir: &Path, config: &configuration::LoggingConfig
 /// Create an LLM provider from configuration
 async fn create_llm_provider(
     config_loader: &Arc<ConfigLoader>,
-) -> Result<Option<llm_provider::GenericLLMProvider>> {
+) -> Result<Option<(llm_provider::GenericLLMProvider, Option<String>)>> {
     use llm_provider::LLMProtocol;
 
     // Try to load LLM config from knight.json
@@ -408,7 +408,7 @@ async fn create_llm_provider(
             base_url: provider_config.base_url.clone(),
             protocol,
             models,
-            default_model: Some(default_model),
+            default_model: Some(default_model.clone()),
             timeout_secs: provider_config.timeout_secs,
             model_pricing: Default::default(),
         };
@@ -418,7 +418,7 @@ async fn create_llm_provider(
             .map_err(|e| anyhow::anyhow!("Failed to create LLM provider: {}", e))?;
 
         info!("LLM provider '{}' initialized successfully", default_provider_name);
-        Ok(Some(provider))
+        Ok(Some((provider, Some(default_model))))
     } else {
         info!("No LLM provider configured");
         Ok(None)
@@ -506,10 +506,10 @@ pub(crate) async fn run_in_process() -> Result<()> {
     // In production, this would be configured via knight.json
     info!("Creating LLM Provider...");
     let llm_provider = create_llm_provider(&config_loader).await?;
-    if let Some(provider) = llm_provider {
+    if let Some((provider, default_model)) = llm_provider {
         let provider = Arc::new(provider);
-        agent_runtime_impl.set_llm_provider(provider.clone());
-        info!("LLM Provider configured");
+        agent_runtime_impl.set_llm_provider(provider.clone(), default_model.clone());
+        info!("LLM Provider configured with default model: {:?}", default_model);
     }
 
     // Wrap in Arc for sharing
