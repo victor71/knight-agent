@@ -74,7 +74,7 @@ impl Cli for CliImpl {
         &self,
         initial_status: Option<SystemStatusSnapshot>,
         router: Option<Arc<dyn router::RouterHandle>>,
-        agent_runtime: Option<Arc<dyn agent_runtime::AgentHandle>>,
+        session_manager: Option<Arc<session_manager::SessionManagerImpl>>,
         session_id: Option<String>,
     ) -> CliResult<()> {
         if !self.is_initialized() {
@@ -82,7 +82,7 @@ impl Cli for CliImpl {
         }
 
         // Run the TUI with initial status and handles
-        tui::run_tui(initial_status, router, agent_runtime, session_id)
+        tui::run_tui(initial_status, router, session_manager, session_id)
             .await
             .map_err(|e| CliError::Other(e.to_string()))?;
 

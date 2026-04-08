@@ -3,9 +3,11 @@
 //! This binary initializes and runs the Knight Agent system.
 
 use anyhow::{Context, Result};
+use async_trait::async_trait;
 use bootstrap::{BootstrapConfig, KnightAgentSystem, BootstrapStage};
 use cli::{Cli, CliImpl};
 use configuration::{ConfigLoader, LoggingConfig};
+use session_manager::AgentRuntimeProxy;
 use std::io::Write as IoWrite;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -17,6 +19,34 @@ use tui::event::{SystemHealth, SystemStatusSnapshot};
 
 /// Default configuration directory name
 const CONFIG_DIR: &str = ".knight-agent";
+
+/// Adapter to connect agent-runtime with session-manager
+struct AgentRuntimeAdapter {
+    inner: Arc<dyn agent_runtime::AgentHandle>,
+}
+
+impl AgentRuntimeAdapter {
+    fn new(inner: Arc<dyn agent_runtime::AgentHandle>) -> Self {
+        Self { inner }
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentRuntimeProxy for AgentRuntimeAdapter {
+    async fn get_or_create_session_agent(&self, session_id: String) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        self.inner.get_or_create_session_agent(session_id).await
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+    }
+
+    async fn send_message(&self, agent_id: &str, content: String) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        use agent_runtime::Message;
+        let message = Message::user(content);
+        let response = self.inner.send_message(agent_id, message, false).await
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+        // Extract content from response
+        Ok(response.content.to_string())
+    }
+}
 
 /// System state shared across the application
 struct AppState {
@@ -495,6 +525,16 @@ async fn main() -> Result<()> {
     let agent_runtime: Arc<dyn agent_runtime::AgentHandle> = Arc::new(agent_runtime_impl);
     info!("Agent Runtime initialized");
 
+    // Create Session Manager and connect with Agent Runtime
+    info!("Creating Session Manager...");
+    let session_manager = Arc::new(session_manager::SessionManagerImpl::new());
+    session_manager.initialize().await?;
+
+    // Create adapter and set agent runtime for session manager
+    let adapter = AgentRuntimeAdapter::new(agent_runtime.clone());
+    session_manager.set_agent_runtime(Arc::new(adapter)).await;
+    info!("Session Manager initialized and connected to Agent Runtime");
+
     // Run CLI TUI (check for --no-tui flag)
     let use_tui = !std::env::args().any(|arg| arg == "--no-tui");
 
@@ -518,7 +558,7 @@ async fn main() -> Result<()> {
         state.cli.run_tui(
             Some(initial_status),
             Some(router.clone()),
-            Some(agent_runtime.clone() as Arc<dyn agent_runtime::AgentHandle>),
+            Some(session_manager.clone()),
             Some("default".to_string()),
         ).await?;
     } else {

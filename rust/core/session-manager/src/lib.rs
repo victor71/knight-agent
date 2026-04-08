@@ -9,4 +9,4 @@ pub mod types;
 pub mod manager;
 
 pub use types::*;
-pub use manager::SessionManagerImpl;
+pub use manager::{SessionManagerImpl, AgentRuntimeProxy};

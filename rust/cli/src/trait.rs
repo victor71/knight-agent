@@ -30,7 +30,7 @@ pub trait Cli: Send + Sync {
         &self,
         initial_status: Option<SystemStatusSnapshot>,
         router: Option<Arc<dyn router::RouterHandle>>,
-        agent_runtime: Option<Arc<dyn agent_runtime::AgentHandle>>,
+        session_manager: Option<Arc<session_manager::SessionManagerImpl>>,
         session_id: Option<String>,
     ) -> CliResult<()>;
 

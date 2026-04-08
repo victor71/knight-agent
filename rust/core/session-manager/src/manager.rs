@@ -9,11 +9,19 @@ use tracing::{debug, info};
 
 use crate::types::*;
 
+/// Agent runtime trait (simplified - avoid direct dependency)
+#[async_trait::async_trait]
+pub trait AgentRuntimeProxy: Send + Sync {
+    async fn get_or_create_session_agent(&self, session_id: String) -> Result<String, Box<dyn std::error::Error + Send + Sync>>;
+    async fn send_message(&self, agent_id: &str, content: String) -> Result<String, Box<dyn std::error::Error + Send + Sync>>;
+}
+
 /// Session manager implementation
 pub struct SessionManagerImpl {
     sessions: Arc<AsyncRwLock<HashMap<String, Session>>>,
     current_session: Arc<AsyncRwLock<Option<String>>>,
     initialized: Arc<AsyncRwLock<bool>>,
+    agent_runtime: Arc<AsyncRwLock<Option<Arc<dyn AgentRuntimeProxy>>>>,
 }
 
 impl SessionManagerImpl {
@@ -23,7 +31,15 @@ impl SessionManagerImpl {
             sessions: Arc::new(AsyncRwLock::new(HashMap::new())),
             current_session: Arc::new(AsyncRwLock::new(None)),
             initialized: Arc::new(AsyncRwLock::new(false)),
+            agent_runtime: Arc::new(AsyncRwLock::new(None)),
         }
+    }
+
+    /// Set the agent runtime
+    pub async fn set_agent_runtime(&self, runtime: Arc<dyn AgentRuntimeProxy>) {
+        let mut agent_runtime = self.agent_runtime.write().await;
+        *agent_runtime = Some(runtime);
+        info!("Agent runtime set for session manager");
     }
 
     /// Check if the manager is initialized
@@ -441,6 +457,47 @@ impl SessionManagerImpl {
     /// Check if no sessions exist
     pub async fn is_empty(&self) -> bool {
         self.len().await == 0
+    }
+
+    /// Send message to session's agent
+    /// This is the main entry point for UI layer to send messages
+    pub async fn send_message_to_session(&self, session_id: &str, content: String) -> SessionResult<String> {
+        // Verify session exists
+        {
+            let sessions = self.sessions.read().await;
+            if !sessions.contains_key(session_id) {
+                return Err(SessionError::NotFound(session_id.to_string()));
+            }
+        }
+
+        // Get agent runtime
+        let agent_runtime = self.agent_runtime.read().await;
+        let agent_runtime = agent_runtime.as_ref()
+            .ok_or_else(|| SessionError::NotInitialized)?;
+
+        // Get or create agent for this session
+        let agent_id = agent_runtime.get_or_create_session_agent(session_id.to_string())
+            .await
+            .map_err(|e| SessionError::CompressionError(e.to_string()))?;
+
+        // Send message to agent
+        let response = agent_runtime.send_message(&agent_id, content.clone())
+            .await
+            .map_err(|e| SessionError::CompressionError(e.to_string()))?;
+
+        // Add user message to session context
+        let _ = self.add_message(session_id, Message::user(
+            generate_id(),
+            format!("user: {}", content)
+        )).await;
+
+        // Add assistant response to session context
+        let _ = self.add_message(session_id, Message::assistant(
+            generate_id(),
+            response.clone()
+        )).await;
+
+        Ok(response)
     }
 }
 

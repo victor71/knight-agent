@@ -34,8 +34,8 @@ pub struct TuiApp {
     tick_rate: Duration,
     /// Router for handling input
     router: Option<Arc<dyn router::RouterHandle>>,
-    /// Agent runtime for LLM calls
-    agent_runtime: Option<Arc<dyn agent_runtime::AgentHandle>>,
+    /// Session manager for agent interactions
+    session_manager: Option<Arc<session_manager::SessionManagerImpl>>,
     /// Current session ID
     session_id: String,
     /// Pending agent input to process (set by sync event handler, processed by async loop)
@@ -63,7 +63,7 @@ impl TuiApp {
             terminal,
             tick_rate: Duration::from_millis(16), // ~60 FPS
             router: None,
-            agent_runtime: None,
+            session_manager: None,
             session_id: "default".to_string(),
             pending_agent_input: None,
         })
@@ -75,9 +75,9 @@ impl TuiApp {
         self
     }
 
-    /// Set the agent runtime handle
-    pub fn with_agent_runtime(mut self, agent_runtime: Arc<dyn agent_runtime::AgentHandle>) -> Self {
-        self.agent_runtime = Some(agent_runtime);
+    /// Set the session manager
+    pub fn with_session_manager(mut self, session_manager: Arc<session_manager::SessionManagerImpl>) -> Self {
+        self.session_manager = Some(session_manager);
         self
     }
 
@@ -300,36 +300,24 @@ impl TuiApp {
             info!("Router result: to_agent={}", result.to_agent);
 
             if result.to_agent {
-                // Router says to forward to agent - use agent runtime
-                if let Some(ref agent) = self.agent_runtime {
-                    info!("Calling agent runtime for input: \"{}\"", input);
+                // Router says to forward to agent - use session manager
+                if let Some(ref session_mgr) = self.session_manager {
+                    info!("Calling session manager for input: \"{}\"", input);
 
-                    // Create a user message
-                    let message = agent_runtime::Message::user(input);
-
-                    // Try to get or create an agent for this session
-                    // For now, use a default agent ID
-                    let agent_id = "default-agent";
-
-                    match agent.send_message(agent_id, message, false).await {
+                    match session_mgr.send_message_to_session(&self.session_id, input).await {
                         Ok(response) => {
-                            info!("Agent response received: \"{}\"", response.content);
+                            info!("Agent response received: \"{}\"", response);
                             // Send agent response to output
-                            let content_str = if let serde_json::Value::String(s) = &response.content {
-                                s.clone()
-                            } else {
-                                response.content.to_string()
-                            };
                             self.state.event_tx.send(AppEvent::OutputLine(
                                 crate::state::OutputLine {
-                                    content: content_str,
+                                    content: response,
                                     style: crate::state::OutputStyle::AgentMessage,
                                     timestamp: chrono::Local::now(),
                                 },
                             ))?;
                         }
                         Err(e) => {
-                            warn!("Agent runtime error: {:?}", e);
+                            warn!("Session manager error: {:?}", e);
                             self.state.event_tx.send(AppEvent::OutputLine(
                                 crate::state::OutputLine {
                                     content: format!("Error: {:?}", e),
@@ -340,10 +328,10 @@ impl TuiApp {
                         }
                     }
                 } else {
-                    warn!("No agent runtime configured");
+                    warn!("No session manager configured");
                     self.state.event_tx.send(AppEvent::OutputLine(
                         crate::state::OutputLine {
-                            content: "No agent runtime configured".to_string(),
+                            content: "No session manager configured".to_string(),
                             style: crate::state::OutputStyle::Error,
                             timestamp: chrono::Local::now(),
                         },
@@ -423,17 +411,17 @@ impl TuiApp {
 pub async fn run_tui(
     initial_status: Option<SystemStatusSnapshot>,
     router: Option<Arc<dyn router::RouterHandle>>,
-    agent_runtime: Option<Arc<dyn agent_runtime::AgentHandle>>,
+    session_manager: Option<Arc<session_manager::SessionManagerImpl>>,
     session_id: Option<String>,
 ) -> Result<()> {
     let mut app = TuiApp::new()?;
 
-    // Configure router and agent runtime if provided
+    // Configure router and session manager if provided
     if let Some(r) = router {
         app = app.with_router(r);
     }
-    if let Some(a) = agent_runtime {
-        app = app.with_agent_runtime(a);
+    if let Some(s) = session_manager {
+        app = app.with_session_manager(s);
     }
     if let Some(s) = session_id {
         app = app.with_session_id(s);

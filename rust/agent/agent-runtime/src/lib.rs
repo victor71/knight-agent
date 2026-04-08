@@ -44,6 +44,13 @@ pub trait AgentHandle: Send + Sync {
     /// Get an agent by ID
     async fn get_agent(&self, agent_id: &str) -> RuntimeResult<Agent>;
 
+    /// Get or create a session agent
+    /// Returns the agent ID for the session, creating a new one if needed
+    async fn get_or_create_session_agent(
+        &self,
+        session_id: String,
+    ) -> RuntimeResult<String>;
+
     /// Check if the runtime is initialized
     fn is_initialized(&self) -> bool;
 }

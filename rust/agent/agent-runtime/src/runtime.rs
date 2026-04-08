@@ -123,6 +123,33 @@ impl AgentRuntimeImpl {
             .ok_or_else(|| AgentRuntimeError::AgentNotFound(agent_id.to_string()))
     }
 
+    /// Get or create a session agent
+    /// Returns the agent ID for the session, creating a new one if needed
+    pub async fn get_or_create_session_agent(&self, session_id: String) -> RuntimeResult<String> {
+        // Use a deterministic agent ID based on session_id
+        let agent_id = format!("session:{}", session_id);
+
+        // Check if agent already exists
+        {
+            let agents = self.agents.read().await;
+            if agents.contains_key(&agent_id) {
+                debug!("Session agent exists: {}", agent_id);
+                return Ok(agent_id);
+            }
+        }
+
+        // Create new agent for this session
+        info!("Creating session agent: {}", agent_id);
+        let mut agent = Agent::new(agent_id.clone(), "default".to_string(), session_id.clone());
+        agent.state.status = AgentStatus::Idle;
+
+        let mut agents = self.agents.write().await;
+        agents.insert(agent_id.clone(), agent.clone());
+
+        info!("Session agent created: {}", agent_id);
+        Ok(agent_id)
+    }
+
     /// Start an agent (transition from idle to thinking)
     pub async fn start_agent(&self, agent_id: &str) -> RuntimeResult<()> {
         let mut agents = self.agents.write().await;
@@ -648,6 +675,10 @@ impl crate::AgentHandle for AgentRuntimeImpl {
 
     async fn get_agent(&self, agent_id: &str) -> RuntimeResult<Agent> {
         AgentRuntimeImpl::get_agent(self, agent_id).await
+    }
+
+    async fn get_or_create_session_agent(&self, session_id: String) -> RuntimeResult<String> {
+        AgentRuntimeImpl::get_or_create_session_agent(self, session_id).await
     }
 
     fn is_initialized(&self) -> bool {

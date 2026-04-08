@@ -24,7 +24,6 @@ orchestrator = { path = "../core/orchestrator" }
 session-manager = { path = "../core/session-manager" }
 task-manager = { path = "../agent/task-manager" }
 router = { path = "../core/router" }
-agent-runtime = { path = "../agent/agent-runtime" }
 
 [dev-dependencies]
 # rexpect = "0.7"  # Unix-only, not available on Windows

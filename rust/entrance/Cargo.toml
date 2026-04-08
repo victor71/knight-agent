@@ -54,6 +54,7 @@ sandbox = { path = "../security/sandbox" }
 
 # Async runtime
 tokio = { workspace = true }
+async-trait.workspace = true
 
 # Logging
 tracing = { workspace = true }
