@@ -1192,16 +1192,16 @@ ipc:
 | `user_interaction.tui_mode.show_pending_count` | 显示等待中的询问数量 | true |
 | `dangerous_operation.auto_confirm_on_ci` | CI 环境自动确认 | false |
 
-### CLI 模式串行队列
+### TUI 模式串行队列
 
-CLI 模式（stdio/JSON-RPC）使用串行队列处理用户询问，因为 REPL 本质上是顺序的：
+TUI 模式使用串行队列处理用户询问，因为终端界面本质上是顺序的：
 
 ```
 多个 Agent 同时发起询问
          │
          ▼
 ┌────────────────────────────────┐
-│  CLI 串行队列                   │
+│  TUI 串行队列                   │
 │  - 按优先级排序                 │
 │  - permission > confirmation   │
 │    > clarification > info      │
@@ -1309,62 +1309,52 @@ recommendation: "先回答架构决策，再回答技术选型"
 
 ### 性能指标
 
-| 指标 | 目标值 | 说明 |
-|------|--------|------|
-| 消息延迟 | < 5ms | 本地通信 |
-| 吞吐量 | > 10000 msg/s | 单连接 |
-| 连接建立 | < 100ms | WebSocket 握手 |
-| 内存占用 | < 10MB | 消息缓冲 |
+| 指标 | IPC #1 目标值 | IPC #2 目标值 | 说明 |
+|------|--------------|--------------|------|
+| 消息延迟 | < 5ms | < 2ms | 本地 Unix Socket 通信 |
+| 吞吐量 | > 10000 msg/s | > 20000 msg/s | 单连接 |
+| 连接建立 | < 50ms | < 10ms | Unix Socket 连接 |
+| 内存占用 | < 10MB | < 5MB | 消息缓冲 |
 
 ### 错误处理示例
 
-```typescript
-// TypeScript 端错误处理
-async function callIPC<T>(
-  method: string,
-  params: unknown,
-): Promise<T> {
-  const maxRetries = 3;
-  let attempt = 0;
+```rust
+use std::time::Duration;
+use tokio::time::sleep;
 
-  while (attempt < maxRetries) {
-    try {
-      const response = await sendRequest(method, params);
+/// 带重试的 IPC 调用
+pub async fn call_ipc_with_retry(
+    transport: &dyn Transport,
+    method: &str,
+    params: serde_json::Value,
+) -> Result<serde_json::Value, IpcError> {
+    let max_retries = 3;
 
-      if (response.error) {
-        // 检查是否可重试
-        if (isRetryableError(response.error.code) && attempt < maxRetries - 1) {
-          await delay(Math.pow(2, attempt) * 1000);
-          attempt++;
-          continue;
+    for attempt in 0..max_retries {
+        let response = transport.send_request(method, params.clone()).await?;
+
+        if let Some(error) = response.error {
+            // 检查是否可重试
+            if is_retryable_error(error.code) && attempt < max_retries - 1 {
+                let delay = Duration::from_millis(1000 * 2u64.pow(attempt as u32));
+                sleep(delay).await;
+                continue;
+            }
+            return Err(IpcError::from(error));
         }
 
-        throw new IPCError(
-          response.error.code,
-          response.error.message,
-          response.error.details,
-        );
-      }
-
-      return response.result as T;
-    } catch (error) {
-      if (attempt === maxRetries - 1) throw error;
-      attempt++;
+        return Ok(response.result.unwrap_or(serde_json::Value::Null));
     }
-  }
 
-  throw new Error('Max retries exceeded');
+    Err(IpcError::MaxRetriesExceeded)
 }
 
-// 判断错误码是否可重试
-function isRetryableError(code: ErrorCode): boolean {
-  const retryableCodes: ErrorCode[] = [
-    ErrorCode.Timeout,
-    ErrorCode.InternalError,
-    ErrorCode.ResourceExhausted,
-  ];
-  return retryableCodes.includes(code);
-}
+/// 判断错误码是否可重试
+fn is_retryable_error(code: i32) -> bool {
+    matches!(
+        code,
+        5 | 5000 | 5001  // Timeout | InternalError | ResourceExhausted
+    )
 }
 ```
 
@@ -1372,4 +1362,5 @@ function isRetryableError(code: ErrorCode): boolean {
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 2.0.0 | 2026-04-08 | 重构为两个 IPC 边界 (TUI<->Daemon, Daemon<->Session)；移除 TypeScript/WebSocket，改为 Rust/Unix Socket |
 | 1.0.0 | 2026-04-02 | 初始版本 |
