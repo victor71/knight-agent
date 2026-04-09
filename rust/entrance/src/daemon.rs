@@ -7,7 +7,7 @@
 
 use anyhow::{Context, Result};
 use bootstrap::KnightAgentSystem;
-use session_manager::AgentRuntimeProxy;
+use session_manager::{AgentRuntimeProxy, StreamCallback};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::info;
@@ -99,15 +99,37 @@ impl DaemonState {
             })
         }).await;
 
-        // send_message handler
+        // send_message streaming handler
         let session_manager = self.session_manager.clone();
-        server.register("send_message", move |params: serde_json::Value| {
+        server.register_streaming("send_message", move |params: serde_json::Value, stream_ctx: ipc_contract::StreamingContext| {
             let session_manager = session_manager.clone();
             Box::pin(async move {
                 let session_id = params.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
                 let content = params.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
 
-                let result = session_manager.send_message_to_session(session_id, content).await
+                // Create a channel to receive chunks from the agent
+                let (chunk_tx, mut chunk_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+
+                // Spawn task to forward chunks to StreamingContext
+                tokio::spawn(async move {
+                    let mut sequence = 0u64;
+                    while let Some(chunk) = chunk_rx.recv().await {
+                        let _ = stream_ctx.send_chunk(chunk, sequence, false);
+                        sequence += 1;
+                    }
+                });
+
+                // Create streaming callback that sends to our channel
+                let stream_callback: StreamCallback = Box::new({
+                    let chunk_tx = chunk_tx.clone();
+                    move |chunk: String| -> bool {
+                        let _ = chunk_tx.send(chunk);
+                        true // Continue streaming
+                    }
+                });
+
+                // Call the session manager with streaming
+                let result = session_manager.send_message_to_session_streaming(session_id, content, Some(stream_callback)).await
                     .map_err(|e| ipc_contract::IPCError::InternalError(e.to_string()))?;
 
                 Ok(serde_json::json!({ "response": result }))

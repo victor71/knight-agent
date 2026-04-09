@@ -10,6 +10,7 @@ use std::sync::Arc;
 use serde_json::Value;
 
 use crate::error::{IPCError, IPCResult};
+use crate::server::StreamingContext;
 
 /// Method handler function signature
 pub type MethodHandler = Arc<
@@ -18,15 +19,24 @@ pub type MethodHandler = Arc<
         + Sync,
 >;
 
+/// Streaming method handler function signature
+pub type StreamingMethodHandler = Arc<
+    dyn (Fn(Value, StreamingContext) -> Pin<Box<dyn Future<Output = IPCResult<Value>> + Send>>)
+        + Send
+        + Sync,
+>;
+
 /// Method dispatcher for routing requests to handlers
 pub struct MethodDispatcher {
     handlers: HashMap<String, MethodHandler>,
+    streaming_handlers: HashMap<String, StreamingMethodHandler>,
 }
 
 impl MethodDispatcher {
     pub fn new() -> Self {
         Self {
             handlers: HashMap::new(),
+            streaming_handlers: HashMap::new(),
         }
     }
 
@@ -36,7 +46,7 @@ impl MethodDispatcher {
         F: (Fn(Value) -> Fut) + Send + Sync + 'static,
         Fut: Future<Output = IPCResult<Value>> + Send + 'static,
     {
-        if self.handlers.contains_key(method) {
+        if self.handlers.contains_key(method) || self.streaming_handlers.contains_key(method) {
             return Err(IPCError::MethodNotFound(format!(
                 "Method {} already registered",
                 method
@@ -51,19 +61,47 @@ impl MethodDispatcher {
         Ok(())
     }
 
+    /// Register a streaming method handler
+    pub fn register_streaming<F, Fut>(&mut self, method: &str, handler: F) -> IPCResult<()>
+    where
+        F: (Fn(Value, StreamingContext) -> Fut) + Send + Sync + 'static,
+        Fut: Future<Output = IPCResult<Value>> + Send + 'static,
+    {
+        if self.handlers.contains_key(method) || self.streaming_handlers.contains_key(method) {
+            return Err(IPCError::MethodNotFound(format!(
+                "Method {} already registered",
+                method
+            )));
+        }
+
+        self.streaming_handlers.insert(
+            method.to_string(),
+            Arc::new(move |params, ctx| Box::pin(handler(params, ctx))),
+        );
+
+        Ok(())
+    }
+
     /// Unregister a method handler
     pub fn unregister(&mut self, method: &str) -> bool {
-        self.handlers.remove(method).is_some()
+        self.handlers.remove(method).is_some() || self.streaming_handlers.remove(method).is_some()
     }
 
     /// Check if method is registered
     pub fn has_method(&self, method: &str) -> bool {
-        self.handlers.contains_key(method)
+        self.handlers.contains_key(method) || self.streaming_handlers.contains_key(method)
+    }
+
+    /// Check if method has streaming handler
+    pub fn has_streaming_handler(&self, method: &str) -> bool {
+        self.streaming_handlers.contains_key(method)
     }
 
     /// List all registered methods
     pub fn list_methods(&self) -> Vec<String> {
-        self.handlers.keys().cloned().collect()
+        let mut methods = self.handlers.keys().cloned().collect::<Vec<_>>();
+        methods.extend(self.streaming_handlers.keys().cloned());
+        methods
     }
 
     /// Dispatch a request to the appropriate handler
@@ -76,14 +114,24 @@ impl MethodDispatcher {
         handler(params).await
     }
 
+    /// Dispatch a streaming request to the appropriate handler
+    pub async fn dispatch_streaming(&self, method: &str, params: Value, ctx: StreamingContext) -> IPCResult<Value> {
+        let handler = self
+            .streaming_handlers
+            .get(method)
+            .ok_or_else(|| IPCError::MethodNotFound(method.to_string()))?;
+
+        handler(params, ctx).await
+    }
+
     /// Get handler count
     pub fn len(&self) -> usize {
-        self.handlers.len()
+        self.handlers.len() + self.streaming_handlers.len()
     }
 
     /// Check if empty
     pub fn is_empty(&self) -> bool {
-        self.handlers.is_empty()
+        self.handlers.is_empty() && self.streaming_handlers.is_empty()
     }
 }
 

@@ -14,7 +14,7 @@ pub use dispatch::MethodDispatcher;
 pub use error::{ErrorCode, IPCError, IPCResult};
 pub use implementation::{IPCConfig, IPCContractImpl};
 pub use registry::{AwaitInfo, AwaitRegistry};
-pub use server::{IpcServer, IpcServerConfig, ServerEvent};
+pub use server::{IpcServer, IpcServerConfig, ServerEvent, StreamingContext};
 pub use transport::{Connection, TcpConnection, TcpTransport, Transport};
 pub use types::{
     BaseMessage, ErrorResponse, MessageType, NotificationMessage, PendingQuery,
