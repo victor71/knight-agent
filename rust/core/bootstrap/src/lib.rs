@@ -9,8 +9,8 @@
 pub use error::{BootstrapError, BootstrapResult};
 pub use system::{KnightAgentSystem, SystemHandle, SystemHandleImpl};
 pub use types::{
-    BootstrapConfig, BootstrapStage, HealthCheckResult, ModuleHealth, ModuleStatus, SystemStatus,
-    VersionInfo,
+    BootstrapConfig, BootstrapMode, BootstrapStage, HealthCheckResult, ModuleHealth, ModuleStatus,
+    SystemStatus, VersionInfo,
 };
 
 mod error;

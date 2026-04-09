@@ -65,8 +65,24 @@ impl BootstrapStage {
         ]
     }
 
-    /// Get modules for this stage
-    pub fn modules(&self) -> Vec<&'static str> {
+    /// Get modules for this stage (daemon mode)
+    /// These modules are initialized in daemon mode
+    pub fn modules_daemon(&self) -> Vec<&'static str> {
+        match self {
+            BootstrapStage::Stage1Infrastructure => vec!["logging-system"],
+            BootstrapStage::Stage2SecurityAndStorage => vec!["security-manager", "storage-service"],
+            BootstrapStage::Stage3BasicServicesAndEvent => vec!["event-loop", "timer-system"],
+            BootstrapStage::Stage4CoreEngineLayer => vec!["hook-engine", "session-manager", "router", "monitor"],
+            BootstrapStage::Stage5AgentLayer => vec!["agent-variants", "external-agent", "skill-engine", "orchestrator", "task-manager", "command", "workflows-directory"],
+            BootstrapStage::Stage6Report => vec!["report-skill"],
+            BootstrapStage::Stage7ContextCompression => vec!["context-compressor"],
+            BootstrapStage::Stage8SecurityLayer => vec!["sandbox", "ipc-contract"],
+        }
+    }
+
+    /// Get modules for this stage (session mode)
+    /// Session mode includes LLM provider and agent runtime
+    pub fn modules_session(&self) -> Vec<&'static str> {
         match self {
             BootstrapStage::Stage1Infrastructure => vec!["logging-system"],
             BootstrapStage::Stage2SecurityAndStorage => vec!["security-manager", "storage-service"],
@@ -85,6 +101,14 @@ impl BootstrapStage {
             BootstrapStage::Stage6Report => vec!["report-skill"],
             BootstrapStage::Stage7ContextCompression => vec!["context-compressor"],
             BootstrapStage::Stage8SecurityLayer => vec!["sandbox", "ipc-contract"],
+        }
+    }
+
+    /// Get modules for this stage based on mode
+    pub fn modules(&self, mode: BootstrapMode) -> Vec<&'static str> {
+        match mode {
+            BootstrapMode::Daemon => self.modules_daemon(),
+            BootstrapMode::Session => self.modules_session(),
         }
     }
 }
@@ -180,6 +204,20 @@ pub struct BootstrapConfig {
     pub init_timeout_ms: u64,
     pub retry_on_failure: bool,
     pub max_retries: usize,
+    /// Bootstrap mode: daemon or session
+    /// Determines which modules to initialize
+    pub mode: BootstrapMode,
+}
+
+/// Bootstrap mode - determines which modules to initialize
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum BootstrapMode {
+    /// Daemon mode: initializes IPC server and management components
+    #[default]
+    Daemon,
+    /// Session mode: initializes LLM stack and agent runtime
+    Session,
 }
 
 impl Default for BootstrapConfig {
@@ -191,6 +229,7 @@ impl Default for BootstrapConfig {
             init_timeout_ms: 60000,
             retry_on_failure: true,
             max_retries: 3,
+            mode: BootstrapMode::Daemon,
         }
     }
 }

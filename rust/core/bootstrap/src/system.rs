@@ -6,8 +6,8 @@ use tokio::sync::RwLock;
 
 use crate::error::{BootstrapError, BootstrapResult};
 use crate::types::{
-    BootstrapConfig, BootstrapStage, HealthCheckResult, ModuleHealth, ModuleStatus, SystemStatus,
-    VersionInfo,
+    BootstrapConfig, BootstrapMode, BootstrapStage, HealthCheckResult, ModuleHealth, ModuleStatus,
+    SystemStatus, VersionInfo,
 };
 
 /// Knight Agent System - manages the 8-stage initialization
@@ -50,21 +50,24 @@ impl KnightAgentSystem {
 
         *self.start_time.write().await = Some(chrono::Utc::now().timestamp_millis());
 
+        let mode = self.config.mode;
+        tracing::info!("Bootstrapping in {:?} mode", mode);
+
         for stage in BootstrapStage::all() {
-            self.initialize_stage(stage).await?;
+            self.initialize_stage(stage, mode).await?;
         }
 
         *self.initialized.write().await = true;
-        tracing::info!("Knight Agent System fully initialized");
+        tracing::info!("Knight Agent System fully initialized in {:?} mode", mode);
         Ok(())
     }
 
     /// Initialize a specific stage
-    async fn initialize_stage(&self, stage: BootstrapStage) -> BootstrapResult<()> {
-        tracing::info!("Initializing: {}", stage);
+    async fn initialize_stage(&self, stage: BootstrapStage, mode: BootstrapMode) -> BootstrapResult<()> {
+        tracing::info!("Initializing: {} (mode: {:?})", stage, mode);
         *self.stage.write().await = stage;
 
-        let modules = stage.modules();
+        let modules = stage.modules(mode);
         for module_name in modules {
             self.initialize_module(module_name, stage).await?;
         }

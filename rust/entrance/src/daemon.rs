@@ -212,8 +212,11 @@ impl DaemonState {
             .context("Failed to initialize global configuration")?;
         info!("Global configuration initialized");
 
-        // Initialize system
-        let config = bootstrap::BootstrapConfig::default();
+        // Initialize system in daemon mode (IPC broker, no LLM stack)
+        let config = bootstrap::BootstrapConfig {
+            mode: bootstrap::BootstrapMode::Daemon,
+            ..Default::default()
+        };
         let system = KnightAgentSystem::with_config(config);
         system.bootstrap().await?;
         info!("System bootstrap complete");
