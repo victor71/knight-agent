@@ -5,6 +5,7 @@
 //! and connects to the daemon via IPC for registration and message relay.
 
 use anyhow::{Context, Result};
+use bootstrap::{BootstrapConfig, BootstrapMode, KnightAgentSystem};
 use session_manager::StreamCallback;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -230,6 +231,17 @@ pub(crate) async fn run_session(session_id: String, daemon_addr: String) -> Resu
         .await
         .context("Failed to initialize global configuration")?;
     info!("Global configuration initialized");
+
+    // Initialize system bootstrap with Session mode
+    // This runs the 8-stage initialization for session-specific modules
+    let bootstrap_config = BootstrapConfig {
+        mode: BootstrapMode::Session,
+        ..Default::default()
+    };
+    let system = KnightAgentSystem::with_config(bootstrap_config);
+    system.bootstrap().await
+        .context("Failed to bootstrap session system")?;
+    info!("System bootstrap complete (Session mode)");
 
     // Initialize LLM Router
     let router = Arc::new(router::RouterImpl::new());

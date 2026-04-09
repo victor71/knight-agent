@@ -77,6 +77,8 @@ impl KnightAgentSystem {
     }
 
     /// Initialize a single module
+    /// Note: This tracks module status. Actual module initialization is done by the caller
+    /// (entrance) based on the stage information provided by bootstrap.
     async fn initialize_module(
         &self,
         name: &str,
@@ -88,7 +90,7 @@ impl KnightAgentSystem {
         let mut status = ModuleStatus::new(name.to_string(), stage);
 
         // Simulate module initialization
-        // In production, this would call the actual module's initialize method
+        // Actual module initialization is done by entrance based on bootstrap's stage info
         tokio::task::yield_now().await;
 
         // Mark as initialized and healthy
@@ -212,6 +214,11 @@ impl KnightAgentSystem {
     /// Check if initialized
     pub async fn is_initialized(&self) -> bool {
         *self.initialized.read().await
+    }
+
+    /// Get the bootstrap mode
+    pub fn mode(&self) -> BootstrapMode {
+        self.config.mode
     }
 }
 
