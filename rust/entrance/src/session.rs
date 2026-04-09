@@ -1,9 +1,11 @@
 //! Session process - Dedicated process for a single agent session
 //!
 //! A session process is spawned by the daemon to handle a single session's
-//! agent interactions. It connects to the daemon via IPC.
+//! agent interactions. It owns its own LLM stack (Router + AgentRuntime + SessionManager)
+//! and connects to the daemon via IPC for registration and message relay.
 
 use anyhow::{Context, Result};
+use session_manager::StreamCallback;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -179,6 +181,13 @@ fn init_logging(session_id: &str, log_dir: &PathBuf, max_file_size_mb: u64) -> R
     Ok((guard, log_writer))
 }
 
+/// Session process state - owns LLM stack for this session
+pub(crate) struct SessionState {
+    pub session_id: String,
+    pub router: Arc<dyn router::RouterHandle>,
+    pub session_manager: Arc<session_manager::SessionManagerImpl>,
+}
+
 /// Run a session process
 pub(crate) async fn run_session(session_id: String, daemon_addr: String) -> Result<()> {
     // Initialize logging for session process
@@ -199,7 +208,7 @@ pub(crate) async fn run_session(session_id: String, daemon_addr: String) -> Resu
     let socket_addr: std::net::SocketAddr = daemon_addr.parse()
         .context("Invalid daemon address")?;
 
-    // Create IPC client
+    // Create IPC client to connect to daemon
     let config = ipc_contract::IpcClientConfig {
         server_addr: socket_addr,
         connect_timeout_ms: 5000,
@@ -216,32 +225,225 @@ pub(crate) async fn run_session(session_id: String, daemon_addr: String) -> Resu
 
     info!("Connected to daemon");
 
-    // Register this session with the daemon
+    // Initialize global configuration
+    configuration::init_global_config(config_dir.clone())
+        .await
+        .context("Failed to initialize global configuration")?;
+    info!("Global configuration initialized");
+
+    // Initialize LLM Router
+    let router = Arc::new(router::RouterImpl::new());
+    router.initialize().await?;
+    info!("LLM Router initialized");
+
+    // Initialize Agent Runtime
+    let mut agent_runtime_impl = agent_runtime::AgentRuntimeImpl::new();
+    agent_runtime_impl.initialize().await?;
+    let agent_runtime: Arc<dyn session_manager::AgentRuntimeProxy> = Arc::new(agent_runtime_impl);
+    info!("Agent Runtime initialized");
+
+    // Initialize Session Manager and connect with Agent Runtime
+    let session_manager = Arc::new(session_manager::SessionManagerImpl::new());
+    session_manager.initialize().await?;
+    session_manager.set_agent_runtime(agent_runtime).await;
+    info!("Session Manager initialized and connected to Agent Runtime");
+
+    // Restore session state if it exists
+    match session_manager.restore_sessions().await {
+        Ok(_) => info!("Restored sessions from storage"),
+        Err(e) => info!("No sessions to restore or restore failed: {}", e),
+    }
+
+    // Create session state
+    let state = Arc::new(SessionState {
+        session_id: session_id.clone(),
+        router: router.clone(),
+        session_manager: session_manager.clone(),
+    });
+
+    // Create IPC server for receiving messages from daemon
+    // Use port 0 to let OS assign a free port
+    let server_addr: std::net::SocketAddr = "127.0.0.1:0".parse()
+        .context("Invalid server address")?;
+
+    let server_config = ipc_contract::IpcServerConfig {
+        bind_addr: server_addr,
+        max_connections: 10,
+        request_queue_size: 50,
+    };
+
+    let mut server = ipc_contract::IpcServer::new(server_config);
+
+    // Start the IPC server
+    let bound_addr = server.start().await
+        .context("Failed to start IPC server")?;
+    info!("Session IPC server listening on {}", bound_addr);
+
+    // Extract port from bound address
+    let session_port = bound_addr.port();
+    info!("Session IPC server port: {}", session_port);
+
+    // Register this session with the daemon, including the port for IPC
     let register_params = serde_json::json!({
         "session_id": session_id,
+        "port": session_port,
     });
 
     let _response = ipc_client.request("register_session".to_string(), register_params).await
         .context("Failed to register session with daemon")?;
 
-    info!("Session {} registered with daemon", session_id);
+    info!("Session {} registered with daemon on port {}", session_id, session_port);
 
-    // Main session loop - keep the process alive
+    // Create shutdown signal
+    let (shutdown_tx, mut shutdown_rx) = broadcast::channel::<()>(1);
+
+    // Register IPC handlers for this session
+    register_session_handlers(&mut server, state.clone(), shutdown_tx).await;
+
+    // Main session loop - keep the process alive and handle IPC
     loop {
-        // Send heartbeat every 30 seconds
-        tokio::time::sleep(Duration::from_secs(30)).await;
+        tokio::select! {
+            // Send heartbeat every 30 seconds
+            _ = tokio::time::sleep(Duration::from_secs(30)) => {
+                let heartbeat_params = serde_json::json!({
+                    "session_id": session_id,
+                    "timestamp": chrono::Utc::now().to_rfc3339(),
+                });
 
-        let heartbeat_params = serde_json::json!({
-            "session_id": session_id,
-            "timestamp": chrono::Utc::now().to_rfc3339(),
-        });
-
-        if let Err(e) = ipc_client.request("heartbeat".to_string(), heartbeat_params).await {
-            info!("Heartbeat failed (daemon may have shut down): {}", e);
-            break;
+                if let Err(e) = ipc_client.request("heartbeat".to_string(), heartbeat_params).await {
+                    info!("Heartbeat failed (daemon may have shut down): {}", e);
+                    break;
+                }
+            }
+            // Handle shutdown signal
+            _ = shutdown_rx.recv() => {
+                info!("Shutdown signal received");
+                break;
+            }
         }
+    }
+
+    // Shutdown IPC server
+    server.shutdown().await.context("Server shutdown failed")?;
+
+    // Save session state before exit
+    info!("Saving session state before exit...");
+    if let Err(e) = session_manager.save_all_sessions().await {
+        warn!("Failed to save session state: {}", e);
     }
 
     info!("Session process exiting");
     Ok(())
+}
+
+/// Register IPC handlers for session process
+async fn register_session_handlers(
+    server: &mut ipc_contract::IpcServer,
+    state: Arc<SessionState>,
+    shutdown_tx: broadcast::Sender<()>,
+) {
+    let session_manager = state.session_manager.clone();
+    let router = state.router.clone();
+    let session_id = state.session_id.clone(); // Clone once for use in closures
+
+    // send_message handler - process LLM message in this session's context
+    let session_id_for_send = session_id.clone();
+    server.register_streaming("send_message", move |params: serde_json::Value, stream_ctx: ipc_contract::StreamingContext| {
+        let session_manager = session_manager.clone();
+        let session_id = session_id_for_send.clone();
+        Box::pin(async move {
+            let content = params.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
+
+            info!("[SESSION] send_message streaming: content_len={}", content.len());
+
+            // Create channels to receive chunks from the agent and signal completion
+            let (chunk_tx, mut chunk_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+            let (done_tx, mut done_rx) = tokio::sync::oneshot::channel::<()>();
+
+            // Spawn task to forward chunks to StreamingContext
+            tokio::spawn(async move {
+                let mut sequence = 0u64;
+                let mut total_chunks = 0;
+                while let Some(chunk) = chunk_rx.recv().await {
+                    total_chunks += 1;
+                    info!("[SESSION] Sending stream chunk {}: {} chars", sequence, chunk.len());
+                    let _ = stream_ctx.send_chunk(chunk, sequence, false);
+                    sequence += 1;
+                }
+                info!("[SESSION] Stream forwarding complete: {} total chunks", total_chunks);
+                let _ = done_tx.send(());
+            });
+
+            // Create streaming callback
+            let stream_callback: StreamCallback = Box::new({
+                let chunk_tx = chunk_tx.clone();
+                move |chunk: String| -> bool {
+                    let _ = chunk_tx.send(chunk);
+                    true
+                }
+            });
+
+            // Call session manager with this session's context
+            match session_manager.send_message_to_session_streaming(&session_id, content, Some(stream_callback)).await {
+                Ok(result) => {
+                    info!("[SESSION] send_message_to_session_streaming completed, response_len={}", result.len());
+
+                    // Wait for streaming chunks to be fully forwarded
+                    match tokio::time::timeout(tokio::time::Duration::from_secs(5), done_rx).await {
+                        Ok(Ok(())) => info!("[SESSION] All chunks forwarded successfully"),
+                        Ok(Err(_)) => warn!("[SESSION] Chunk forwarding channel closed unexpectedly"),
+                        Err(_) => warn!("[SESSION] Timeout waiting for chunk forwarding"),
+                    }
+
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    Ok(serde_json::json!({ "response": result }))
+                }
+                Err(e) => {
+                    warn!("[SESSION] send_message_to_session_streaming error: {:?}", e);
+                    Ok(serde_json::json!({
+                        "response": format!("Error: {}", e),
+                        "error": true
+                    }))
+                }
+            }
+        })
+    }).await;
+
+    // handle_input handler - route input through router
+    let session_id_for_input = session_id.clone();
+    server.register("handle_input", move |params: serde_json::Value| {
+        let router = router.clone();
+        let session_id = session_id_for_input.clone();
+        Box::pin(async move {
+            let input = params.get("input").and_then(|v| v.as_str()).unwrap_or("").to_string();
+
+            let result = router.handle_input(input, session_id).await;
+
+            let response = serde_json::json!({
+                "response": {
+                    "success": result.response.success,
+                    "message": result.response.message,
+                    "data": result.response.data,
+                    "error": result.response.error,
+                    "to_agent": result.response.to_agent,
+                },
+                "to_agent": result.to_agent,
+            });
+
+            Ok(response)
+        })
+    }).await;
+
+    // shutdown handler
+    let shutdown_tx_clone = shutdown_tx.clone();
+    server.register("shutdown", move |_params: serde_json::Value| {
+        let shutdown_tx = shutdown_tx_clone.clone();
+        Box::pin(async move {
+            info!("Shutdown request received in session");
+            let _ = shutdown_tx.send(());
+            Ok(serde_json::json!({ "success": true }))
+        })
+    }).await;
+
+    info!("Session IPC handlers registered");
 }

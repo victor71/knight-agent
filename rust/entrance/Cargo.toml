@@ -74,6 +74,9 @@ thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
+# UUID
+uuid.workspace = true
+
 [[bin]]
 name = "knight-agent"
 path = "src/main.rs"
