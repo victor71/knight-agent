@@ -104,16 +104,27 @@ impl AppState {
                 self.add_output_line(line.clone());
             }
             AppEvent::StreamChunk(chunk) => {
-                // Append to last line if it exists and is a stream, otherwise create new
+                // Check if this chunk contains thinking content
+                let is_thinking = chunk.contains("Thinking:") || chunk.contains("Thought:") ||
+                                  chunk.contains("<thinking>") || chunk.contains("💭");
+
+                // Determine the style based on content
+                let style = if is_thinking {
+                    OutputStyle::Thinking
+                } else {
+                    OutputStyle::AgentMessage
+                };
+
+                // Append to last line if it exists and has the same style, otherwise create new
                 if let Some(last) = self.output_lines.last_mut() {
-                    if matches!(last.style, OutputStyle::AgentMessage) {
+                    if std::mem::discriminant(&last.style) == std::mem::discriminant(&style) {
                         last.content.push_str(chunk);
                         return;
                     }
                 }
                 self.add_output_line(OutputLine {
                     content: chunk.clone(),
-                    style: OutputStyle::AgentMessage,
+                    style,
                     timestamp: Local::now(),
                     ..Default::default()
                 });

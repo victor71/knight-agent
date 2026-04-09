@@ -2,12 +2,17 @@
 //!
 //! Parses markdown and converts it to ratatui-compatible styled text.
 
-use pulldown_cmark::{Event, Parser};
+use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 
 /// Render markdown content to styled lines
 pub fn render_markdown(content: &str) -> Vec<Line<'static>> {
+    // First, check if content contains tables and handle them separately
+    if content.contains('|') && content.contains("---") {
+        return render_markdown_with_tables(content);
+    }
+
     let parser = Parser::new(content);
     let mut lines = Vec::new();
     let mut current_line: Vec<Span<'static>> = Vec::new();
@@ -21,20 +26,20 @@ pub fn render_markdown(content: &str) -> Vec<Line<'static>> {
     for event in parser {
         match event {
             Event::Start(tag) => match tag {
-                pulldown_cmark::Tag::Heading { level, .. } => {
+                Tag::Heading { level, .. } => {
                     heading_level = Some(level as u32);
                 }
-                pulldown_cmark::Tag::Paragraph => {
+                Tag::Paragraph => {
                     // Start of paragraph - add indent for lists/quotes
                     let prefix = "  ".repeat(list_level + quote_level);
                     if !prefix.is_empty() {
                         current_line.push(Span::styled(prefix, Style::default()));
                     }
                 }
-                pulldown_cmark::Tag::BlockQuote(_) => {
+                Tag::BlockQuote(_) => {
                     quote_level += 1;
                 }
-                pulldown_cmark::Tag::CodeBlock(kind) => {
+                Tag::CodeBlock(kind) => {
                     in_code_block = true;
                     // Add code block header
                     let lang = match kind {
@@ -48,10 +53,10 @@ pub fn render_markdown(content: &str) -> Vec<Line<'static>> {
                             .add_modifier(Modifier::ITALIC),
                     )]));
                 }
-                pulldown_cmark::Tag::List(_) => {
+                Tag::List(_) => {
                     // List container - nothing to add
                 }
-                pulldown_cmark::Tag::Item => {
+                Tag::Item => {
                     list_level += 1;
                     let prefix = "  ".repeat(list_level - 1 + quote_level);
                     current_line.push(Span::styled(
@@ -59,23 +64,23 @@ pub fn render_markdown(content: &str) -> Vec<Line<'static>> {
                         Style::default().fg(Color::Cyan),
                     ));
                 }
-                pulldown_cmark::Tag::Emphasis => {
+                Tag::Emphasis => {
                     // Italic text handled in Text event
                 }
-                pulldown_cmark::Tag::Strong => {
+                Tag::Strong => {
                     // Bold text handled in Text event
                 }
-                pulldown_cmark::Tag::Link { dest_url, .. } => {
+                Tag::Link { dest_url, .. } => {
                     in_link = true;
                     link_url = Some(dest_url.to_string());
                 }
-                pulldown_cmark::Tag::Strikethrough => {
+                Tag::Strikethrough => {
                     // Strikethrough handled in Text event
                 }
                 _ => {}
             },
             Event::End(tag) => match tag {
-                pulldown_cmark::TagEnd::Heading(_) => {
+                TagEnd::Heading(_) => {
                     // End of heading - finalize line
                     if !current_line.is_empty() {
                         lines.push(Line::from(current_line.clone()));
@@ -84,7 +89,7 @@ pub fn render_markdown(content: &str) -> Vec<Line<'static>> {
                     lines.push(Line::from("")); // Empty line after heading
                     heading_level = None;
                 }
-                pulldown_cmark::TagEnd::Paragraph => {
+                TagEnd::Paragraph => {
                     // End of paragraph
                     if !current_line.is_empty() {
                         lines.push(Line::from(current_line.clone()));
@@ -92,14 +97,14 @@ pub fn render_markdown(content: &str) -> Vec<Line<'static>> {
                     }
                     lines.push(Line::from("")); // Empty line after paragraph
                 }
-                pulldown_cmark::TagEnd::BlockQuote(_) => {
+                TagEnd::BlockQuote(_) => {
                     quote_level -= 1;
                     if !current_line.is_empty() {
                         lines.push(Line::from(current_line.clone()));
                         current_line.clear();
                     }
                 }
-                pulldown_cmark::TagEnd::CodeBlock => {
+                TagEnd::CodeBlock => {
                     in_code_block = false;
                     lines.push(Line::from(vec![Span::styled(
                         "```",
@@ -109,17 +114,17 @@ pub fn render_markdown(content: &str) -> Vec<Line<'static>> {
                     )]));
                     lines.push(Line::from("")); // Empty line after code block
                 }
-                pulldown_cmark::TagEnd::List(_) => {
+                TagEnd::List(_) => {
                     // End of list - nothing to do
                 }
-                pulldown_cmark::TagEnd::Item => {
+                TagEnd::Item => {
                     list_level -= 1;
                     if !current_line.is_empty() {
                         lines.push(Line::from(current_line.clone()));
                         current_line.clear();
                     }
                 }
-                pulldown_cmark::TagEnd::Link => {
+                TagEnd::Link => {
                     in_link = false;
                     if let Some(url) = link_url.take() {
                         // Show URL in parentheses
@@ -239,6 +244,132 @@ pub fn is_markdown(content: &str) -> bool {
         || content.contains("```")
         || content.contains('>')
         || content.contains("---")
+        || content.contains('|')
+}
+
+/// Render markdown with table support (simplified)
+fn render_markdown_with_tables(content: &str) -> Vec<Line<'static>> {
+    let mut lines = Vec::new();
+
+    // Simple table renderer - detect table rows and render them
+    for line in content.lines() {
+        if line.trim().starts_with('|') && line.trim().ends_with('|') {
+            // This is a table row
+            let cells: Vec<&str> = line
+                .trim()
+                .trim_start_matches('|')
+                .trim_end_matches('|')
+                .split('|')
+                .map(|s| s.trim())
+                .collect();
+
+            // Check if this is a separator row
+            if cells.iter().any(|c| c.starts_with("---") || c.starts_with("===")) {
+                // Separator row - render as line
+                lines.push(Line::from(vec![Span::styled(
+                    "─".repeat(40),
+                    Style::default().fg(Color::DarkGray),
+                )]));
+            } else {
+                // Regular table row - render cells
+                let mut spans = Vec::new();
+                for (i, cell) in cells.iter().enumerate() {
+                    if i > 0 {
+                        spans.push(Span::styled(" │ ", Style::default().fg(Color::DarkGray)));
+                    }
+                    spans.push(Span::styled(
+                        cell.to_string(),
+                        Style::default().fg(Color::White),
+                    ));
+                }
+                lines.push(Line::from(spans));
+            }
+        } else if line.trim().is_empty() {
+            lines.push(Line::from(""));
+        } else {
+            // Regular markdown line
+            let rendered = render_markdown(line);
+            lines.extend(rendered);
+        }
+    }
+
+    lines
+}
+
+/// Render a table from collected cells
+fn render_table(
+    cells: &[Vec<Span<'static>>],
+    column_widths: &[usize],
+    lines: &mut Vec<Line<'static>>,
+) {
+    if cells.is_empty() || column_widths.is_empty() {
+        return;
+    }
+
+    let num_columns = column_widths.len();
+    let num_rows = cells.len() / num_columns;
+
+    // Add empty line before table
+    if !lines.is_empty() {
+        let last_line = lines.last().unwrap();
+        if !last_line.spans.is_empty() {
+            lines.push(Line::from(""));
+        }
+    }
+
+    // Render each row
+    for row in 0..num_rows {
+        let mut row_spans = Vec::new();
+        let mut separator_spans = Vec::new();
+
+        for col in 0..num_columns {
+            let cell_index = row * num_columns + col;
+            let cell: &[Span<'static>] = if cell_index < cells.len() {
+                &cells[cell_index]
+            } else {
+                &[]
+            };
+
+            let cell_text: String = cell.iter().map(|s| {
+                match &s.content {
+                    cow => cow.to_string()
+                }
+            }).collect();
+            let width = column_widths[col];
+
+            // Pad cell content to column width
+            let padded = format!("{:<width$}", cell_text, width = width);
+
+            // Add cell style (header vs body)
+            let style = if row == 0 {
+                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::White)
+            };
+
+            row_spans.push(Span::styled(padded.clone(), style));
+
+            // Add separator after header or before each row
+            let separator = format!("{:-<width$}", "", width = width);
+            separator_spans.push(Span::styled(separator, Style::default().fg(Color::DarkGray)));
+
+            // Add column separator
+            if col < num_columns - 1 {
+                row_spans.push(Span::styled(" │ ", Style::default().fg(Color::DarkGray)));
+                separator_spans.push(Span::styled("─┼─", Style::default().fg(Color::DarkGray)));
+            }
+        }
+
+        lines.push(Line::from(row_spans));
+
+        // Add separator line after header
+        if row == 0 {
+            lines.push(Line::from(separator_spans));
+        }
+    }
+
+    // Add empty line after table
+    lines.push(Line::from(""));
 }
 
 #[cfg(test)]
@@ -295,6 +426,14 @@ mod tests {
         assert!(is_markdown("`code`"));
         assert!(is_markdown("[link](url)"));
         assert!(is_markdown("```rust\ncode\n```"));
+        assert!(is_markdown("| col1 | col2 |"));
         assert!(!is_markdown("plain text"));
+    }
+
+    #[test]
+    fn test_table() {
+        let markdown = "| Header 1 | Header 2 |\n|----------|----------|\n| Cell 1   | Cell 2   |";
+        let lines = render_markdown(markdown);
+        assert!(!lines.is_empty());
     }
 }

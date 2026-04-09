@@ -28,7 +28,7 @@ use crossterm::event::{self as crossterm_event, Event, KeyCode, KeyEvent, KeyEve
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
-use tracing::{info, warn};
+use tracing::{info, warn, debug};
 use widgets::*;
 
 /// Main TUI application
@@ -415,15 +415,10 @@ impl TuiApp {
                         match client.send_message_streaming(&session_id, input, Some(stream_callback)).await {
                             Ok(response) => {
                                 info!("Agent response received: \"{}\"", response);
-                                // Send complete agent response to output (for final display)
-                                let _ = event_tx.send(AppEvent::OutputLine(
-                                    crate::state::OutputLine {
-                                        content: response,
-                                        style: crate::state::OutputStyle::AgentMessage,
-                                        timestamp: chrono::Local::now(),
-                                    ..Default::default()
-                                    },
-                                ));
+                                // Note: Don't send OutputLine here since streaming already displayed chunks
+                                // The stream callback already sent all chunks via StreamChunk events
+                                // Just log that streaming completed
+                                debug!("Streaming completed, final response length: {}", response.len());
                             }
                             Err(e) => {
                                 warn!("Daemon client send_message error: {:?}", e);

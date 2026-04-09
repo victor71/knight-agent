@@ -222,5 +222,16 @@ fn style_output_line(output_line: &crate::state::OutputLine) -> Line<'_> {
             ),
             Span::styled(output_line.content.clone(), Style::default().fg(Color::Cyan)),
         ]),
+        OutputStyle::Thinking => Line::from(vec![
+            Span::styled(
+                format!("{} ", output_line.timestamp.format("%H:%M:%S")),
+                Style::default().fg(Color::DarkGray),
+            ),
+            Span::styled("💭 ", Style::default().fg(Color::Yellow)),
+            Span::styled(
+                output_line.content.clone(),
+                Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC),
+            ),
+        ]),
     }
 }
