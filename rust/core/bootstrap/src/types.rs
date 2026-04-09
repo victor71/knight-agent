@@ -66,28 +66,28 @@ impl BootstrapStage {
     }
 
     /// Get modules for this stage (daemon mode)
-    /// These modules are initialized in daemon mode
+    /// Daemon only initializes communication proxy modules
     pub fn modules_daemon(&self) -> Vec<&'static str> {
         match self {
             BootstrapStage::Stage1Infrastructure => vec!["logging-system"],
             BootstrapStage::Stage2SecurityAndStorage => vec!["security-manager", "storage-service"],
-            BootstrapStage::Stage3BasicServicesAndEvent => vec!["event-loop", "timer-system"],
-            BootstrapStage::Stage4CoreEngineLayer => vec!["hook-engine", "session-manager", "router", "monitor"],
-            BootstrapStage::Stage5AgentLayer => vec!["agent-variants", "external-agent", "skill-engine", "orchestrator", "task-manager", "command", "workflows-directory"],
-            BootstrapStage::Stage6Report => vec!["report-skill"],
-            BootstrapStage::Stage7ContextCompression => vec!["context-compressor"],
+            BootstrapStage::Stage3BasicServicesAndEvent => vec!["event-loop"],
+            BootstrapStage::Stage4CoreEngineLayer => vec!["hook-engine", "session-manager", "router", "command"],
+            BootstrapStage::Stage5AgentLayer => vec![],
+            BootstrapStage::Stage6Report => vec![],
+            BootstrapStage::Stage7ContextCompression => vec![],
             BootstrapStage::Stage8SecurityLayer => vec!["sandbox", "ipc-contract"],
         }
     }
 
     /// Get modules for this stage (session mode)
-    /// Session mode includes LLM provider and agent runtime
+    /// Session mode includes all daemon modules plus LLM stack and agent runtime
     pub fn modules_session(&self) -> Vec<&'static str> {
         match self {
             BootstrapStage::Stage1Infrastructure => vec!["logging-system"],
             BootstrapStage::Stage2SecurityAndStorage => vec!["security-manager", "storage-service"],
             BootstrapStage::Stage3BasicServicesAndEvent => vec!["llm-provider", "tool-system", "event-loop", "timer-system"],
-            BootstrapStage::Stage4CoreEngineLayer => vec!["hook-engine", "session-manager", "router", "monitor"],
+            BootstrapStage::Stage4CoreEngineLayer => vec!["hook-engine", "session-manager", "router", "monitor", "command"],
             BootstrapStage::Stage5AgentLayer => vec![
                 "agent-variants",
                 "agent-runtime",
@@ -95,7 +95,6 @@ impl BootstrapStage {
                 "skill-engine",
                 "orchestrator",
                 "task-manager",
-                "command",
                 "workflows-directory",
             ],
             BootstrapStage::Stage6Report => vec!["report-skill"],
