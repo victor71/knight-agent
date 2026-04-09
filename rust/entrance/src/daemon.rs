@@ -10,7 +10,8 @@ use bootstrap::KnightAgentSystem;
 use session_manager::{AgentRuntimeProxy, StreamCallback};
 use std::path::PathBuf;
 use std::sync::Arc;
-use tracing::info;
+use tokio::sync::broadcast;
+use tracing::{info, warn};
 
 use crate::{ensure_dir, get_home_dir, AGENT_SUBDIRS, CONFIG_DIR};
 
@@ -62,6 +63,12 @@ impl DaemonState {
         session_manager.set_agent_runtime(agent_runtime).await;
         info!("Session Manager initialized and connected to Agent Runtime");
 
+        // Restore sessions from storage if any exist
+        match session_manager.restore_sessions().await {
+            Ok(_) => info!("Restored sessions from storage"),
+            Err(e) => info!("No sessions to restore or restore failed: {}", e),
+        }
+
         Ok(Self {
             router,
             session_manager,
@@ -70,7 +77,7 @@ impl DaemonState {
     }
 
     /// Register IPC method handlers
-    pub async fn register_handlers(&self, server: &mut ipc_contract::IpcServer) {
+    pub async fn register_handlers(&self, server: &mut ipc_contract::IpcServer, shutdown_tx: broadcast::Sender<()>) {
 
         let router = self.router.clone();
 
@@ -243,10 +250,24 @@ impl DaemonState {
             })
         }).await;
 
-        // shutdown handler
+        // shutdown handler - save all sessions before shutdown
+        let session_manager = self.session_manager.clone();
+        let shutdown_tx = shutdown_tx.clone();
         server.register("shutdown", move |_params: serde_json::Value| {
+            let session_manager = session_manager.clone();
+            let shutdown_tx = shutdown_tx.clone();
             Box::pin(async move {
-                info!("Shutdown request received");
+                info!("Shutdown request received, saving all sessions...");
+                match session_manager.save_all_sessions().await {
+                    Ok(saved_paths) => {
+                        info!("Saved {} sessions before shutdown", saved_paths.len());
+                    }
+                    Err(e) => {
+                        warn!("Failed to save sessions during shutdown: {}", e);
+                    }
+                }
+                // Signal shutdown to the server loop (ignore result - receiver may already be dropped)
+                let _ = shutdown_tx.send(());
                 Ok(serde_json::json!({ "success": true }))
             })
         }).await;
@@ -289,8 +310,11 @@ pub(crate) async fn run_daemon(port: u16) -> Result<()> {
 
     let mut server = ipc_contract::IpcServer::new(server_config);
 
+    // Create broadcast channel for graceful shutdown
+    let (shutdown_tx, mut shutdown_rx) = broadcast::channel(1);
+
     // Register method handlers
-    state.register_handlers(&mut server).await;
+    state.register_handlers(&mut server, shutdown_tx).await;
 
     // Start the server
     info!("Starting IPC server on {}...", addr);
@@ -299,8 +323,13 @@ pub(crate) async fn run_daemon(port: u16) -> Result<()> {
 
     info!("IPC server listening on {}", bound_addr);
 
-    // Keep the server running
-    tokio::time::sleep(std::time::Duration::MAX).await;
+    // Wait for shutdown signal
+    let _ = shutdown_rx.recv().await;
+    info!("Shutdown signal received, stopping server...");
+
+    // Shutdown the server gracefully
+    server.shutdown().await.context("Server shutdown failed")?;
+    info!("Daemon shutdown complete");
 
     Ok(())
 }

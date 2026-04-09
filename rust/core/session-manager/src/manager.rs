@@ -3,9 +3,11 @@
 //! Handles session lifecycle, context management, and workspace isolation.
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::fs;
 use tokio::sync::RwLock as AsyncRwLock;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::types::*;
 use agent_proxy::{AgentRuntimeProxy, StreamCallback};
@@ -16,16 +18,23 @@ pub struct SessionManagerImpl {
     current_session: Arc<AsyncRwLock<Option<String>>>,
     initialized: Arc<AsyncRwLock<bool>>,
     agent_runtime: Arc<AsyncRwLock<Option<Arc<dyn AgentRuntimeProxy>>>>,
+    storage_dir: PathBuf,
 }
 
 impl SessionManagerImpl {
-    /// Create a new session manager
+    /// Create a new session manager with storage directory
     pub fn new() -> Self {
+        Self::with_storage_dir(PathBuf::from("./sessions"))
+    }
+
+    /// Create a new session manager with custom storage directory
+    pub fn with_storage_dir(storage_dir: PathBuf) -> Self {
         Self {
             sessions: Arc::new(AsyncRwLock::new(HashMap::new())),
             current_session: Arc::new(AsyncRwLock::new(None)),
             initialized: Arc::new(AsyncRwLock::new(false)),
             agent_runtime: Arc::new(AsyncRwLock::new(None)),
+            storage_dir,
         }
     }
 
@@ -394,7 +403,7 @@ impl SessionManagerImpl {
         }
     }
 
-    /// Save session (persist to storage - placeholder for now)
+    /// Save session to file storage
     pub async fn save_session(&self, id: Option<&str>) -> SessionResult<String> {
         let session_id = if let Some(id) = id {
             id.to_string()
@@ -403,24 +412,108 @@ impl SessionManagerImpl {
             current.clone().ok_or(SessionError::NotInitialized)?
         };
 
-        // Verify session exists
-        {
+        // Get session
+        let session = {
             let sessions = self.sessions.read().await;
-            if !sessions.contains_key(&session_id) {
-                return Err(SessionError::NotFound(session_id));
+            sessions.get(&session_id).cloned()
+        }.ok_or_else(|| SessionError::NotFound(session_id.clone()))?;
+
+        // Ensure storage directory exists
+        fs::create_dir_all(&self.storage_dir).await
+            .map_err(|e| SessionError::PersistenceError(format!("Failed to create storage dir: {}", e)))?;
+
+        // Save to file
+        let file_path = self.storage_dir.join(format!("{}.json", session_id));
+        let json = serde_json::to_string_pretty(&session)
+            .map_err(|e| SessionError::PersistenceError(format!("Failed to serialize session: {}", e)))?;
+
+        fs::write(&file_path, json).await
+            .map_err(|e| SessionError::PersistenceError(format!("Failed to write session file: {}", e)))?;
+
+        info!("Saved session {} to {}", session_id, file_path.display());
+        Ok(file_path.to_string_lossy().to_string())
+    }
+
+    /// Load session from file storage
+    pub async fn load_session(&self, id: &str) -> SessionResult<Session> {
+        let file_path = self.storage_dir.join(format!("{}.json", id));
+
+        if !file_path.exists() {
+            return Err(SessionError::NotFound(id.to_string()));
+        }
+
+        let json = fs::read_to_string(&file_path).await
+            .map_err(|e| SessionError::PersistenceError(format!("Failed to read session file: {}", e)))?;
+
+        let session: Session = serde_json::from_str(&json)
+            .map_err(|e| SessionError::PersistenceError(format!("Failed to deserialize session: {}", e)))?;
+
+        info!("Loaded session {} from {}", id, file_path.display());
+        Ok(session)
+    }
+
+    /// Load all sessions from storage
+    pub async fn load_all_sessions(&self) -> SessionResult<Vec<Session>> {
+        fs::create_dir_all(&self.storage_dir).await
+            .map_err(|e| SessionError::PersistenceError(format!("Failed to create storage dir: {}", e)))?;
+
+        let mut sessions = Vec::new();
+        let mut entries = fs::read_dir(&self.storage_dir).await
+            .map_err(|e| SessionError::PersistenceError(format!("Failed to read storage dir: {}", e)))?;
+
+        while let Some(entry) = entries.next_entry().await
+            .map_err(|e| SessionError::PersistenceError(format!("Failed to read entry: {}", e)))? {
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                if let Ok(json) = fs::read_to_string(&path).await {
+                    if let Ok(session) = serde_json::from_str::<Session>(&json) {
+                        sessions.push(session);
+                    }
+                }
             }
         }
 
-        // In a real implementation, this would persist to storage
-        let path = format!("/sessions/{}", session_id);
-        info!("Saved session {} to {}", session_id, path);
-        Ok(path)
+        info!("Loaded {} sessions from storage", sessions.len());
+        Ok(sessions)
     }
 
-    /// Load session from storage (placeholder)
-    pub async fn load_session(&self, id: &str) -> SessionResult<Session> {
-        // In a real implementation, this would load from storage
-        self.get_session(id).await
+    /// Save all active sessions
+    pub async fn save_all_sessions(&self) -> SessionResult<Vec<String>> {
+        let session_ids: Vec<String> = {
+            let sessions = self.sessions.read().await;
+            sessions.keys().cloned().collect()
+        };
+
+        let mut saved = Vec::new();
+        for session_id in session_ids {
+            match self.save_session(Some(&session_id)).await {
+                Ok(path) => saved.push(path),
+                Err(e) => warn!("Failed to save session {}: {}", session_id, e),
+            }
+        }
+
+        info!("Saved {} sessions", saved.len());
+        Ok(saved)
+    }
+
+    /// Restore sessions from storage into the session manager
+    pub async fn restore_sessions(&self) -> SessionResult<()> {
+        let sessions = self.load_all_sessions().await?;
+
+        for session in sessions {
+            let session_id = session.id.clone();
+            let mut sessions_guard = self.sessions.write().await;
+            sessions_guard.insert(session_id.clone(), session);
+
+            // Set first session as current if no current session
+            let mut current = self.current_session.write().await;
+            if current.is_none() {
+                *current = Some(session_id);
+            }
+        }
+
+        info!("Restored sessions into session manager");
+        Ok(())
     }
 
     /// Get session statistics
