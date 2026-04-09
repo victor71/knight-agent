@@ -75,7 +75,8 @@ impl ProxyTrait for AgentRuntimeImpl {
         content: String,
     ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         let message = Message::user(content);
-        let response = AgentRuntimeImpl::send_message(self, agent_id, message, false)
+        // Use streaming by default for better user experience
+        let response = AgentRuntimeImpl::send_message(self, agent_id, message, true)
             .await
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
         Ok(response.content.to_string())

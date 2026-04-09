@@ -7,9 +7,10 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock as AsyncRwLock;
 use tracing::{debug, info, warn};
+use futures::StreamExt;
 
 use crate::types::*;
-use llm_provider::{LLMProvider, LLMRouter};
+use llm_provider::{LLMProvider, LLMRouter, CompletionStream};
 
 /// Agent runtime configuration
 #[derive(Debug, Clone)]
@@ -279,7 +280,7 @@ impl AgentRuntimeImpl {
         &self,
         agent_id: &str,
         message: Message,
-        _stream: bool,
+        stream: bool,
     ) -> RuntimeResult<Message> {
         let mut agents = self.agents.write().await;
         let agent = agents
@@ -297,13 +298,13 @@ impl AgentRuntimeImpl {
         }
 
         debug!(
-            "Message sent to agent {}, status: {:?}",
-            agent_id, agent.state.status
+            "Message sent to agent {}, status: {:?}, stream={}",
+            agent_id, agent.state.status, stream
         );
 
         // Call LLM router if available
         let response = if let Some(ref router) = self.llm_router {
-            info!("Calling LLM router for agent {}", agent_id);
+            info!("Calling LLM router for agent {} (stream={})", agent_id, stream);
 
             // Convert agent-runtime Message to LLM provider format
             let llm_messages = self.convert_to_llm_messages(&agent.context.messages)?;
@@ -313,32 +314,15 @@ impl AgentRuntimeImpl {
                 messages: llm_messages,
                 temperature: 0.7,
                 max_tokens: 4096,
+                stream,
                 ..Default::default()
             };
 
-            match router.chat_completion(request).await {
-                Ok(response) => {
-                    // Extract content from LLM response
-                    let content = response.content
-                        .or_else(|| {
-                            response.choices.first().and_then(|c| {
-                                c.message.content.as_ref().map(|m| {
-                                    if let llm_provider::Content::Text(s) = m {
-                                        s.clone()
-                                    } else {
-                                        serde_json::to_string(m).unwrap_or_default()
-                                    }
-                                })
-                            })
-                        })
-                        .unwrap_or_else(|| "No response from LLM".to_string());
-
-                    Message::assistant(content)
-                }
-                Err(e) => {
-                    warn!("LLM call failed: {:?}", e);
-                    Message::assistant(format!("Error calling LLM: {:?}", e))
-                }
+            // Use streaming if requested
+            if stream {
+                self.handle_streaming_request(router, request).await?
+            } else {
+                self.handle_regular_request(router, request).await?
             }
         } else {
             // No LLM router - return placeholder
@@ -350,6 +334,117 @@ impl AgentRuntimeImpl {
         agent.state.statistics.increment_messages_sent();
 
         Ok(response)
+    }
+
+    /// Handle streaming LLM request
+    async fn handle_streaming_request(
+        &self,
+        router: &LLMRouter,
+        request: llm_provider::ChatCompletionRequest,
+    ) -> RuntimeResult<Message> {
+        let stream_result = router.stream_completion(request.clone()).await;
+
+        match stream_result {
+            Ok(stream) => {
+                // Collect all chunks from the stream
+                let mut full_content = String::new();
+                let mut chunk_count = 0;
+
+                use futures::StreamExt;
+                let mut stream = stream;
+
+                while let Some(chunk_result) = stream.next().await {
+                    match chunk_result {
+                        Ok(chunk) => {
+                            // Extract text from chunk
+                            if let Some(text) = self.extract_text_from_chunk(&chunk) {
+                                full_content.push_str(&text);
+                                chunk_count += 1;
+                                debug!("Received stream chunk {}: {} chars", chunk_count, text.len());
+                            }
+                        }
+                        Err(e) => {
+                            warn!("Stream chunk error: {:?}", e);
+                            break;
+                        }
+                    }
+                }
+
+                info!("Streaming complete: {} chunks, {} total chars", chunk_count, full_content.len());
+
+                if full_content.is_empty() {
+                    Ok(Message::assistant("No response from LLM".to_string()))
+                } else {
+                    Ok(Message::assistant(full_content))
+                }
+            }
+            Err(e) => {
+                warn!("LLM streaming failed: {:?}", e);
+                // Fall back to regular request
+                info!("Falling back to regular chat completion");
+                let mut fallback_request = request;
+                fallback_request.stream = false;
+                self.handle_regular_request(router, fallback_request).await
+            }
+        }
+    }
+
+    /// Handle regular (non-streaming) LLM request
+    async fn handle_regular_request(
+        &self,
+        router: &LLMRouter,
+        request: llm_provider::ChatCompletionRequest,
+    ) -> RuntimeResult<Message> {
+        match router.chat_completion(request).await {
+            Ok(response) => {
+                // Extract content from LLM response
+                let content = response.content
+                    .or_else(|| {
+                        response.choices.first().and_then(|c| {
+                            c.message.content.as_ref().map(|m| {
+                                if let llm_provider::Content::Text(s) = m {
+                                    s.clone()
+                                } else {
+                                    serde_json::to_string(m).unwrap_or_default()
+                                }
+                            })
+                        })
+                    })
+                    .unwrap_or_else(|| "No response from LLM".to_string());
+
+                Ok(Message::assistant(content))
+            }
+            Err(e) => {
+                warn!("LLM call failed: {:?}", e);
+                Ok(Message::assistant(format!("Error calling LLM: {:?}", e)))
+            }
+        }
+    }
+
+    /// Extract text content from a stream chunk
+    fn extract_text_from_chunk(&self, chunk: &llm_provider::ChatCompletionChunk) -> Option<String> {
+        use llm_provider::Delta;
+
+        // Try to get text from choices (Anthropic/SSE format)
+        for choice in &chunk.choices {
+            match &choice.delta {
+                Delta::MessageDelta { delta, .. } => {
+                    if let Some(ref text) = delta.content {
+                        return Some(text.clone());
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // Try direct content field (some APIs put content directly)
+        if let Some(ref content) = chunk.content {
+            if !content.is_empty() {
+                return Some(content.clone());
+            }
+        }
+
+        None
     }
 
     /// Convert agent-runtime messages to LLM provider messages
