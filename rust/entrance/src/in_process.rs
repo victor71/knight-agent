@@ -352,6 +352,12 @@ pub(crate) async fn run_in_process() -> Result<()> {
         }
     };
 
+    // Initialize global configuration first (before other modules)
+    configuration::init_global_config(config_dir.clone())
+        .await
+        .context("Failed to initialize global configuration")?;
+    info!("Global configuration initialized");
+
     // Initialize config loader (will create default configs if needed)
     let config_loader = Arc::new(ConfigLoader::new(config_dir.clone()).await
         .context("Failed to initialize config loader")?);
