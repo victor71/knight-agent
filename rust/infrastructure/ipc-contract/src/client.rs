@@ -8,7 +8,7 @@ use tokio::sync::{mpsc, oneshot, RwLock};
 
 use crate::error::{IPCError, IPCResult};
 use crate::transport::{Connection, TcpTransport, Transport};
-use crate::types::{BaseMessage, MessageType, NotificationMessage, RequestMessage, ResponseMessage};
+use crate::types::{BaseMessage, MessageType, NotificationMessage, RequestMessage, ResponseMessage, StreamChunkMessage};
 
 /// IPC client configuration
 #[derive(Debug, Clone)]
@@ -22,6 +22,7 @@ pub struct IpcClientConfig {
     /// Event channel size
     pub event_channel_size: usize,
 }
+
 
 impl Default for IpcClientConfig {
     fn default() -> Self {
@@ -37,6 +38,7 @@ impl Default for IpcClientConfig {
 /// Pending request
 struct PendingRequest {
     response_tx: oneshot::Sender<ResponseMessage>,
+    chunk_tx: Option<mpsc::UnboundedSender<StreamChunkMessage>>,
 }
 
 /// IPC client
@@ -60,6 +62,8 @@ pub enum ClientEvent {
     RequestSent { request_id: String, method: String },
     /// Response received
     ResponseReceived { request_id: String },
+    /// Stream chunk received
+    StreamChunk { request_id: String, chunk: String },
     /// Notification received
     Notification { event: String, data: serde_json::Value },
     /// Error occurred
@@ -116,13 +120,43 @@ impl IpcClient {
         method: String,
         params: serde_json::Value,
     ) -> IPCResult<serde_json::Value> {
+        let response_rx = self.request_internal(method, params, None).await?;
+        self.wait_for_stream_response(response_rx).await
+    }
+
+    /// Send a streaming request and get chunk receiver
+    pub async fn request_streaming(
+        &self,
+        method: String,
+        params: serde_json::Value,
+    ) -> IPCResult<(mpsc::UnboundedReceiver<StreamChunkMessage>, oneshot::Receiver<ResponseMessage>)> {
+        let (chunk_tx, chunk_rx) = mpsc::unbounded_channel();
+        let response_rx = self.request_internal(method, params, Some(chunk_tx)).await?;
+        Ok((chunk_rx, response_rx))
+    }
+
+    /// Internal request implementation
+    async fn request_internal(
+        &self,
+        method: String,
+        params: serde_json::Value,
+        chunk_tx: Option<mpsc::UnboundedSender<StreamChunkMessage>>,
+    ) -> IPCResult<oneshot::Receiver<ResponseMessage>> {
         // Create request message first to get its ID
-        let request = RequestMessage {
+        let mut request = RequestMessage {
             base: BaseMessage::new(MessageType::Request),
             method: method.clone(),
             params,
             options: None,
         };
+
+        // Mark as streaming request if chunk_tx provided
+        if chunk_tx.is_some() {
+            request.options = Some(crate::types::RequestOptions {
+                stream: Some(true),
+                ..Default::default()
+            });
+        }
 
         // Use the message ID for tracking
         let request_id = request.base.id.clone();
@@ -134,7 +168,7 @@ impl IpcClient {
             let mut pending = self.pending_requests.write().await;
             pending.insert(
                 request_id.clone(),
-                PendingRequest { response_tx },
+                PendingRequest { response_tx, chunk_tx },
             );
         }
 
@@ -161,7 +195,14 @@ impl IpcClient {
             method,
         });
 
-        // Wait for response
+        Ok(response_rx)
+    }
+
+    /// Wait for streaming response completion
+    pub async fn wait_for_stream_response(
+        &self,
+        response_rx: oneshot::Receiver<ResponseMessage>,
+    ) -> IPCResult<serde_json::Value> {
         let response = tokio::time::timeout(
             tokio::time::Duration::from_millis(self.config.request_timeout_ms),
             response_rx,
@@ -169,12 +210,6 @@ impl IpcClient {
         .await
         .map_err(|_| IPCError::Timeout(self.config.request_timeout_ms))?
         .map_err(|_| IPCError::ReceiveFailed("Response channel closed".to_string()))?;
-
-        let _ = self
-            .event_tx
-            .send(ClientEvent::ResponseReceived {
-                request_id: request_id.clone(),
-            });
 
         if let Some(error) = response.error {
             Err(IPCError::InternalError(format!(
@@ -274,6 +309,24 @@ impl IpcClient {
                                         let _ = pending.response_tx.send(response);
                                     } else {
                                         tracing::warn!("Received response for unknown request: {}", request_id);
+                                    }
+                                } else if let Ok(chunk) = serde_json::from_str::<StreamChunkMessage>(&msg_str) {
+                                    let request_id = chunk.request_id.clone();
+
+                                    // Forward chunk to pending stream request
+                                    let chunk_tx_opt = {
+                                        let pending_requests = pending_requests.read().await;
+                                        pending_requests.get(&request_id).and_then(|p| p.chunk_tx.as_ref().cloned())
+                                    };
+
+                                    if let Some(chunk_tx) = chunk_tx_opt {
+                                        let _ = chunk_tx.send(chunk.clone());
+                                        let _ = event_tx.send(ClientEvent::StreamChunk {
+                                            request_id,
+                                            chunk: chunk.chunk,
+                                        });
+                                    } else {
+                                        tracing::warn!("Received chunk for unknown request: {}", request_id);
                                     }
                                 } else if let Ok(_notification) = serde_json::from_str::<NotificationMessage>(&msg_str) {
                                     // Handle notification

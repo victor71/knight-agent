@@ -121,7 +121,7 @@ impl DaemonClient for IpcDaemonClient {
         &self,
         session_id: &str,
         content: String,
-        _stream_callback: Option<Box<dyn Fn(String) -> bool + Send + Sync>>,
+        stream_callback: Option<Box<dyn Fn(String) -> bool + Send + Sync>>,
     ) -> Pin<Box<dyn Future<Output = DaemonClientResult<String>> + Send>> {
         let client = self.ipc_client.clone();
         let session_id = session_id.to_string();
@@ -132,17 +132,64 @@ impl DaemonClient for IpcDaemonClient {
                 "content": content,
             });
 
-            let client = client.lock().await;
-            let response = client.request("send_message".to_string(), params).await
-                .map_err(|e| DaemonClientError::InternalError(e.to_string()))?;
+            let mut client = client.lock().await;
 
-            let response_obj: serde_json::Value = response;
-            let result = response_obj.get("response")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
+            // Use streaming if callback provided
+            if let Some(callback) = stream_callback {
+                match client.request_streaming("send_message".to_string(), params).await {
+                    Ok((mut chunk_rx, response_rx)) => {
+                        // Spawn task to handle chunks
+                        tokio::spawn(async move {
+                            while let Some(chunk) = chunk_rx.recv().await {
+                                if !callback(chunk.chunk) {
+                                    break; // Stop streaming
+                                }
+                            }
+                        });
 
-            Ok(result)
+                        // Wait for final response
+                        let response = client.wait_for_stream_response(response_rx).await
+                            .map_err(|e| DaemonClientError::InternalError(e.to_string()))?;
+
+                        let response_obj: serde_json::Value = response;
+                        let result = response_obj.get("response")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+
+                        Ok(result)
+                    }
+                    Err(e) => {
+                        // Fall back to regular request if streaming fails
+                        let params = serde_json::json!({
+                            "session_id": session_id,
+                            "content": content,
+                        });
+                        let response = client.request("send_message".to_string(), params).await
+                            .map_err(|e| DaemonClientError::InternalError(e.to_string()))?;
+
+                        let response_obj: serde_json::Value = response;
+                        let result = response_obj.get("response")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+
+                        Ok(result)
+                    }
+                }
+            } else {
+                // No callback, use regular request
+                let response = client.request("send_message".to_string(), params).await
+                    .map_err(|e| DaemonClientError::InternalError(e.to_string()))?;
+
+                let response_obj: serde_json::Value = response;
+                let result = response_obj.get("response")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+
+                Ok(result)
+            }
         })
     }
 
