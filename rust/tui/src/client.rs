@@ -72,6 +72,9 @@ pub trait DaemonClient: Send + Sync {
 
     /// Subscribe to daemon events
     fn subscribe_events(&self) -> Pin<Box<dyn Future<Output = DaemonClientResult<mpsc::UnboundedReceiver<AppEvent>>> + Send>>;
+
+    /// Shutdown the daemon
+    fn shutdown(&self) -> Pin<Box<dyn Future<Output = DaemonClientResult<()>> + Send>>;
 }
 
 /// Direct daemon client - wraps Arc references to router and session manager
@@ -230,6 +233,11 @@ impl DaemonClient for DirectDaemonClient {
             let (_tx, rx) = mpsc::unbounded_channel();
             Ok(rx)
         })
+    }
+
+    fn shutdown(&self) -> Pin<Box<dyn Future<Output = DaemonClientResult<()>> + Send>> {
+        // In direct mode, there's no daemon to shutdown
+        Box::pin(async { Ok(()) })
     }
 }
 

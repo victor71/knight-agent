@@ -235,4 +235,6 @@ pub struct HandleInputRequest {
 pub struct HandleInputResult {
     pub response: RouterResponse,
     pub to_agent: bool,
+    #[serde(default)]
+    pub should_exit: bool,
 }

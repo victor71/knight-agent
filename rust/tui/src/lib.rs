@@ -131,6 +131,21 @@ impl TuiApp {
                 self.state.update(&event);
 
                 // Check for exit condition
+                if matches!(event, AppEvent::Exit) {
+                    info!("Exit event received, shutting down daemon...");
+                    // Try to shutdown daemon gracefully
+                    if let Some(ref client) = self.daemon_client {
+                        let client = client.clone();
+                        tokio::spawn(async move {
+                            if let Err(e) = client.shutdown().await {
+                                warn!("Daemon shutdown error: {:?}", e);
+                            } else {
+                                info!("Daemon shutdown complete");
+                            }
+                        });
+                    }
+                    break;
+                }
                 if matches!(event, AppEvent::SessionSwitch(_) | AppEvent::TaskComplete(_)) {
                     // Could trigger refresh here
                 }
@@ -149,11 +164,6 @@ impl TuiApp {
                         warn!("route_to_agent error: {:?}", e);
                     }
                 });
-            }
-
-            // Check exit condition
-            if self.state.input_buffer == "/quit" {
-                break;
             }
 
             tokio::time::sleep(Duration::from_millis(10)).await;
@@ -221,6 +231,13 @@ impl TuiApp {
                         info!("TUI: User submitted input: \"{}\"", input);
                         self.state.input_buffer.clear();
                         self.state.cursor_position = 0;
+
+                        // Check for quit command BEFORE processing
+                        if input == "/quit" || input == "/exit" {
+                            info!("TUI: Quit command received, exiting...");
+                            // Return a special error to signal quit
+                            return Err(anyhow::anyhow!("Quit command"));
+                        }
 
                         if self.state.processing_state.is_processing {
                             // Already processing - queue the input
@@ -400,7 +417,14 @@ impl TuiApp {
 
             match result {
                 Ok(result) => {
-                    info!("Daemon client result: to_agent={}", result.to_agent);
+                    info!("Daemon client result: to_agent={}, should_exit={}", result.to_agent, result.should_exit);
+
+                    // Check if command signals exit (e.g., /quit)
+                    if result.should_exit {
+                        let _ = event_tx.send(AppEvent::Exit);
+                        let _ = event_tx.send(AppEvent::StopProcessing);
+                        return Ok(());
+                    }
 
                     if result.to_agent {
                         // Create streaming callback that sends StreamChunk events

@@ -50,6 +50,9 @@ pub enum AppEvent {
 
     // Agent routing event (triggered from sync context)
     RouteToAgent(String),
+
+    // Exit event (triggered by /quit command)
+    Exit,
 }
 
 /// System status snapshot for rendering

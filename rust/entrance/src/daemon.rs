@@ -243,6 +243,14 @@ impl DaemonState {
             })
         }).await;
 
+        // shutdown handler
+        server.register("shutdown", move |_params: serde_json::Value| {
+            Box::pin(async move {
+                info!("Shutdown request received");
+                Ok(serde_json::json!({ "success": true }))
+            })
+        }).await;
+
         info!("IPC method handlers registered");
     }
 }

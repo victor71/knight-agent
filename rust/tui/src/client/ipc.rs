@@ -109,6 +109,7 @@ impl DaemonClient for IpcDaemonClient {
             Ok(router::HandleInputResult {
                 response: router_response,
                 to_agent,
+                should_exit: false,
             })
         })
     }
@@ -351,6 +352,18 @@ impl DaemonClient for IpcDaemonClient {
             // For now, return empty channel
             let (_tx, rx) = mpsc::unbounded_channel();
             Ok(rx)
+        })
+    }
+
+    fn shutdown(&self) -> Pin<Box<dyn Future<Output = DaemonClientResult<()>> + Send>> {
+        let client = self.ipc_client.clone();
+
+        Box::pin(async move {
+            let params = serde_json::json!({});
+            let client = client.lock().await;
+            let _ = client.request("shutdown".to_string(), params).await
+                .map_err(|e| DaemonClientError::InternalError(e.to_string()))?;
+            Ok(())
         })
     }
 }

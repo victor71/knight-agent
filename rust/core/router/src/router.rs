@@ -146,6 +146,7 @@ impl RouterImpl {
             return HandleInputResult {
                 response: RouterResponse::error("Empty input"),
                 to_agent: false,
+                should_exit: false,
             };
         }
 
@@ -154,6 +155,7 @@ impl RouterImpl {
             return HandleInputResult {
                 response: RouterResponse::forwarded_to_agent("Forwarding to agent"),
                 to_agent: true,
+                should_exit: false,
             };
         }
 
@@ -181,6 +183,7 @@ impl RouterImpl {
         HandleInputResult {
             response: RouterResponse::error(format!("Unknown command: {}", command_name)),
             to_agent: false,
+            should_exit: false,
         }
     }
 
@@ -198,6 +201,7 @@ impl RouterImpl {
             _ => HandleInputResult {
                 response: RouterResponse::error(format!("Unknown builtin: {}", command.handler.name)),
                 to_agent: false,
+                should_exit: false,
             },
         }
     }
@@ -214,6 +218,7 @@ impl RouterImpl {
                 }),
             ),
             to_agent: false,
+            should_exit: false,
         }
     }
 
@@ -235,6 +240,7 @@ impl RouterImpl {
             return HandleInputResult {
                 response: RouterResponse::success(message),
                 to_agent: false,
+                should_exit: false,
             };
         }
 
@@ -253,11 +259,13 @@ impl RouterImpl {
                     cmd.name, cmd.description, aliases
                 )),
                 to_agent: false,
+                should_exit: false,
             }
         } else {
             HandleInputResult {
                 response: RouterResponse::error(format!("Unknown command: {}", cmd_name)),
                 to_agent: false,
+                should_exit: false,
             }
         }
     }
@@ -267,6 +275,7 @@ impl RouterImpl {
         HandleInputResult {
             response: RouterResponse::success("Screen cleared"),
             to_agent: false,
+            should_exit: false,
         }
     }
 
@@ -275,6 +284,7 @@ impl RouterImpl {
         HandleInputResult {
             response: RouterResponse::success("Goodbye!"),
             to_agent: false,
+            should_exit: true,
         }
     }
 
@@ -289,6 +299,7 @@ impl RouterImpl {
                 }),
             ),
             to_agent: false,
+            should_exit: false,
         }
     }
 
@@ -300,6 +311,7 @@ impl RouterImpl {
             return HandleInputResult {
                 response: RouterResponse::success("Session commands: list, new, switch, delete"),
                 to_agent: false,
+                should_exit: false,
             };
         }
 
@@ -307,14 +319,17 @@ impl RouterImpl {
             "list" => HandleInputResult {
                 response: RouterResponse::success("Listing sessions..."),
                 to_agent: true, // Delegate to session manager
+                should_exit: false,
             },
             "new" => HandleInputResult {
                 response: RouterResponse::success("Creating new session..."),
                 to_agent: true,
+                should_exit: false,
             },
             _ => HandleInputResult {
                 response: RouterResponse::error("Unknown session subcommand"),
                 to_agent: false,
+                should_exit: false,
             },
         }
     }
@@ -327,6 +342,7 @@ impl RouterImpl {
             return HandleInputResult {
                 response: RouterResponse::success("Agent commands: list, start, stop, switch"),
                 to_agent: false,
+                should_exit: false,
             };
         }
 
@@ -334,10 +350,12 @@ impl RouterImpl {
             "list" => HandleInputResult {
                 response: RouterResponse::success("Listing agents..."),
                 to_agent: true,
+                should_exit: false,
             },
             _ => HandleInputResult {
                 response: RouterResponse::error("Unknown agent subcommand"),
                 to_agent: false,
+                should_exit: false,
             },
         }
     }
@@ -348,6 +366,7 @@ impl RouterImpl {
         HandleInputResult {
             response: RouterResponse::success("Command history (recent 10)..."),
             to_agent: false,
+            should_exit: false,
         }
     }
 
@@ -360,6 +379,7 @@ impl RouterImpl {
                 serde_json::json!(commands),
             ),
             to_agent: false,
+            should_exit: false,
         }
     }
 
