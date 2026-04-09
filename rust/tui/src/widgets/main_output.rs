@@ -20,8 +20,8 @@ pub fn render_main_output(f: &mut Frame, area: ratatui::layout::Rect, app: &AppS
     let mut lines = Vec::new();
 
     for output_line in &app.output_lines {
-        let styled_line = style_output_line(output_line);
-        lines.push(styled_line);
+        let styled_lines = style_output_line(output_line);
+        lines.extend(styled_lines);
     }
 
     // If no output, show placeholder
@@ -67,19 +67,21 @@ pub fn render_main_output(f: &mut Frame, area: ratatui::layout::Rect, app: &AppS
 }
 
 /// Style an output line based on its style type
-fn style_output_line(output_line: &crate::state::OutputLine) -> Line<'_> {
+fn style_output_line(output_line: &crate::state::OutputLine) -> Vec<Line<'_>> {
     match &output_line.style {
-        OutputStyle::UserMessage => Line::from(vec![
-            Span::styled(
-                format!("{} ", output_line.timestamp.format("%H:%M:%S")),
-                Style::default().fg(Color::DarkGray),
-            ),
-            Span::styled(
-                "User: ",
-                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(&output_line.content, Style::default().fg(Color::White)),
-        ]),
+        OutputStyle::UserMessage => vec![
+            Line::from(vec![
+                Span::styled(
+                    format!("{} ", output_line.timestamp.format("%H:%M:%S")),
+                    Style::default().fg(Color::DarkGray),
+                ),
+                Span::styled(
+                    "User: ",
+                    Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(&output_line.content, Style::default().fg(Color::White)),
+            ])
+        ],
         OutputStyle::AgentMessage => {
             // Build agent label with optional agent_id
             let agent_label = if let Some(ref agent_id) = output_line.agent_id {
@@ -108,21 +110,23 @@ fn style_output_line(output_line: &crate::state::OutputLine) -> Line<'_> {
                         }
                         result.push(line);
                     }
-                    // Return first line (multiline handling would need more complex logic)
-                    result.into_iter().next().unwrap_or_else(|| Line::from(output_line.content.clone()))
+                    // Return all rendered lines
+                    result
                 } else {
                     // Fallback to plain text with Agent label
-                    Line::from(vec![
-                        Span::styled(
-                            format!("{} ", output_line.timestamp.format("%H:%M:%S")),
-                            Style::default().fg(Color::DarkGray),
-                        ),
-                        Span::styled(
-                            agent_label.clone(),
-                            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
-                        ),
-                        Span::styled(output_line.content.clone(), Style::default().fg(Color::White)),
-                    ])
+                    vec![
+                        Line::from(vec![
+                            Span::styled(
+                                format!("{} ", output_line.timestamp.format("%H:%M:%S")),
+                                Style::default().fg(Color::DarkGray),
+                            ),
+                            Span::styled(
+                                agent_label.clone(),
+                                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                            ),
+                            Span::styled(output_line.content.clone(), Style::default().fg(Color::White)),
+                        ])
+                    ]
                 }
             } else {
                 // Simple syntax highlighting for code blocks (legacy)
@@ -132,106 +136,124 @@ fn style_output_line(output_line: &crate::state::OutputLine) -> Line<'_> {
                         .strip_prefix("```")
                         .and_then(|s| s.lines().next())
                         .unwrap_or("code");
-                    Line::from(vec![
-                        Span::styled(
-                            format!("{} ", output_line.timestamp.format("%H:%M:%S")),
-                            Style::default().fg(Color::DarkGray),
-                        ),
-                        Span::styled(
-                            agent_label.clone(),
-                            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
-                        ),
-                        Span::styled(
-                            format!("```{} ", lang),
-                            Style::default().fg(Color::Yellow).add_modifier(Modifier::ITALIC),
-                        ),
-                    ])
+                    vec![
+                        Line::from(vec![
+                            Span::styled(
+                                format!("{} ", output_line.timestamp.format("%H:%M:%S")),
+                                Style::default().fg(Color::DarkGray),
+                            ),
+                            Span::styled(
+                                agent_label.clone(),
+                                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                            ),
+                            Span::styled(
+                                format!("```{} ", lang),
+                                Style::default().fg(Color::Yellow).add_modifier(Modifier::ITALIC),
+                            ),
+                        ])
+                    ]
                 } else if output_line.content.starts_with("    ") || output_line.content.starts_with("\t") {
                     // Indented code line
-                    Line::from(vec![
-                        Span::styled(
-                            format!("{} ", output_line.timestamp.format("%H:%M:%S")),
-                            Style::default().fg(Color::DarkGray),
-                        ),
-                        Span::styled(
-                            agent_label.clone(),
-                            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
-                        ),
-                        Span::styled("  ", Style::default()),
-                        Span::styled(output_line.content.trim().to_string(), Style::default().fg(Color::Cyan)),
-                    ])
+                    vec![
+                        Line::from(vec![
+                            Span::styled(
+                                format!("{} ", output_line.timestamp.format("%H:%M:%S")),
+                                Style::default().fg(Color::DarkGray),
+                            ),
+                            Span::styled(
+                                agent_label.clone(),
+                                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                            ),
+                            Span::styled("  ", Style::default()),
+                            Span::styled(output_line.content.trim().to_string(), Style::default().fg(Color::Cyan)),
+                        ])
+                    ]
                 } else {
                     // Regular text with Agent label
-                    Line::from(vec![
-                        Span::styled(
-                            format!("{} ", output_line.timestamp.format("%H:%M:%S")),
-                            Style::default().fg(Color::DarkGray),
-                        ),
-                        Span::styled(
-                            agent_label.clone(),
-                            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
-                        ),
-                        Span::styled(output_line.content.clone(), Style::default().fg(Color::White)),
-                    ])
+                    vec![
+                        Line::from(vec![
+                            Span::styled(
+                                format!("{} ", output_line.timestamp.format("%H:%M:%S")),
+                                Style::default().fg(Color::DarkGray),
+                            ),
+                            Span::styled(
+                                agent_label.clone(),
+                                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                            ),
+                            Span::styled(output_line.content.clone(), Style::default().fg(Color::White)),
+                        ])
+                    ]
                 }
             }
         }
-        OutputStyle::SystemInfo => Line::from(vec![
-            Span::styled(
-                format!("{} ", output_line.timestamp.format("%H:%M:%S")),
-                Style::default().fg(Color::DarkGray),
-            ),
-            Span::styled("ℹ️  ", Style::default().fg(Color::Blue)),
-            Span::styled(output_line.content.clone(), Style::default().fg(Color::Gray)),
-        ]),
-        OutputStyle::Error => Line::from(vec![
-            Span::styled(
-                format!("{} ", output_line.timestamp.format("%H:%M:%S")),
-                Style::default().fg(Color::DarkGray),
-            ),
-            Span::styled("❌ ", Style::default().fg(Color::Red)),
-            Span::styled(
-                output_line.content.clone(),
-                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-            ),
-        ]),
-        OutputStyle::Code(lang) => Line::from(vec![
-            Span::styled(
-                format!("{} ", output_line.timestamp.format("%H:%M:%S")),
-                Style::default().fg(Color::DarkGray),
-            ),
-            Span::styled(
-                format!("[{}] ", lang),
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::ITALIC),
-            ),
-            Span::styled(output_line.content.clone(), Style::default().fg(Color::Cyan)),
-        ]),
-        OutputStyle::Status(status) => Line::from(vec![
-            Span::styled(
-                format!("{} ", output_line.timestamp.format("%H:%M:%S")),
-                Style::default().fg(Color::DarkGray),
-            ),
-            Span::styled(status, Style::default()),
-            Span::styled(" ", Style::default()),
-            Span::styled(output_line.content.clone(), Style::default().fg(Color::Gray)),
-        ]),
-        OutputStyle::Processing => Line::from(vec![
-            Span::styled(
-                format!("{} ", output_line.timestamp.format("%H:%M:%S")),
-                Style::default().fg(Color::DarkGray),
-            ),
-            Span::styled(output_line.content.clone(), Style::default().fg(Color::Cyan)),
-        ]),
-        OutputStyle::Thinking => Line::from(vec![
-            Span::styled(
-                format!("{} ", output_line.timestamp.format("%H:%M:%S")),
-                Style::default().fg(Color::DarkGray),
-            ),
-            Span::styled("💭 ", Style::default().fg(Color::Yellow)),
-            Span::styled(
-                output_line.content.clone(),
-                Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC),
-            ),
-        ]),
+        OutputStyle::SystemInfo => vec![
+            Line::from(vec![
+                Span::styled(
+                    format!("{} ", output_line.timestamp.format("%H:%M:%S")),
+                    Style::default().fg(Color::DarkGray),
+                ),
+                Span::styled("ℹ️  ", Style::default().fg(Color::Blue)),
+                Span::styled(output_line.content.clone(), Style::default().fg(Color::Gray)),
+            ])
+        ],
+        OutputStyle::Error => vec![
+            Line::from(vec![
+                Span::styled(
+                    format!("{} ", output_line.timestamp.format("%H:%M:%S")),
+                    Style::default().fg(Color::DarkGray),
+                ),
+                Span::styled("❌ ", Style::default().fg(Color::Red)),
+                Span::styled(
+                    output_line.content.clone(),
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                ),
+            ])
+        ],
+        OutputStyle::Code(lang) => vec![
+            Line::from(vec![
+                Span::styled(
+                    format!("{} ", output_line.timestamp.format("%H:%M:%S")),
+                    Style::default().fg(Color::DarkGray),
+                ),
+                Span::styled(
+                    format!("[{}] ", lang),
+                    Style::default().fg(Color::Yellow).add_modifier(Modifier::ITALIC),
+                ),
+                Span::styled(output_line.content.clone(), Style::default().fg(Color::Cyan)),
+            ])
+        ],
+        OutputStyle::Status(status) => vec![
+            Line::from(vec![
+                Span::styled(
+                    format!("{} ", output_line.timestamp.format("%H:%M:%S")),
+                    Style::default().fg(Color::DarkGray),
+                ),
+                Span::styled(status, Style::default()),
+                Span::styled(" ", Style::default()),
+                Span::styled(output_line.content.clone(), Style::default().fg(Color::Gray)),
+            ])
+        ],
+        OutputStyle::Processing => vec![
+            Line::from(vec![
+                Span::styled(
+                    format!("{} ", output_line.timestamp.format("%H:%M:%S")),
+                    Style::default().fg(Color::DarkGray),
+                ),
+                Span::styled(output_line.content.clone(), Style::default().fg(Color::Cyan)),
+            ])
+        ],
+        OutputStyle::Thinking => vec![
+            Line::from(vec![
+                Span::styled(
+                    format!("{} ", output_line.timestamp.format("%H:%M:%S")),
+                    Style::default().fg(Color::DarkGray),
+                ),
+                Span::styled("💭 ", Style::default().fg(Color::Yellow)),
+                Span::styled(
+                    output_line.content.clone(),
+                    Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC),
+                ),
+            ])
+        ],
     }
 }

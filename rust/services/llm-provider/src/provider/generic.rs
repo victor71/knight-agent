@@ -4,6 +4,8 @@
 //! Configure with API-KEY, BASE-URL, PROTOCOL, and MODEL-LIST to connect to various LLM services.
 
 use async_trait::async_trait;
+use bytes::Bytes;
+use futures::stream::StreamExt;
 use reqwest::header::HeaderName;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -643,6 +645,7 @@ impl LLMProvider for GenericLLMProvider {
         let (auth_header, auth_value) = self.auth_header();
 
         info!("LLM streaming request starting for model: {}", model);
+        let stream_start = Instant::now();
 
         let mut req_builder = self.client.post(&url);
         req_builder = req_builder
@@ -663,6 +666,9 @@ impl LLMProvider for GenericLLMProvider {
             LLMError::InferenceFailed(format!("stream request failed: {}", e))
         })?;
 
+        let request_latency_ms = stream_start.elapsed().as_millis() as u64;
+        info!("LLM streaming request sent: {}ms to first byte", request_latency_ms);
+
         if response.status() == 401 {
             return Err(LLMError::ApiKeyInvalid);
         } else if response.status() == 429 {
@@ -674,22 +680,81 @@ impl LLMProvider for GenericLLMProvider {
             )));
         }
 
-        // Collect and return as async stream
-        let body = response.text().await.map_err(|e| {
-            LLMError::InferenceFailed(format!("failed to read streaming response: {}", e))
-        })?;
+        // Create true streaming response using bytes_stream
+        let byte_stream = response.bytes_stream();
 
-        info!("LLM streaming response received, body_len={}, parsing chunks...", body.len());
+        // Track first token latency
+        let first_token_logged = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let chunk_count = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let protocol = self.config.protocol;
 
-        let chunks: Vec<LLMResult<ChatCompletionChunk>> = body
-            .lines()
-            .filter_map(|line| self.parse_stream_chunk(line))
-            .map(Ok)
-            .collect();
+        // Create a stream that yields parsed chunks
+        let chunk_stream = async_stream::try_stream! {
+            let mut buffer = Vec::new();
+            let mut first_byte = true;
 
-        info!("LLM streaming parsed {} chunks", chunks.len());
+            futures::pin_mut!(byte_stream);
 
-        Ok(Box::pin(futures::stream::iter(chunks)))
+            while let Some(bytes_result) = byte_stream.next().await {
+                let bytes: Bytes = bytes_result.map_err(|e| {
+                    LLMError::InferenceFailed(format!("stream read error: {}", e))
+                })?;
+
+                // Log first byte latency
+                if first_byte {
+                    let first_byte_latency = stream_start.elapsed().as_millis() as u64;
+                    info!("LLM first byte received: {}ms", first_byte_latency);
+                    first_byte = false;
+                }
+
+                // Process bytes line by line
+                buffer.extend_from_slice(&bytes);
+
+                // Process complete lines
+                while let Some(newline_pos) = buffer.iter().position(|&b| b == b'\n') {
+                    let line_bytes = buffer.drain(..=newline_pos).collect::<Vec<_>>();
+                    buffer = buffer.split_at(newline_pos + 1).1.to_vec();
+
+                    // Skip the newline byte
+                    let line = std::str::from_utf8(&line_bytes)
+                        .unwrap_or("")
+                        .trim_end_matches('\n')
+                        .trim_end_matches('\r');
+
+                    // Parse SSE line
+                    if let Some(chunk) = Self::parse_stream_chunk_static(&protocol, line) {
+                        let count = chunk_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+
+                        // Log first token latency
+                        if !first_token_logged.load(std::sync::atomic::Ordering::Relaxed) {
+                            if let Some(ref content) = chunk.content {
+                                if !content.is_empty() {
+                                    first_token_logged.store(true, std::sync::atomic::Ordering::Relaxed);
+                                    let latency = stream_start.elapsed().as_millis() as u64;
+                                    info!("LLM first token (chunk {}): {}ms from request start, {} chars",
+                                          count, latency, content.len());
+                                }
+                            }
+                        }
+
+                        debug!("LLM stream chunk {}: {} chars", count,
+                               chunk.content.as_ref().map_or(0, |s| s.len()));
+
+                        yield chunk;
+                    }
+                }
+            }
+
+            info!("LLM streaming complete: {} chunks, {}ms total",
+                  chunk_count.load(std::sync::atomic::Ordering::Relaxed),
+                  stream_start.elapsed().as_millis());
+
+            if !first_token_logged.load(std::sync::atomic::Ordering::Relaxed) {
+                warn!("LLM no content chunks found in stream");
+            }
+        };
+
+        Ok(Box::pin(chunk_stream))
     }
 
     async fn count_tokens(&self, text: &str, _model: &str) -> LLMResult<TokenCount> {
@@ -843,6 +908,11 @@ impl LLMProvider for GenericLLMProvider {
 impl GenericLLMProvider {
     /// Parse streaming chunk (simplified)
     fn parse_stream_chunk(&self, line: &str) -> Option<ChatCompletionChunk> {
+        Self::parse_stream_chunk_static(&self.config.protocol, line)
+    }
+
+    /// Static version of parse_stream_chunk that can be used in async streams
+    fn parse_stream_chunk_static(protocol: &LLMProtocol, line: &str) -> Option<ChatCompletionChunk> {
         if !line.starts_with("data: ") || line == "data: [DONE]" {
             return None;
         }
@@ -856,7 +926,7 @@ impl GenericLLMProvider {
         let model = data.get("model").and_then(|v| v.as_str()).unwrap_or("").to_string();
 
         // Handle both OpenAI and Anthropic streaming formats
-        let content = match self.config.protocol {
+        let content = match protocol {
             LLMProtocol::OpenAI => {
                 data.get("choices")
                     .and_then(|v| v.as_array())
@@ -898,7 +968,7 @@ impl GenericLLMProvider {
         };
 
         // Track if this chunk contains thinking content (for MiniMax Anthropic format)
-        let is_thinking = match self.config.protocol {
+        let is_thinking = match protocol {
             LLMProtocol::Anthropic => {
                 data.get("delta")
                     .and_then(|d| d.get("type"))

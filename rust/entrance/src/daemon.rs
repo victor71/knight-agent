@@ -116,8 +116,9 @@ impl DaemonState {
 
                 info!("[DAEMON] send_message streaming: session_id={}, content_len={}", session_id, content.len());
 
-                // Create a channel to receive chunks from the agent
+                // Create channels to receive chunks from the agent and signal completion
                 let (chunk_tx, mut chunk_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+                let (done_tx, mut done_rx) = tokio::sync::oneshot::channel::<()>();
 
                 // Spawn task to forward chunks to StreamingContext
                 tokio::spawn(async move {
@@ -130,6 +131,8 @@ impl DaemonState {
                         sequence += 1;
                     }
                     info!("[DAEMON] Stream forwarding complete: {} total chunks", total_chunks);
+                    // Signal that streaming is complete
+                    let _ = done_tx.send(());
                 });
 
                 // Create streaming callback that sends to our channel
@@ -146,6 +149,14 @@ impl DaemonState {
                 let result = session_manager.send_message_to_session_streaming(session_id, content, Some(stream_callback)).await
                     .map_err(|e| ipc_contract::IPCError::InternalError(e.to_string()))?;
                 info!("[DAEMON] send_message_to_session_streaming completed, response_len={}", result.len());
+
+                // Wait for streaming to complete before returning final response
+                tokio::time::timeout(tokio::time::Duration::from_millis(100), done_rx)
+                    .await
+                    .ok();
+
+                // Small delay to ensure all chunks are sent
+                tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
 
                 Ok(serde_json::json!({ "response": result }))
             })

@@ -13,10 +13,12 @@ thiserror.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 async-trait.workspace = true
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "stream"] }
 uuid = { version = "1.0", features = ["v4"] }
 chrono.workspace = true
 futures.workspace = true
 parking_lot.workspace = true
 configuration = { path = "../../configuration" }
+async-stream = "0.3"
+bytes = "1.0"
 
