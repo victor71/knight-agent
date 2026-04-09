@@ -227,29 +227,37 @@
 
 ### 进程与模块映射
 
-| 模块 | knight (TUI) 进程 | 守护进程 (Daemon) | 会话进程 (Session) |
+| 模块 | TUI 进程 | 守护进程 (Daemon) | 会话进程 (Session) |
 |------|:-:|:-:|:-:|
 | TUI | ✅ | - | - |
-| Session Manager | ✅ | - | - |
-| Process Monitor | ✅ | - | - |
-| Router | ✅ | - | - |
-| Config Loader | ✅ | - | - |
-| Bootstrap | ✅ (daemon mode) | ✅ (session mode) | - |
-| Agent Runtime | - | ✅ | - |
-| Orchestrator | - | ✅ | - |
-| Task Manager | - | ✅ | - |
-| LLM Provider | - | ✅ | - |
-| Context Compressor | - | ✅ | - |
-| Tool System | - | ✅ | - |
-| Event Loop | ✅ (全局事件) | ✅ (会话事件) | - |
-| Hook Engine | ✅ (全局Hook) | ✅ (会话Hook) | - |
-| Security Manager | ✅ (策略) | ✅ (执行) | - |
-| Monitor | ✅ (聚合) | ✅ (采集) | - |
-| Logging System | ✅ | ✅ | - |
+| Bootstrap | - | ✅ (Daemon 模式) | ✅ (Session 模式) |
+| Logging System | - | ✅ | ✅ |
+| Security Manager | - | ✅ | ✅ |
+| Storage Service | - | ✅ | ✅ |
+| Event Loop | - | ✅ | ✅ |
+| Timer System | - | - | ✅ |
+| Hook Engine | - | ✅ | ✅ |
+| Session Manager | - | ✅ (注册表管理) | ✅ |
+| Monitor | - | - | ✅ |
+| Sandbox | - | ✅ | ✅ |
+| IPC Contract | - | ✅ | ✅ |
+| LLM Provider | - | - | ✅ |
+| Tool System | - | - | ✅ |
+| Agent Runtime | - | - | ✅ |
+| Orchestrator | - | - | ✅ |
+| Task Manager | - | - | ✅ |
+| Router | - | ✅ | ✅ |
+| Agent Variants | - | - | ✅ |
+| External Agent | - | - | ✅ |
+| Skill Engine | - | - | ✅ |
+| Command | - | ✅ | ✅ |
+| Workflows Directory | - | - | ✅ |
+| Report Skill | - | - | ✅ |
+| Context Compressor | - | - | ✅ |
 
 ### Bootstrap 双模式启动
 
-守护进程和会话进程使用不同的 Bootstrap 模式：
+守护进程和会话进程使用不同的 Bootstrap 模式，通过 `BootstrapMode` 枚举区分：
 
 ```
 knight daemon start
@@ -257,16 +265,22 @@ knight daemon start
       ▼
 ┌──────────────────────────────────────────────┐
 │  Daemon Bootstrap (守护进程模式)              │
-│  阶段 1: Logging System                      │
-│  阶段 2: Config Loader                       │
-│  阶段 3: Security Manager (策略)             │
-│  阶段 4: Session Manager                     │
-│  阶段 5: Process Monitor                     │
-│  阶段 6: Router                              │
-│  阶段 7: Event Loop (全局)                    │
-│  阶段 8: TUI                                 │
-│  阶段 9: Monitor (聚合)                       │
-│  阶段 10: IPC Server (监听 CLI 连接)          │
+│  BootstrapMode::Daemon                       │
+│  仅初始化通信代理相关模块                       │
+│                                              │
+│  阶段 1: Infrastructure                       │
+│         - Logging System                     │
+│  阶段 2: Security and Storage                │
+│         - Security Manager                    │
+│         - Storage Service                    │
+│  阶段 3: Basic Services and Event            │
+│         - Event Loop (IPC事件处理)            │
+│         - Hook Engine (全局Hook)              │
+│  阶段 4: Core Engine Layer                   │
+│         - Session Manager (注册表)            │
+│         - Router (消息路由)                    │
+│         - Command (会话管理命令)               │
+│  阶段 5-8: (会话相关模块在Session中初始化)     │
 └──────────────────────────────────────────────┘
 
 Session Manager: spawn session process
@@ -274,16 +288,39 @@ Session Manager: spawn session process
       ▼
 ┌──────────────────────────────────────────────┐
 │  Session Bootstrap (会话进程模式)              │
-│  阶段 1: Logging System (会话日志)            │
-│  阶段 2: Security Manager (执行)             │
-│  阶段 3: LLM Provider                        │
-│  阶段 4: Tool System                         │
-│  阶段 5: Agent Runtime                       │
-│  阶段 6: Orchestrator                        │
-│  阶段 7: Task Manager                        │
-│  阶段 8: Event Loop (会话)                    │
-│  阶段 9: Context Compressor                  │
-│  阶段 10: IPC Client (连接守护进程)           │
+│  BootstrapMode::Session                      │
+│  初始化完整的Agent运行时模块                    │
+│                                              │
+│  阶段 1: Infrastructure                       │
+│         - Logging System                     │
+│  阶段 2: Security and Storage                │
+│         - Security Manager                    │
+│         - Storage Service                    │
+│  阶段 3: Basic Services and Event            │
+│         - LLM Provider                       │
+│         - Tool System                        │
+│         - Event Loop                         │
+│         - Timer System                       │
+│  阶段 4: Core Engine Layer                   │
+│         - Hook Engine                        │
+│         - Router                             │
+│         - Monitor                            │
+│  阶段 5: Agent Layer                         │
+│         - Agent Variants                     │
+│         - Agent Runtime                      │
+│         - External Agent                      │
+│         - Skill Engine                       │
+│         - Orchestrator                        │
+│         - Task Manager                        │
+│         - Command                             │
+│         - Workflows Directory                │
+│  阶段 6: Report                              │
+│         - Report Skill                       │
+│  阶段 7: Context Compression                 │
+│         - Context Compressor                 │
+│  阶段 8: Security Layer                      │
+│         - Sandbox                            │
+│         - IPC Contract                       │
 └──────────────────────────────────────────────┘
 ```
 
