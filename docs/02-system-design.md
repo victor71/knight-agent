@@ -374,6 +374,7 @@ bootstrap:
 
 ```
 阶段 1: 基础设施
+├── Configuration (全局配置初始化)
 └── Logging System
 
 阶段 2: 安全与存储
@@ -381,7 +382,7 @@ bootstrap:
 └── Storage Service
 
 阶段 3: 基础服务
-├── LLM Provider
+├── LLM Provider (从全局配置读取)
 └── Tool System
 
 阶段 3: 事件系统
@@ -415,6 +416,8 @@ bootstrap:
 └── IPC Contract
 ```
 
+**重要**: 全局配置 (`init_global_config()`) 在系统启动的第一阶段初始化，确保所有模块都能从统一的配置存储中读取配置。LLM Provider 等模块在初始化时通过 `get_llm_config()` 读取配置。
+
 > **详细说明**: 完整模块列表（25 个模块）和详细初始化逻辑见 [`03-module-design/core/bootstrap.md`](03-module-design/core/bootstrap.md)
 
 **启动配置**:
@@ -441,13 +444,14 @@ bootstrap:
 
 ### Configuration (配置管理)
 
-**职责**: 集中配置管理、热更新、环境变量替换
+**职责**: 集中配置管理、热更新、环境变量替换、全局配置存储
 
 Configuration 模块是 Knight Agent 的配置中心，提供：
 - **用户配置**：LLM 提供者配置（knight.json，JSON 格式）
 - **系统配置**：11 个 YAML 配置文件（已合并 26 个独立配置）
 - **热更新**：文件变更自动检测并通知订阅者
 - **环境变量**：支持 `${VAR}` 语法
+- **全局存储**：使用 OnceLock 实现线程安全的单例配置存储
 
 ```yaml
 # 配置目录结构
@@ -466,14 +470,28 @@ Configuration 模块是 Knight Agent 的配置中心，提供：
     └── compressor.yaml      # 上下文压缩
 ```
 
+**配置初始化流程**:
+```
+启动 → init_global_config() → 加载所有配置 → 存储到 GLOBAL_CONFIG (OnceLock)
+                                            ↓
+                                    其他模块读取配置
+                                            ↓
+                            get_llm_config() → 返回 LlmConfig
+```
+
 **配置变更流程**:
 ```
 文件变更 → notify 监控 → 解析配置 → 更新 RwLock → 广播事件 → 订阅者处理
+                                                          ↓
+                                                 可通过 event loop 触发重载
 ```
 
 **核心接口**:
 ```rust
-// 获取 LLM 配置
+// 初始化全局配置（启动时调用一次）
+init_global_config(config_dir: PathBuf) -> ConfigResult<()>
+
+// 获取 LLM 配置（从全局存储读取）
 get_llm_config() -> Option<LlmConfig>
 
 // 获取系统配置
@@ -481,9 +499,17 @@ get_agent_config() -> AgentConfig
 get_core_config() -> CoreConfig
 get_logging_config() -> LoggingConfig
 
-// 订阅配置变更
-subscribe() -> broadcast::Receiver<ConfigChangeEvent>
+// 订阅配置变更事件
+subscribe_config_changes() -> Option<broadcast::Receiver<ConfigChangeEvent>>
 ```
+
+**LLM 配置热重载**:
+```rust
+// LLMRouter 提供配置重载方法
+llm_router.reload_config() -> LLMResult<()>
+```
+
+当 knight.json 变更时，可通过 event loop 或 hook 触发 LLMRouter 的配置重新加载。
 
 详细设计参见: [`03-module-design/configuration/configuration.md`](03-module-design/configuration/configuration.md)
 
@@ -2567,6 +2593,35 @@ tracing:
 
 ## LLM Provider 抽象层
 
+### 架构设计
+
+LLM Provider 层采用路由模式，支持多云和多模型：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      LLMRouter                              │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │  全局配置读取 (Thread-Safe)                              │  │
+│  │  - init_global_config() 启动时初始化                   │  │
+│  │  - get_llm_config() 读取 LLM 配置                        │  │
+│  │  - reload_config() 热重载配置                            │  │
+│  └─────────────────────────────────────────────────────────┘  │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │  模型路由 (Thread-Safe Inner)                            │  │
+│  │  - model → provider 映射                                 │  │
+│  │  - provider → default_model 映射                         │  │
+│  │  - RwLock 保护内部状态                                   │  │
+│  └─────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+                          │
+        ┌─────────────────┼─────────────────┐
+        ▼                 ▼                 ▼
+┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+│  Anthropic  │   │   OpenAI    │   │   Custom    │
+│  Provider   │   │  Provider   │   │  Provider   │
+└─────────────┘   └─────────────┘   └─────────────┘
+```
+
 ### Provider 接口
 
 ```yaml
@@ -2603,6 +2658,60 @@ llm_provider:
         - model: string
       outputs:
         - count: int
+
+  # 配置重载
+  reload_config:
+    description: "从全局配置重新加载 LLM 提供者配置"
+    inputs: []
+    outputs:
+      - success: boolean
+```
+
+### 配置加载流程
+
+```
+系统启动
+    │
+    ▼
+init_global_config(config_dir)
+    │
+    ├──→ 加载 knight.json
+    │     └── LlmConfig { providers, default_provider }
+    │
+    ├──→ 加载 config/*.yaml
+    │     └── 系统配置
+    │
+    ▼
+存储到 GLOBAL_CONFIG (OnceLock)
+    │
+    ├──→ LLMRouter::initialize()
+    │     └── 调用 get_llm_config()
+    │     └── 创建 Provider 实例
+    │
+    └──→ 其他模块读取各自配置
+```
+
+### 热重载机制
+
+```yaml
+hot_reload:
+  trigger:
+    - knight.json 文件变更
+    - event loop 事件
+    - hook 触发
+
+  flow:
+    1. ConfigLoader 检测到 knight.json 变更
+    2. 更新 GLOBAL_CONFIG 存储
+    3. 发送 ConfigChangeEvent 事件
+    4. Event Loop 分发事件
+    5. LLMRouter 接收事件
+    6. 调用 reload_config() 重新初始化
+
+  implementation:
+    - LLMRouter 内部使用 RwLock 保护状态
+    - initialize() 方法支持多次调用
+    - 旧连接优雅关闭，新连接立即生效
 ```
 
 ### 多云支持
