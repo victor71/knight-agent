@@ -8,6 +8,7 @@ pub mod input;
 pub mod status;
 pub mod session_popup;
 pub mod task_popup;
+pub mod markdown;
 
 pub use header::*;
 pub use main_output::*;

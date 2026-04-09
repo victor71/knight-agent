@@ -4,12 +4,16 @@
 
 use crate::app::AppState;
 use crate::state::OutputStyle;
+use crate::widgets::markdown;
 use ratatui::{
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
     Frame,
 };
+
+/// Prefix for agent messages
+const AGENT_PREFIX: &str = "Agent: ";
 
 /// Render the main output widget
 pub fn render_main_output(f: &mut Frame, area: ratatui::layout::Rect, app: &AppState) {
@@ -77,37 +81,99 @@ fn style_output_line(output_line: &crate::state::OutputLine) -> Line<'_> {
             Span::styled(&output_line.content, Style::default().fg(Color::White)),
         ]),
         OutputStyle::AgentMessage => {
-            // Simple syntax highlighting for code blocks
-            if output_line.content.starts_with("```") {
-                // Code block
-                let lang = output_line.content
-                    .strip_prefix("```")
-                    .and_then(|s| s.lines().next())
-                    .unwrap_or("code");
-                Line::from(vec![
-                    Span::styled(
-                        format!("{} ", output_line.timestamp.format("%H:%M:%S")),
-                        Style::default().fg(Color::DarkGray),
-                    ),
-                    Span::styled(
-                        format!("```{} ", lang),
-                        Style::default().fg(Color::Yellow).add_modifier(Modifier::ITALIC),
-                    ),
-                ])
-            } else if output_line.content.starts_with("    ") || output_line.content.starts_with("\t") {
-                // Indented code line
-                Line::from(vec![
-                    Span::styled("  ", Style::default()),
-                    Span::styled(output_line.content.trim().to_string(), Style::default().fg(Color::Cyan)),
-                ])
+            // Build agent label with optional agent_id
+            let agent_label = if let Some(ref agent_id) = output_line.agent_id {
+                format!("{}[{}]: ", AGENT_PREFIX.trim(), agent_id)
             } else {
-                Line::from(vec![
-                    Span::styled(
-                        format!("{} ", output_line.timestamp.format("%H:%M:%S")),
-                        Style::default().fg(Color::DarkGray),
-                    ),
-                    Span::styled(output_line.content.clone(), Style::default().fg(Color::White)),
-                ])
+                AGENT_PREFIX.to_string()
+            };
+
+            // Check if content contains markdown
+            if markdown::is_markdown(&output_line.content) {
+                // For markdown content, render as styled text
+                let rendered = markdown::render_markdown(&output_line.content);
+                if !rendered.is_empty() {
+                    // Add timestamp and Agent label to first line
+                    let mut result = Vec::new();
+                    for (i, mut line) in rendered.into_iter().enumerate() {
+                        if i == 0 {
+                            line.spans.insert(0, Span::styled(
+                                format!("{} ", output_line.timestamp.format("%H:%M:%S")),
+                                Style::default().fg(Color::DarkGray),
+                            ));
+                            line.spans.insert(1, Span::styled(
+                                agent_label.clone(),
+                                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                            ));
+                        }
+                        result.push(line);
+                    }
+                    // Return first line (multiline handling would need more complex logic)
+                    result.into_iter().next().unwrap_or_else(|| Line::from(output_line.content.clone()))
+                } else {
+                    // Fallback to plain text with Agent label
+                    Line::from(vec![
+                        Span::styled(
+                            format!("{} ", output_line.timestamp.format("%H:%M:%S")),
+                            Style::default().fg(Color::DarkGray),
+                        ),
+                        Span::styled(
+                            agent_label.clone(),
+                            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                        ),
+                        Span::styled(output_line.content.clone(), Style::default().fg(Color::White)),
+                    ])
+                }
+            } else {
+                // Simple syntax highlighting for code blocks (legacy)
+                if output_line.content.starts_with("```") {
+                    // Code block
+                    let lang = output_line.content
+                        .strip_prefix("```")
+                        .and_then(|s| s.lines().next())
+                        .unwrap_or("code");
+                    Line::from(vec![
+                        Span::styled(
+                            format!("{} ", output_line.timestamp.format("%H:%M:%S")),
+                            Style::default().fg(Color::DarkGray),
+                        ),
+                        Span::styled(
+                            agent_label.clone(),
+                            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                        ),
+                        Span::styled(
+                            format!("```{} ", lang),
+                            Style::default().fg(Color::Yellow).add_modifier(Modifier::ITALIC),
+                        ),
+                    ])
+                } else if output_line.content.starts_with("    ") || output_line.content.starts_with("\t") {
+                    // Indented code line
+                    Line::from(vec![
+                        Span::styled(
+                            format!("{} ", output_line.timestamp.format("%H:%M:%S")),
+                            Style::default().fg(Color::DarkGray),
+                        ),
+                        Span::styled(
+                            agent_label.clone(),
+                            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                        ),
+                        Span::styled("  ", Style::default()),
+                        Span::styled(output_line.content.trim().to_string(), Style::default().fg(Color::Cyan)),
+                    ])
+                } else {
+                    // Regular text with Agent label
+                    Line::from(vec![
+                        Span::styled(
+                            format!("{} ", output_line.timestamp.format("%H:%M:%S")),
+                            Style::default().fg(Color::DarkGray),
+                        ),
+                        Span::styled(
+                            agent_label.clone(),
+                            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                        ),
+                        Span::styled(output_line.content.clone(), Style::default().fg(Color::White)),
+                    ])
+                }
             }
         }
         OutputStyle::SystemInfo => Line::from(vec![

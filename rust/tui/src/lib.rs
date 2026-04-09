@@ -238,6 +238,7 @@ impl TuiApp {
                                     content: input.clone(),
                                     style: crate::state::OutputStyle::UserMessage,
                                     timestamp: chrono::Local::now(),
+                                    ..Default::default()
                                 },
                             ))?;
 
@@ -318,6 +319,7 @@ impl TuiApp {
                                         content: response,
                                         style: crate::state::OutputStyle::AgentMessage,
                                         timestamp: chrono::Local::now(),
+                                    ..Default::default()
                                     },
                                 ))?;
                             }
@@ -328,6 +330,7 @@ impl TuiApp {
                                         content: format!("Error: {:?}", e),
                                         style: crate::state::OutputStyle::Error,
                                         timestamp: chrono::Local::now(),
+                                    ..Default::default()
                                     },
                                 ))?;
                             }
@@ -340,6 +343,7 @@ impl TuiApp {
                                     content: result.response.message,
                                     style: crate::state::OutputStyle::SystemInfo,
                                     timestamp: chrono::Local::now(),
+                                    ..Default::default()
                                 },
                             ))?;
                         }
@@ -352,6 +356,7 @@ impl TuiApp {
                             content: format!("Error: {:?}", e),
                             style: crate::state::OutputStyle::Error,
                             timestamp: chrono::Local::now(),
+                                    ..Default::default()
                         },
                     ))?;
                 }
@@ -363,6 +368,7 @@ impl TuiApp {
                     content: "No daemon client configured".to_string(),
                     style: crate::state::OutputStyle::Error,
                     timestamp: chrono::Local::now(),
+                                    ..Default::default()
                 },
             ))?;
         }
@@ -399,6 +405,7 @@ impl TuiApp {
                                         content: response,
                                         style: crate::state::OutputStyle::AgentMessage,
                                         timestamp: chrono::Local::now(),
+                                    ..Default::default()
                                     },
                                 ));
                             }
@@ -409,6 +416,7 @@ impl TuiApp {
                                         content: format!("Error: {:?}", e),
                                         style: crate::state::OutputStyle::Error,
                                         timestamp: chrono::Local::now(),
+                                    ..Default::default()
                                     },
                                 ));
                             }
@@ -422,6 +430,7 @@ impl TuiApp {
                             content: format!("Error: {:?}", e),
                             style: crate::state::OutputStyle::Error,
                             timestamp: chrono::Local::now(),
+                                    ..Default::default()
                         },
                     ));
                 }
@@ -433,6 +442,7 @@ impl TuiApp {
                     content: "No daemon client configured".to_string(),
                     style: crate::state::OutputStyle::Error,
                     timestamp: chrono::Local::now(),
+                                    ..Default::default()
                 },
             ));
         }
@@ -451,6 +461,7 @@ impl TuiApp {
                         content: "Available commands: /help, /sessions, /tasks, /quit".to_string(),
                         style: crate::state::OutputStyle::SystemInfo,
                         timestamp: chrono::Local::now(),
+                                    ..Default::default()
                     },
                 ))?;
             }
@@ -475,6 +486,7 @@ impl TuiApp {
                         content: format!("Unknown command: {}", command),
                         style: crate::state::OutputStyle::Error,
                         timestamp: chrono::Local::now(),
+                                    ..Default::default()
                     },
                 ))?;
             }

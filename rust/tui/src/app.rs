@@ -115,6 +115,7 @@ impl AppState {
                     content: chunk.clone(),
                     style: OutputStyle::AgentMessage,
                     timestamp: Local::now(),
+                    ..Default::default()
                 });
             }
             AppEvent::ClearOutput => {

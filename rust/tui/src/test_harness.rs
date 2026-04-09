@@ -259,6 +259,7 @@ impl TuiTestHarness {
                             content: input.clone(),
                             style: crate::state::OutputStyle::UserMessage,
                             timestamp: chrono::Local::now(),
+                                    ..Default::default()
                         });
                         self.record_event(event);
 
@@ -270,6 +271,7 @@ impl TuiTestHarness {
                                         content: "Available commands: /help, /sessions, /tasks, /quit".to_string(),
                                         style: crate::state::OutputStyle::SystemInfo,
                                         timestamp: chrono::Local::now(),
+                                    ..Default::default()
                                     }));
                                 }
                                 "/quit" | "/exit" => {}
@@ -278,6 +280,7 @@ impl TuiTestHarness {
                                         content: format!("Unknown command: {}", input),
                                         style: crate::state::OutputStyle::Error,
                                         timestamp: chrono::Local::now(),
+                                    ..Default::default()
                                     }));
                                 }
                             }
@@ -326,6 +329,7 @@ impl TuiTestHarness {
             content: content.to_string(),
             style: crate::state::OutputStyle::AgentMessage,
             timestamp: chrono::Local::now(),
+                                    ..Default::default()
         });
         self.record_event(event);
     }
@@ -571,6 +575,7 @@ mod tests {
             content: "Direct channel test".to_string(),
             style: OutputStyle::UserMessage,
             timestamp: chrono::Local::now(),
+                                    ..Default::default()
         });
 
         // Send via event_tx (simulating what the TUI does)

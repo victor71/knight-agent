@@ -17,6 +17,7 @@ chrono = "0.4"
 syntect = "5.2"
 unicode-width = "0.2"
 async-trait = "0.1"
+pulldown-cmark = "0.12"
 
 # Local dependencies
 bootstrap = { path = "../core/bootstrap" }

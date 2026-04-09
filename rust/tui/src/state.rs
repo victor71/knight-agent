@@ -96,12 +96,44 @@ pub struct OutputLine {
     pub content: String,
     pub style: OutputStyle,
     pub timestamp: DateTime<Local>,
+    pub agent_id: Option<String>,
+}
+
+impl Default for OutputLine {
+    fn default() -> Self {
+        Self {
+            content: String::new(),
+            style: OutputStyle::SystemInfo,
+            timestamp: Local::now(),
+            agent_id: None,
+        }
+    }
 }
 
 impl OutputLine {
     /// Get the content as a string slice
     pub fn as_str(&self) -> &str {
         &self.content
+    }
+
+    /// Create a new output line
+    pub fn new(content: String, style: OutputStyle) -> Self {
+        Self {
+            content,
+            style,
+            timestamp: Local::now(),
+            agent_id: None,
+        }
+    }
+
+    /// Create a new output line with agent_id
+    pub fn with_agent(content: String, style: OutputStyle, agent_id: String) -> Self {
+        Self {
+            content,
+            style,
+            timestamp: Local::now(),
+            agent_id: Some(agent_id),
+        }
     }
 }
 
