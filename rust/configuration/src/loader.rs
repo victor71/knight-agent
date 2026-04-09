@@ -6,7 +6,7 @@ use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tokio::sync::broadcast;
 use tracing::{debug, info, warn};
 
@@ -481,4 +481,29 @@ mod tests {
         assert_eq!(llm.default_provider, Some("anthropic".to_string()));
         assert!(llm.providers.contains_key("anthropic"));
     }
+}
+
+/// Global configuration storage
+/// Initialized by the bootstrap system, accessible by all modules
+static GLOBAL_CONFIG: OnceLock<Arc<ConfigLoader>> = OnceLock::new();
+
+/// Initialize global configuration from the given directory
+/// Called by bootstrap system during startup
+pub async fn init_global_config(config_dir: PathBuf) -> ConfigResult<()> {
+    let loader = Arc::new(ConfigLoader::new(config_dir).await?);
+    GLOBAL_CONFIG.set(loader).map_err(|_| {
+        crate::error::ConfigError::InvalidValue("Global config already initialized".to_string())
+    })
+}
+
+/// Get the global configuration loader
+/// Returns None if not yet initialized
+pub fn get_global_config() -> Option<Arc<ConfigLoader>> {
+    GLOBAL_CONFIG.get().cloned()
+}
+
+/// Get LLM config from global storage
+/// Returns None if config not yet initialized
+pub fn get_llm_config() -> Option<LlmConfig> {
+    GLOBAL_CONFIG.get()?.get_llm_config()
 }

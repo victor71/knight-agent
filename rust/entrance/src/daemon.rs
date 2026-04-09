@@ -8,6 +8,7 @@
 use anyhow::{Context, Result};
 use bootstrap::KnightAgentSystem;
 use session_manager::AgentRuntimeProxy;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::info;
 
@@ -25,6 +26,15 @@ impl DaemonState {
     pub async fn new() -> Result<Self> {
         info!("Initializing daemon components...");
 
+        // Initialize global configuration first (before other modules)
+        let config_dir = get_home_dir()
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .join(CONFIG_DIR);
+        configuration::init_global_config(config_dir.clone())
+            .await
+            .context("Failed to initialize global configuration")?;
+        info!("Global configuration initialized");
+
         // Initialize system
         let config = bootstrap::BootstrapConfig::default();
         let system = KnightAgentSystem::with_config(config);
@@ -41,8 +51,6 @@ impl DaemonState {
         let mut agent_runtime_impl = agent_runtime::AgentRuntimeImpl::new();
         agent_runtime_impl.initialize().await?;
 
-        // TODO: Load LLM provider from config
-        // For now, use minimal config
         let agent_runtime: Arc<dyn AgentRuntimeProxy> = Arc::new(agent_runtime_impl);
         info!("Agent Runtime initialized");
 

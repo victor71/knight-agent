@@ -12,7 +12,18 @@ use crate::types::{
 };
 use crate::{CompletionStream, TokenCount};
 use crate::llm_trait::{LLMError, LLMProvider, LLMResult};
-use crate::provider::GenericLLMProvider;
+use crate::provider::{GenericLLMProvider, LLMProtocol, ProviderConfig};
+
+/// Resolve environment variable reference in config values
+/// Supports ${ENV_VAR} syntax
+fn resolve_env_var(value: &str) -> String {
+    if value.starts_with("${") && value.ends_with('}') {
+        let env_var = &value[2..value.len() - 1];
+        std::env::var(env_var).unwrap_or_else(|_| value.to_string())
+    } else {
+        value.to_string()
+    }
+}
 
 /// LLM Router - routes requests to appropriate providers based on model
 pub struct LLMRouter {
@@ -37,8 +48,18 @@ impl LLMRouter {
         }
     }
 
-    /// Initialize router from environment variables (backward compatible)
+    /// Initialize router - tries global config first, then env vars
     pub fn initialize(&mut self) -> LLMResult<()> {
+        // Try to load from configuration module's global storage
+        if let Some(llm_config) = configuration::get_llm_config() {
+            if !llm_config.providers.is_empty() {
+                info!("Loading LLM config from configuration module");
+                self.initialize_from_config(&llm_config)?;
+                return Ok(());
+            }
+        }
+
+        // Fall back to env vars
         match GenericLLMProvider::from_env() {
             Ok(provider) => {
                 let name = provider.name().to_string();
@@ -53,7 +74,7 @@ impl LLMRouter {
                 self.providers.insert(name.clone(), Arc::new(provider));
                 self.default_provider = Some(name);
 
-                info!("LLM Router initialized with default provider");
+                info!("LLM Router initialized with env vars provider");
                 Ok(())
             }
             Err(e) => {
@@ -61,6 +82,70 @@ impl LLMRouter {
                 Ok(())
             }
         }
+    }
+
+    /// Initialize router from configuration module's LlmConfig
+    pub fn initialize_from_config(&mut self, config: &configuration::LlmConfig) -> LLMResult<()> {
+        if config.providers.is_empty() {
+            info!("No LLM providers configured in knight.json");
+            return Ok(());
+        }
+
+        let default_provider = config.default_provider.clone();
+
+        for (name, provider_config) in &config.providers {
+            // Resolve API key (supports ${ENV_VAR} syntax)
+            let api_key = resolve_env_var(&provider_config.api_key);
+
+            // Map provider type string to LLMProtocol
+            let protocol = match provider_config.provider_type.to_lowercase().as_str() {
+                "anthropic" => LLMProtocol::Anthropic,
+                _ => LLMProtocol::OpenAI,
+            };
+
+            // Extract model IDs from LlmModelConfig list
+            let models: Vec<String> = provider_config.models
+                .iter()
+                .map(|m| m.id.clone())
+                .collect();
+
+            let provider_cfg = ProviderConfig {
+                name: name.clone(),
+                api_key,
+                base_url: provider_config.base_url.clone(),
+                protocol,
+                models: models.clone(),
+                default_model: Some(provider_config.default_model.clone()),
+                timeout_secs: provider_config.timeout_secs,
+                model_pricing: HashMap::new(),
+            };
+
+            let provider = GenericLLMProvider::new(provider_cfg)?;
+            let default_model = provider_config.default_model.clone();
+
+            for model in &models {
+                self.model_to_provider.insert(model.clone(), name.clone());
+            }
+
+            self.provider_default_models.insert(name.clone(), default_model);
+            self.providers.insert(name.clone(), Arc::new(provider));
+        }
+
+        // Set default provider
+        if let Some(ref default_name) = default_provider {
+            if self.providers.contains_key(default_name) {
+                self.default_provider = Some(default_name.clone());
+                info!("LLM Router initialized with default provider: {}", default_name);
+            } else {
+                info!("Configured default provider '{}' not found in providers", default_name);
+                self.default_provider = self.providers.keys().next().cloned();
+            }
+        } else {
+            self.default_provider = self.providers.keys().next().cloned();
+        }
+
+        info!("LLM Router initialized from config with {} providers", self.providers.len());
+        Ok(())
     }
 
     /// Add a provider to the router

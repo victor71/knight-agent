@@ -92,7 +92,7 @@ impl AgentRuntimeImpl {
                     self.default_model = models.first().cloned();
                 }
             }
-            info!("LLM Router initialized from environment");
+            info!("LLM Router initialized");
         } else {
             info!("No LLM provider configured");
         }
@@ -101,7 +101,7 @@ impl AgentRuntimeImpl {
 
     /// Initialize the runtime
     pub async fn initialize(&mut self) -> RuntimeResult<()> {
-        // Initialize LLM router first
+        // Initialize LLM router from env vars
         self.initialize_llm_router()?;
 
         self.initialized = true;

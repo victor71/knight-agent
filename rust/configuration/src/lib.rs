@@ -54,7 +54,10 @@ pub mod loader;
 pub mod types;
 
 pub use error::{ConfigError, ConfigResult};
-pub use loader::{ConfigChangeEvent, ConfigLoader, SystemConfig};
+pub use loader::{
+    ConfigChangeEvent, ConfigLoader, SystemConfig,
+    init_global_config, get_global_config, get_llm_config
+};
 pub use types::{
     AgentConfig, CompressorConfig, CoreConfig, InfrastructureConfig, KnightConfig,
     LlmConfig, LlmModelConfig, LlmPricing, LlmProviderConfig, LoggingConfig, MonitoringConfig,
