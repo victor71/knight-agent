@@ -287,6 +287,7 @@ fn test_chat_completion_request_with_message() {
 fn test_message_serialization() {
     let msg = create_test_message();
     let json = serde_json::to_string(&msg).unwrap();
+    // MessageRole serializes to lowercase string (e.g., "user", "assistant")
     let parsed: Message = serde_json::from_str(&json).unwrap();
     assert_eq!(parsed.role, MessageRole::User);
     assert!(matches!(parsed.content, Some(Content::Text(_))));
@@ -302,8 +303,8 @@ fn test_message_with_tool_calls() {
     };
 
     let json = serde_json::to_string(&msg).unwrap();
-    // MessageRole serializes as the variant name (Assistant), not lowercase
-    assert!(json.contains("Assistant"));
+    // MessageRole serializes to lowercase string ("assistant")
+    assert!(json.contains("\"role\":\"assistant\""));
     assert!(json.contains("tool_calls"));
 }
 

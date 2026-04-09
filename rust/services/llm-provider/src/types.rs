@@ -2,17 +2,81 @@
 //!
 //! Core data types for LLM provider abstraction.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::fmt;
 
 /// Message role for LLM API
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(tag = "type")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MessageRole {
     System,
     User,
     Assistant,
-    #[serde(rename = "tool")]
     Tool,
+}
+
+// Custom serialization to lowercase string for API compatibility
+impl Serialize for MessageRole {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let s = match self {
+            MessageRole::System => "system",
+            MessageRole::User => "user",
+            MessageRole::Assistant => "assistant",
+            MessageRole::Tool => "tool",
+        };
+        serializer.serialize_str(s)
+    }
+}
+
+// Custom deserialization to support both lowercase string and tagged format
+impl<'de> Deserialize<'de> for MessageRole {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct MessageRoleVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for MessageRoleVisitor {
+            type Value = MessageRole;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a string or an object with type field")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                match value.to_lowercase().as_str() {
+                    "system" => Ok(MessageRole::System),
+                    "user" => Ok(MessageRole::User),
+                    "assistant" => Ok(MessageRole::Assistant),
+                    "tool" => Ok(MessageRole::Tool),
+                    _ => Err(serde::de::Error::unknown_variant(value, VARIANTS)),
+                }
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                // Support old tagged format: {"type": "User"}
+                if let Some(key) = map.next_key::<String>()? {
+                    if key == "type" {
+                        let value = map.next_value::<String>()?;
+                        return self.visit_str(&value);
+                    }
+                }
+                Err(serde::de::Error::custom("expected object with 'type' field"))
+            }
+        }
+
+        const VARIANTS: &[&str] = &["system", "user", "assistant", "tool"];
+
+        deserializer.deserialize_any(MessageRoleVisitor)
+    }
 }
 
 /// Content block for multi-modal messages
