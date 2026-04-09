@@ -279,7 +279,8 @@ impl TuiApp {
                 self.state.close_popup();
             }
             // Text input - insert at cursor position
-            (KeyCode::Char(c), KeyModifiers::NONE) => {
+            // Accept any character regardless of modifiers (handles Caps Lock/Shift)
+            (KeyCode::Char(c), _) => {
                 let chars: Vec<char> = self.state.input_buffer.chars().collect();
                 let pos = self.state.cursor_position.min(chars.len());
                 let mut new_chars = chars;

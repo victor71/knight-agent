@@ -713,9 +713,10 @@ impl LLMProvider for GenericLLMProvider {
                 // Process complete lines
                 while let Some(newline_pos) = buffer.iter().position(|&b| b == b'\n') {
                     let line_bytes = buffer.drain(..=newline_pos).collect::<Vec<_>>();
-                    buffer = buffer.split_at(newline_pos + 1).1.to_vec();
+                    // Remove the newline character that was included in drain
+                    buffer = buffer.drain(..1).collect::<Vec<_>>();
 
-                    // Skip the newline byte
+                    // Parse line (excluding newline)
                     let line = std::str::from_utf8(&line_bytes)
                         .unwrap_or("")
                         .trim_end_matches('\n')
