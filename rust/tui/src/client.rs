@@ -50,6 +50,14 @@ pub trait DaemonClient: Send + Sync {
     /// Send message to agent in session
     fn send_message(&self, session_id: &str, content: String) -> Pin<Box<dyn Future<Output = DaemonClientResult<String>> + Send>>;
 
+    /// Send message to agent in session with streaming callback
+    fn send_message_streaming(
+        &self,
+        session_id: &str,
+        content: String,
+        stream_callback: Option<Box<dyn Fn(String) -> bool + Send + Sync>>,
+    ) -> Pin<Box<dyn Future<Output = DaemonClientResult<String>> + Send>>;
+
     /// List all sessions
     fn list_sessions(&self) -> Pin<Box<dyn Future<Output = DaemonClientResult<Vec<SessionListItem>>> + Send>>;
 
@@ -124,6 +132,15 @@ impl DaemonClient for DirectDaemonClient {
     }
 
     fn send_message(&self, session_id: &str, content: String) -> Pin<Box<dyn Future<Output = DaemonClientResult<String>> + Send>> {
+        self.send_message_streaming(session_id, content, None)
+    }
+
+    fn send_message_streaming(
+        &self,
+        session_id: &str,
+        content: String,
+        stream_callback: Option<Box<dyn Fn(String) -> bool + Send + Sync>>,
+    ) -> Pin<Box<dyn Future<Output = DaemonClientResult<String>> + Send>> {
         let session_mgr = match &self.session_manager {
             Some(s) => s.clone(),
             None => return Box::pin(async { Err(DaemonClientError::NotConnected) }),
@@ -131,7 +148,7 @@ impl DaemonClient for DirectDaemonClient {
         let session_id = session_id.to_string();
 
         Box::pin(async move {
-            session_mgr.send_message_to_session(&session_id, content).await
+            session_mgr.send_message_to_session_streaming(&session_id, content, stream_callback).await
                 .map_err(|e| DaemonClientError::SessionError(e.to_string()))
         })
     }

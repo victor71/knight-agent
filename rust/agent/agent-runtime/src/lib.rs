@@ -56,7 +56,7 @@ pub trait AgentHandle: Send + Sync {
 }
 
 // Implement AgentRuntimeProxy for AgentRuntimeImpl
-use agent_proxy::AgentRuntimeProxy as ProxyTrait;
+use agent_proxy::{AgentRuntimeProxy as ProxyTrait, StreamCallback};
 
 #[async_trait::async_trait]
 impl ProxyTrait for AgentRuntimeImpl {
@@ -79,6 +79,25 @@ impl ProxyTrait for AgentRuntimeImpl {
         let response = AgentRuntimeImpl::send_message(self, agent_id, message, true)
             .await
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+        Ok(response.content.to_string())
+    }
+
+    async fn send_message_streaming(
+        &self,
+        agent_id: &str,
+        content: String,
+        stream_callback: Option<StreamCallback>,
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        let message = Message::user(content);
+        let response = AgentRuntimeImpl::send_message_streaming_with_callback(
+            self,
+            agent_id,
+            message,
+            true,  // stream parameter
+            stream_callback,
+        )
+        .await
+        .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
         Ok(response.content.to_string())
     }
 }

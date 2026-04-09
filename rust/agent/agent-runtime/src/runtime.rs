@@ -282,6 +282,17 @@ impl AgentRuntimeImpl {
         message: Message,
         stream: bool,
     ) -> RuntimeResult<Message> {
+        self.send_message_streaming_with_callback(agent_id, message, stream, None).await
+    }
+
+    /// Send a message with optional streaming callback
+    pub async fn send_message_streaming_with_callback(
+        &self,
+        agent_id: &str,
+        message: Message,
+        _stream: bool,
+        stream_callback: Option<Box<dyn Fn(String) -> bool + Send + Sync>>,
+    ) -> RuntimeResult<Message> {
         let mut agents = self.agents.write().await;
         let agent = agents
             .get_mut(agent_id)
@@ -298,13 +309,13 @@ impl AgentRuntimeImpl {
         }
 
         debug!(
-            "Message sent to agent {}, status: {:?}, stream={}",
-            agent_id, agent.state.status, stream
+            "Message sent to agent {}, status: {:?}, has_callback={}",
+            agent_id, agent.state.status, stream_callback.is_some()
         );
 
         // Call LLM router if available
         let response = if let Some(ref router) = self.llm_router {
-            info!("Calling LLM router for agent {} (stream={})", agent_id, stream);
+            info!("Calling LLM router for agent {} with streaming", agent_id);
 
             // Convert agent-runtime Message to LLM provider format
             let llm_messages = self.convert_to_llm_messages(&agent.context.messages)?;
@@ -314,16 +325,12 @@ impl AgentRuntimeImpl {
                 messages: llm_messages,
                 temperature: 0.7,
                 max_tokens: 4096,
-                stream,
+                stream: true,  // Always use streaming now
                 ..Default::default()
             };
 
-            // Use streaming if requested
-            if stream {
-                self.handle_streaming_request(router, request).await?
-            } else {
-                self.handle_regular_request(router, request).await?
-            }
+            // Use streaming with callback if provided
+            self.handle_streaming_with_callback(router, request, stream_callback).await?
         } else {
             // No LLM router - return placeholder
             warn!("No LLM provider available for agent {}", agent_id);
@@ -342,6 +349,16 @@ impl AgentRuntimeImpl {
         router: &LLMRouter,
         request: llm_provider::ChatCompletionRequest,
     ) -> RuntimeResult<Message> {
+        self.handle_streaming_with_callback(router, request, None).await
+    }
+
+    /// Handle streaming LLM request with optional callback
+    async fn handle_streaming_with_callback(
+        &self,
+        router: &LLMRouter,
+        request: llm_provider::ChatCompletionRequest,
+        stream_callback: Option<Box<dyn Fn(String) -> bool + Send + Sync>>,
+    ) -> RuntimeResult<Message> {
         let stream_result = router.stream_completion(request.clone()).await;
 
         match stream_result {
@@ -358,6 +375,13 @@ impl AgentRuntimeImpl {
                         Ok(chunk) => {
                             // Extract text from chunk
                             if let Some(text) = self.extract_text_from_chunk(&chunk) {
+                                // Call callback if provided
+                                if let Some(ref callback) = stream_callback {
+                                    if !callback(text.clone()) {
+                                        debug!("Stream callback returned false, stopping");
+                                        break;
+                                    }
+                                }
                                 full_content.push_str(&text);
                                 chunk_count += 1;
                                 debug!("Received stream chunk {}: {} chars", chunk_count, text.len());

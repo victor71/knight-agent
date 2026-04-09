@@ -309,11 +309,19 @@ impl TuiApp {
                     info!("Daemon client result: to_agent={}", result.to_agent);
 
                     if result.to_agent {
-                        // Forward to agent - use daemon client's send_message
-                        match daemon_client.send_message(&self.session_id, input).await {
+                        // Create streaming callback that sends StreamChunk events
+                        let event_tx_clone = self.state.event_tx.clone();
+                        let stream_callback: Box<dyn Fn(String) -> bool + Send + Sync> = Box::new(move |chunk: String| -> bool {
+                            // Send stream chunk to TUI
+                            let _ = event_tx_clone.send(AppEvent::StreamChunk(chunk));
+                            true  // Continue streaming
+                        });
+
+                        // Forward to agent - use daemon client's send_message_streaming
+                        match daemon_client.send_message_streaming(&self.session_id, input, Some(stream_callback)).await {
                             Ok(response) => {
                                 info!("Agent response received: \"{}\"", response);
-                                // Send agent response to output
+                                // Send complete agent response to output (for final display)
                                 self.state.event_tx.send(AppEvent::OutputLine(
                                     crate::state::OutputLine {
                                         content: response,
@@ -395,11 +403,19 @@ impl TuiApp {
                     info!("Daemon client result: to_agent={}", result.to_agent);
 
                     if result.to_agent {
-                        // Forward to agent - use daemon client's send_message
-                        match client.send_message(&session_id, input).await {
+                        // Create streaming callback that sends StreamChunk events
+                        let event_tx_clone = event_tx.clone();
+                        let stream_callback: Box<dyn Fn(String) -> bool + Send + Sync> = Box::new(move |chunk: String| -> bool {
+                            // Send stream chunk to TUI
+                            let _ = event_tx_clone.send(AppEvent::StreamChunk(chunk));
+                            true  // Continue streaming
+                        });
+
+                        // Forward to agent - use daemon client's send_message_streaming
+                        match client.send_message_streaming(&session_id, input, Some(stream_callback)).await {
                             Ok(response) => {
                                 info!("Agent response received: \"{}\"", response);
-                                // Send agent response to output
+                                // Send complete agent response to output (for final display)
                                 let _ = event_tx.send(AppEvent::OutputLine(
                                     crate::state::OutputLine {
                                         content: response,

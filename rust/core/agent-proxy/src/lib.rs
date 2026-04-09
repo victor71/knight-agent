@@ -4,6 +4,9 @@
 
 use async_trait::async_trait;
 
+/// Stream callback type for streaming LLM responses
+pub type StreamCallback = Box<dyn Fn(String) -> bool + Send + Sync>;
+
 /// Agent runtime proxy trait
 /// Implemented by agent runtime to provide session management capabilities
 #[async_trait]
@@ -19,5 +22,14 @@ pub trait AgentRuntimeProxy: Send + Sync {
         &self,
         agent_id: &str,
         content: String,
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>>;
+
+    /// Send a message to an agent with streaming callback
+    /// The callback is called with each chunk; return false to stop streaming
+    async fn send_message_streaming(
+        &self,
+        agent_id: &str,
+        content: String,
+        stream_callback: Option<StreamCallback>,
     ) -> Result<String, Box<dyn std::error::Error + Send + Sync>>;
 }

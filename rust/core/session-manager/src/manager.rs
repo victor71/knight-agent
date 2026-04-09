@@ -8,7 +8,7 @@ use tokio::sync::RwLock as AsyncRwLock;
 use tracing::{debug, info};
 
 use crate::types::*;
-use agent_proxy::AgentRuntimeProxy;
+use agent_proxy::{AgentRuntimeProxy, StreamCallback};
 
 /// Session manager implementation
 pub struct SessionManagerImpl {
@@ -456,6 +456,16 @@ impl SessionManagerImpl {
     /// Send message to session's agent
     /// This is the main entry point for UI layer to send messages
     pub async fn send_message_to_session(&self, session_id: &str, content: String) -> SessionResult<String> {
+        self.send_message_to_session_streaming(session_id, content, None).await
+    }
+
+    /// Send message to session's agent with streaming callback
+    pub async fn send_message_to_session_streaming(
+        &self,
+        session_id: &str,
+        content: String,
+        stream_callback: Option<StreamCallback>,
+    ) -> SessionResult<String> {
         // Verify session exists
         {
             let sessions = self.sessions.read().await;
@@ -474,8 +484,8 @@ impl SessionManagerImpl {
             .await
             .map_err(|e| SessionError::CompressionError(e.to_string()))?;
 
-        // Send message to agent
-        let response = agent_runtime.send_message(&agent_id, content.clone())
+        // Send message to agent with streaming callback
+        let response = agent_runtime.send_message_streaming(&agent_id, content.clone(), stream_callback)
             .await
             .map_err(|e| SessionError::CompressionError(e.to_string()))?;
 

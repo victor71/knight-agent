@@ -9,7 +9,7 @@ pub mod types;
 pub mod manager;
 
 // Re-export AgentRuntimeProxy from agent-proxy for convenience
-pub use agent_proxy::AgentRuntimeProxy;
+pub use agent_proxy::{AgentRuntimeProxy, StreamCallback};
 
 // Re-export commonly used types
 pub use manager::SessionManagerImpl;

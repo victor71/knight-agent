@@ -114,6 +114,15 @@ impl DaemonClient for IpcDaemonClient {
     }
 
     fn send_message(&self, session_id: &str, content: String) -> Pin<Box<dyn Future<Output = DaemonClientResult<String>> + Send>> {
+        self.send_message_streaming(session_id, content, None)
+    }
+
+    fn send_message_streaming(
+        &self,
+        session_id: &str,
+        content: String,
+        _stream_callback: Option<Box<dyn Fn(String) -> bool + Send + Sync>>,
+    ) -> Pin<Box<dyn Future<Output = DaemonClientResult<String>> + Send>> {
         let client = self.ipc_client.clone();
         let session_id = session_id.to_string();
 
