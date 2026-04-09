@@ -11,7 +11,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use tracing::{debug, info, warn};
+use tracing::{debug, info, warn, error};
 
 use crate::llm_trait::{CompletionStream, LLMError, LLMProvider, LLMResult, TokenCount};
 use crate::types::*;
@@ -698,9 +698,13 @@ impl LLMProvider for GenericLLMProvider {
             futures::pin_mut!(byte_stream);
 
             while let Some(bytes_result) = byte_stream.next().await {
+                debug!("LLM byte_stream.next() returned, reading bytes...");
                 let bytes: Bytes = bytes_result.map_err(|e| {
+                    error!("LLM stream read error: {}", e);
                     LLMError::InferenceFailed(format!("stream read error: {}", e))
                 })?;
+
+                debug!("LLM received {} bytes from stream", bytes.len());
 
                 // Log first byte latency
                 if first_byte {
@@ -711,6 +715,7 @@ impl LLMProvider for GenericLLMProvider {
 
                 // Process bytes line by line
                 buffer.extend_from_slice(&bytes);
+                debug!("LLM buffer size after extend: {} bytes", buffer.len());
 
                 // Safety check: prevent unbounded buffer growth
                 if buffer.len() > MAX_BUFFER_SIZE {
@@ -738,6 +743,8 @@ impl LLMProvider for GenericLLMProvider {
                         .trim_end_matches('\n')
                         .trim_end_matches('\r');
 
+                    debug!("LLM processing line: {} chars, starts with 'data:': {}", line.len(), line.starts_with("data:"));
+
                     // Parse SSE line - skip invalid chunks
                     if let Some(chunk) = Self::parse_stream_chunk_static(&protocol, line) {
                         let count = chunk_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
@@ -760,7 +767,9 @@ impl LLMProvider for GenericLLMProvider {
                         yield chunk;
                     }
                 }
+                debug!("LLM finished processing lines, remaining buffer: {} bytes", buffer.len());
             }
+            info!("LLM byte_stream ended, exiting chunk loop");
 
             info!("LLM streaming complete: {} chunks, {}ms total",
                   chunk_count.load(std::sync::atomic::Ordering::Relaxed),
