@@ -692,6 +692,7 @@ impl LLMProvider for GenericLLMProvider {
         let chunk_stream = async_stream::try_stream! {
             let mut buffer = Vec::new();
             let mut first_byte = true;
+            const MAX_BUFFER_SIZE: usize = 10 * 1024 * 1024; // 10MB limit for safety
 
             futures::pin_mut!(byte_stream);
 
@@ -710,19 +711,33 @@ impl LLMProvider for GenericLLMProvider {
                 // Process bytes line by line
                 buffer.extend_from_slice(&bytes);
 
+                // Safety check: prevent unbounded buffer growth
+                if buffer.len() > MAX_BUFFER_SIZE {
+                    warn!("LLM stream buffer exceeded maximum size ({} bytes), clearing", MAX_BUFFER_SIZE);
+                    buffer.clear();
+                    continue;
+                }
+
                 // Process complete lines
                 while let Some(newline_pos) = buffer.iter().position(|&b| b == b'\n') {
+                    // Safety check: ensure position is valid
+                    if newline_pos >= buffer.len() {
+                        warn!("Invalid newline position {}, clearing buffer", newline_pos);
+                        buffer.clear();
+                        break;
+                    }
+
                     let line_bytes = buffer.drain(..=newline_pos).collect::<Vec<_>>();
                     // Remove the newline character that was included in drain
                     buffer = buffer.drain(..1).collect::<Vec<_>>();
 
-                    // Parse line (excluding newline)
+                    // Parse line (excluding newline) - handle invalid UTF-8 gracefully
                     let line = std::str::from_utf8(&line_bytes)
                         .unwrap_or("")
                         .trim_end_matches('\n')
                         .trim_end_matches('\r');
 
-                    // Parse SSE line
+                    // Parse SSE line - skip invalid chunks
                     if let Some(chunk) = Self::parse_stream_chunk_static(&protocol, line) {
                         let count = chunk_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
 

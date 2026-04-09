@@ -28,7 +28,7 @@ use crossterm::event::{self as crossterm_event, Event, KeyCode, KeyEvent, KeyEve
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
-use tracing::{info, warn, debug};
+use tracing::{info, warn, debug, error};
 use widgets::*;
 
 /// Main TUI application
@@ -92,8 +92,8 @@ impl TuiApp {
         let mut last_tick = Instant::now();
 
         loop {
-            // Render the UI
-            self.terminal.draw(|f| {
+            // Render the UI - catch rendering errors to prevent crashes
+            if let Err(e) = self.terminal.draw(|f| {
                 let layout = layout::calculate_main_layout(f.area());
 
                 render_header(f, layout.header, &self.state);
@@ -106,17 +106,39 @@ impl TuiApp {
                     render_session_popup(f, f.area(), &mut self.state);
                     render_task_popup(f, f.area(), &mut self.state);
                 }
-            })?;
+            }) {
+                warn!("TUI render error: {:?}, continuing...", e);
+                // Continue running despite render errors
+            }
 
-            // Handle events with timeout
+            // Handle events with timeout - catch poll errors
             let timeout = self.tick_rate.saturating_sub(last_tick.elapsed());
-            if crossterm_event::poll(timeout)? {
-                if let Event::Key(key) = crossterm_event::read()? {
-                    // On Windows, crossterm sends both Press and Release events.
-                    // Only handle Press to avoid processing each key twice.
-                    if key.kind == KeyEventKind::Press {
-                        self.handle_key_event(key)?;
+            let poll_result = crossterm_event::poll(timeout);
+            match poll_result {
+                Ok(true) => {
+                    match crossterm_event::read() {
+                        Ok(Event::Key(key)) => {
+                            // On Windows, crossterm sends both Press and Release events.
+                            // Only handle Press to avoid processing each key twice.
+                            if key.kind == KeyEventKind::Press {
+                                if let Err(e) = self.handle_key_event(key) {
+                                    warn!("Key event handling error: {:?}, continuing...", e);
+                                }
+                            }
+                        }
+                        Ok(_) => {
+                            // Ignore non-key events
+                        }
+                        Err(e) => {
+                            warn!("Event read error: {:?}, continuing...", e);
+                        }
                     }
+                }
+                Ok(false) => {
+                    // Timeout elapsed, continue
+                }
+                Err(e) => {
+                    warn!("Event poll error: {:?}, continuing...", e);
                 }
             }
 
@@ -159,10 +181,9 @@ impl TuiApp {
                 let event_tx = self.state.event_tx.clone();
 
                 // Spawn background task so event loop can continue processing/rendering
+                // Note: route_to_agent_bg now handles all its own errors internally
                 tokio::spawn(async move {
-                    if let Err(e) = Self::route_to_agent_bg(daemon_client, session_id, input, event_tx).await {
-                        warn!("route_to_agent error: {:?}", e);
-                    }
+                    Self::route_to_agent_bg(daemon_client, session_id, input, event_tx).await;
                 });
             }
 
@@ -261,7 +282,7 @@ impl TuiApp {
 
                             // Process command or route to agent
                             if input.starts_with('/') {
-                                self.handle_command(&input)?;
+                                self.handle_command(&input);
                                 // Commands complete immediately
                                 self.state.processing_state.finish_processing();
                             } else {
@@ -316,157 +337,82 @@ impl TuiApp {
         Ok(())
     }
 
-    /// Route non-command input to agent via daemon client
-    async fn route_to_agent(&mut self, input: String) -> Result<()> {
-        if let Some(ref daemon_client) = self.daemon_client {
-            info!("[DEBUG] route_to_agent: session_id={}, input={}", self.session_id, input);
-            let result = daemon_client.handle_input(input.clone(), self.session_id.clone()).await;
-
-            match result {
-                Ok(result) => {
-                    info!("Daemon client result: to_agent={}", result.to_agent);
-
-                    if result.to_agent {
-                        // Create streaming callback that sends StreamChunk events
-                        let event_tx_clone = self.state.event_tx.clone();
-                        let stream_callback: Box<dyn Fn(String) -> bool + Send + Sync> = Box::new(move |chunk: String| -> bool {
-                            // Send stream chunk to TUI
-                            let _ = event_tx_clone.send(AppEvent::StreamChunk(chunk));
-                            true  // Continue streaming
-                        });
-
-                        // Forward to agent - use daemon client's send_message_streaming
-                        match daemon_client.send_message_streaming(&self.session_id, input, Some(stream_callback)).await {
-                            Ok(response) => {
-                                info!("Agent response received: \"{}\"", response);
-                                // Send complete agent response to output (for final display)
-                                self.state.event_tx.send(AppEvent::OutputLine(
-                                    crate::state::OutputLine {
-                                        content: response,
-                                        style: crate::state::OutputStyle::AgentMessage,
-                                        timestamp: chrono::Local::now(),
-                                    ..Default::default()
-                                    },
-                                ))?;
-                            }
-                            Err(e) => {
-                                warn!("Daemon client send_message error: {:?}", e);
-                                self.state.event_tx.send(AppEvent::OutputLine(
-                                    crate::state::OutputLine {
-                                        content: format!("Error: {:?}", e),
-                                        style: crate::state::OutputStyle::Error,
-                                        timestamp: chrono::Local::now(),
-                                    ..Default::default()
-                                    },
-                                ))?;
-                            }
-                        }
-                    } else {
-                        // Daemon client handled it - show response if any
-                        if !result.response.message.is_empty() {
-                            self.state.event_tx.send(AppEvent::OutputLine(
-                                crate::state::OutputLine {
-                                    content: result.response.message,
-                                    style: crate::state::OutputStyle::SystemInfo,
-                                    timestamp: chrono::Local::now(),
-                                    ..Default::default()
-                                },
-                            ))?;
-                        }
-                    }
-                }
-                Err(e) => {
-                    warn!("Daemon client error: {:?}", e);
-                    self.state.event_tx.send(AppEvent::OutputLine(
-                        crate::state::OutputLine {
-                            content: format!("Error: {:?}", e),
-                            style: crate::state::OutputStyle::Error,
-                            timestamp: chrono::Local::now(),
-                                    ..Default::default()
-                        },
-                    ))?;
-                }
-            }
-        } else {
-            warn!("No daemon client configured");
-            self.state.event_tx.send(AppEvent::OutputLine(
-                crate::state::OutputLine {
-                    content: "No daemon client configured".to_string(),
-                    style: crate::state::OutputStyle::Error,
-                    timestamp: chrono::Local::now(),
-                                    ..Default::default()
-                },
-            ))?;
-        }
-
-        // Stop processing after handling
-        self.state.event_tx.send(AppEvent::StopProcessing)?;
-        self.state.processing_state.finish_processing();
-        Ok(())
-    }
-
     /// Route non-command input to agent via daemon client (background task version)
+    /// This function has comprehensive error handling to prevent crashes.
+    /// Tokio's spawn handles panics gracefully, so we just need to handle Result errors.
     async fn route_to_agent_bg(
         daemon_client: Option<Arc<dyn DaemonClient>>,
         session_id: String,
         input: String,
         event_tx: mpsc::UnboundedSender<AppEvent>,
-    ) -> Result<()> {
+    ) {
         if let Some(ref client) = daemon_client {
             info!("[DEBUG] route_to_agent_bg: session_id={}, input={}", session_id, input);
-            let result = client.handle_input(input.clone(), session_id.clone()).await;
 
-            match result {
-                Ok(result) => {
-                    info!("Daemon client result: to_agent={}, should_exit={}", result.to_agent, result.should_exit);
-
-                    // Check if command signals exit (e.g., /quit)
-                    if result.should_exit {
-                        let _ = event_tx.send(AppEvent::Exit);
-                        let _ = event_tx.send(AppEvent::StopProcessing);
-                        return Ok(());
-                    }
-
-                    if result.to_agent {
-                        // Create streaming callback that sends StreamChunk events
-                        let event_tx_clone = event_tx.clone();
-                        let stream_callback: Box<dyn Fn(String) -> bool + Send + Sync> = Box::new(move |chunk: String| -> bool {
-                            // Send stream chunk to TUI
-                            let _ = event_tx_clone.send(AppEvent::StreamChunk(chunk));
-                            true  // Continue streaming
-                        });
-
-                        // Forward to agent - use daemon client's send_message_streaming
-                        match client.send_message_streaming(&session_id, input, Some(stream_callback)).await {
-                            Ok(response) => {
-                                info!("Agent response received: \"{}\"", response);
-                                // Note: Don't send OutputLine here since streaming already displayed chunks
-                                // The stream callback already sent all chunks via StreamChunk events
-                                // Just log that streaming completed
-                                debug!("Streaming completed, final response length: {}", response.len());
-                            }
-                            Err(e) => {
-                                warn!("Daemon client send_message error: {:?}", e);
-                                let _ = event_tx.send(AppEvent::OutputLine(
-                                    crate::state::OutputLine {
-                                        content: format!("Error: {:?}", e),
-                                        style: crate::state::OutputStyle::Error,
-                                        timestamp: chrono::Local::now(),
-                                    ..Default::default()
-                                    },
-                                ));
-                            }
-                        }
-                    }
-                }
+            // Wrap handle_input in error handler
+            let handle_result = match client.handle_input(input.clone(), session_id.clone()).await {
+                Ok(r) => r,
                 Err(e) => {
-                    warn!("Daemon client error: {:?}", e);
+                    warn!("Daemon client handle_input error: {:?}", e);
                     let _ = event_tx.send(AppEvent::OutputLine(
                         crate::state::OutputLine {
-                            content: format!("Error: {:?}", e),
+                            content: format!("Communication error: {}", e),
                             style: crate::state::OutputStyle::Error,
                             timestamp: chrono::Local::now(),
-                                    ..Default::default()
+                            ..Default::default()
+                        },
+                    ));
+                    let _ = event_tx.send(AppEvent::StopProcessing);
+                    return;
+                }
+            };
+
+            info!("Daemon client result: to_agent={}, should_exit={}", handle_result.to_agent, handle_result.should_exit);
+
+            // Check if command signals exit (e.g., /quit)
+            if handle_result.should_exit {
+                let _ = event_tx.send(AppEvent::Exit);
+                let _ = event_tx.send(AppEvent::StopProcessing);
+                return;
+            }
+
+            if handle_result.to_agent {
+                // Create streaming callback that sends StreamChunk events
+                let event_tx_clone = event_tx.clone();
+                let stream_callback: Box<dyn Fn(String) -> bool + Send + Sync> = Box::new(move |chunk: String| -> bool {
+                    // Send stream chunk to TUI - ignore send errors (channel may be closed)
+                    let _ = event_tx_clone.send(AppEvent::StreamChunk(chunk));
+                    true  // Continue streaming
+                });
+
+                // Forward to agent - use daemon client's send_message_streaming
+                match client.send_message_streaming(&session_id, input, Some(stream_callback)).await {
+                    Ok(response) => {
+                        info!("Agent response received, length: {}", response.len());
+                        // Note: Don't send OutputLine here since streaming already displayed chunks
+                        debug!("Streaming completed, final response length: {}", response.len());
+                    }
+                    Err(e) => {
+                        warn!("Daemon client send_message error: {:?}", e);
+                        let _ = event_tx.send(AppEvent::OutputLine(
+                            crate::state::OutputLine {
+                                content: format!("Agent error: {}", e),
+                                style: crate::state::OutputStyle::Error,
+                                timestamp: chrono::Local::now(),
+                                ..Default::default()
+                            },
+                        ));
+                    }
+                }
+            } else {
+                // Daemon handled it, show response if any
+                if !handle_result.response.message.is_empty() {
+                    let _ = event_tx.send(AppEvent::OutputLine(
+                        crate::state::OutputLine {
+                            content: handle_result.response.message,
+                            style: crate::state::OutputStyle::SystemInfo,
+                            timestamp: chrono::Local::now(),
+                            ..Default::default()
                         },
                     ));
                 }
@@ -475,59 +421,57 @@ impl TuiApp {
             warn!("No daemon client configured");
             let _ = event_tx.send(AppEvent::OutputLine(
                 crate::state::OutputLine {
-                    content: "No daemon client configured".to_string(),
+                    content: "No daemon connection available".to_string(),
                     style: crate::state::OutputStyle::Error,
                     timestamp: chrono::Local::now(),
-                                    ..Default::default()
+                    ..Default::default()
                 },
             ));
         }
 
-        // Stop processing after handling
+        // Always send StopProcessing to allow next input
         let _ = event_tx.send(AppEvent::StopProcessing);
-        Ok(())
     }
 
     /// Handle a command
-    fn handle_command(&self, command: &str) -> Result<()> {
+    fn handle_command(&self, command: &str) {
         match command {
             "/help" | "/h" => {
-                self.state.event_tx.send(AppEvent::OutputLine(
+                let _ = self.state.event_tx.send(AppEvent::OutputLine(
                     crate::state::OutputLine {
                         content: "Available commands: /help, /sessions, /tasks, /quit".to_string(),
                         style: crate::state::OutputStyle::SystemInfo,
                         timestamp: chrono::Local::now(),
                                     ..Default::default()
                     },
-                ))?;
+                ));
             }
             "/sessions" => {
                 // Refresh session list
-                self.state.event_tx.send(AppEvent::SessionListUpdate(
+                let _ = self.state.event_tx.send(AppEvent::SessionListUpdate(
                     self.state.sessions.clone(),
-                ))?;
+                ));
             }
             "/tasks" => {
                 // Refresh task list
-                self.state.event_tx.send(AppEvent::TaskListUpdate(
+                let _ = self.state.event_tx.send(AppEvent::TaskListUpdate(
                     self.state.tasks.clone(),
-                ))?;
+                ));
             }
             "/quit" | "/exit" => {
                 // Will be handled in main loop
             }
             _ => {
-                self.state.event_tx.send(AppEvent::OutputLine(
+                let _ = self.state.event_tx.send(AppEvent::OutputLine(
                     crate::state::OutputLine {
                         content: format!("Unknown command: {}", command),
                         style: crate::state::OutputStyle::Error,
                         timestamp: chrono::Local::now(),
                                     ..Default::default()
                     },
-                ))?;
+                ));
             }
         }
-        Ok(())
     }
 }
 

@@ -121,12 +121,14 @@ impl DaemonState {
                 let (done_tx, mut done_rx) = tokio::sync::oneshot::channel::<()>();
 
                 // Spawn task to forward chunks to StreamingContext
+                // Tokio spawn handles panics gracefully
                 tokio::spawn(async move {
                     let mut sequence = 0u64;
                     let mut total_chunks = 0;
                     while let Some(chunk) = chunk_rx.recv().await {
                         total_chunks += 1;
                         info!("[DAEMON] Sending stream chunk {}: {} chars", sequence, chunk.len());
+                        // Ignore send errors - client may have disconnected
                         let _ = stream_ctx.send_chunk(chunk, sequence, false);
                         sequence += 1;
                     }
@@ -139,26 +141,37 @@ impl DaemonState {
                 let stream_callback: StreamCallback = Box::new({
                     let chunk_tx = chunk_tx.clone();
                     move |chunk: String| -> bool {
+                        // Ignore send errors - channel may be closed
                         let _ = chunk_tx.send(chunk);
                         true // Continue streaming
                     }
                 });
 
-                // Call the session manager with streaming
+                // Call the session manager with streaming - wrap in error handler
                 info!("[DAEMON] Calling session_manager.send_message_to_session_streaming");
-                let result = session_manager.send_message_to_session_streaming(session_id, content, Some(stream_callback)).await
-                    .map_err(|e| ipc_contract::IPCError::InternalError(e.to_string()))?;
-                info!("[DAEMON] send_message_to_session_streaming completed, response_len={}", result.len());
+                match session_manager.send_message_to_session_streaming(session_id, content, Some(stream_callback)).await {
+                    Ok(result) => {
+                        info!("[DAEMON] send_message_to_session_streaming completed, response_len={}", result.len());
 
-                // Wait for streaming to complete before returning final response
-                tokio::time::timeout(tokio::time::Duration::from_millis(100), done_rx)
-                    .await
-                    .ok();
+                        // Wait for streaming to complete before returning final response
+                        tokio::time::timeout(tokio::time::Duration::from_millis(100), done_rx)
+                            .await
+                            .ok();
 
-                // Small delay to ensure all chunks are sent
-                tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+                        // Small delay to ensure all chunks are sent
+                        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
 
-                Ok(serde_json::json!({ "response": result }))
+                        Ok(serde_json::json!({ "response": result }))
+                    }
+                    Err(e) => {
+                        warn!("[DAEMON] send_message_to_session_streaming error: {:?}", e);
+                        // Return error response but don't fail - let client handle it
+                        Ok(serde_json::json!({
+                            "response": format!("Error: {}", e),
+                            "error": true
+                        }))
+                    }
+                }
             })
         }).await;
 
