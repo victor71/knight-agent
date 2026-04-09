@@ -507,3 +507,9 @@ pub fn get_global_config() -> Option<Arc<ConfigLoader>> {
 pub fn get_llm_config() -> Option<LlmConfig> {
     GLOBAL_CONFIG.get()?.get_llm_config()
 }
+
+/// Subscribe to configuration change events
+/// Returns None if config not yet initialized
+pub fn subscribe_config_changes() -> Option<broadcast::Receiver<ConfigChangeEvent>> {
+    Some(GLOBAL_CONFIG.get()?.subscribe())
+}

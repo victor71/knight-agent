@@ -1,9 +1,11 @@
 //! LLM Router
 //!
 //! Routes requests to the appropriate LLM provider based on model name.
+//! Supports hot-reload via `reload_config()` method.
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use parking_lot::RwLock;
 use tracing::info;
 
 use crate::types::{
@@ -25,8 +27,8 @@ fn resolve_env_var(value: &str) -> String {
     }
 }
 
-/// LLM Router - routes requests to appropriate providers based on model
-pub struct LLMRouter {
+/// Inner state of LLM Router (protected by RwLock)
+struct LLMRouterInner {
     /// Providers by name
     providers: HashMap<String, Arc<dyn LLMProvider>>,
     /// Model to provider name mapping
@@ -37,9 +39,8 @@ pub struct LLMRouter {
     provider_default_models: HashMap<String, String>,
 }
 
-impl LLMRouter {
-    /// Create a new router
-    pub fn new() -> Self {
+impl Default for LLMRouterInner {
+    fn default() -> Self {
         Self {
             providers: HashMap::new(),
             model_to_provider: HashMap::new(),
@@ -47,9 +48,26 @@ impl LLMRouter {
             provider_default_models: HashMap::new(),
         }
     }
+}
+
+/// LLM Router - routes requests to appropriate providers based on model
+/// Supports hot-reload when configuration changes
+pub struct LLMRouter {
+    /// Inner state protected by RwLock for thread-safe updates
+    inner: Arc<RwLock<LLMRouterInner>>,
+}
+
+impl LLMRouter {
+    /// Create a new router
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(LLMRouterInner::default())),
+        }
+    }
 
     /// Initialize router - tries global config first, then env vars
-    pub fn initialize(&mut self) -> LLMResult<()> {
+    /// This can be called multiple times to reload configuration
+    pub fn initialize(&self) -> LLMResult<()> {
         // Try to load from configuration module's global storage
         if let Some(llm_config) = configuration::get_llm_config() {
             if !llm_config.providers.is_empty() {
@@ -66,13 +84,14 @@ impl LLMRouter {
                 let models = provider.config().models.clone();
                 let default_model = provider.config().default_model().to_string();
 
+                let mut inner = self.inner.write();
                 for model in &models {
-                    self.model_to_provider.insert(model.clone(), name.clone());
+                    inner.model_to_provider.insert(model.clone(), name.clone());
                 }
 
-                self.provider_default_models.insert(name.clone(), default_model);
-                self.providers.insert(name.clone(), Arc::new(provider));
-                self.default_provider = Some(name);
+                inner.provider_default_models.insert(name.clone(), default_model);
+                inner.providers.insert(name.clone(), Arc::new(provider));
+                inner.default_provider = Some(name);
 
                 info!("LLM Router initialized with env vars provider");
                 Ok(())
@@ -85,13 +104,20 @@ impl LLMRouter {
     }
 
     /// Initialize router from configuration module's LlmConfig
-    pub fn initialize_from_config(&mut self, config: &configuration::LlmConfig) -> LLMResult<()> {
+    fn initialize_from_config(&self, config: &configuration::LlmConfig) -> LLMResult<()> {
         if config.providers.is_empty() {
             info!("No LLM providers configured in knight.json");
             return Ok(());
         }
 
         let default_provider = config.default_provider.clone();
+        let mut inner = self.inner.write();
+
+        // Clear existing providers
+        inner.providers.clear();
+        inner.model_to_provider.clear();
+        inner.provider_default_models.clear();
+        inner.default_provider = None;
 
         for (name, provider_config) in &config.providers {
             // Resolve API key (supports ${ENV_VAR} syntax)
@@ -124,44 +150,53 @@ impl LLMRouter {
             let default_model = provider_config.default_model.clone();
 
             for model in &models {
-                self.model_to_provider.insert(model.clone(), name.clone());
+                inner.model_to_provider.insert(model.clone(), name.clone());
             }
 
-            self.provider_default_models.insert(name.clone(), default_model);
-            self.providers.insert(name.clone(), Arc::new(provider));
+            inner.provider_default_models.insert(name.clone(), default_model);
+            inner.providers.insert(name.clone(), Arc::new(provider));
         }
 
         // Set default provider
         if let Some(ref default_name) = default_provider {
-            if self.providers.contains_key(default_name) {
-                self.default_provider = Some(default_name.clone());
+            if inner.providers.contains_key(default_name) {
+                inner.default_provider = Some(default_name.clone());
                 info!("LLM Router initialized with default provider: {}", default_name);
             } else {
                 info!("Configured default provider '{}' not found in providers", default_name);
-                self.default_provider = self.providers.keys().next().cloned();
+                inner.default_provider = inner.providers.keys().next().cloned();
             }
         } else {
-            self.default_provider = self.providers.keys().next().cloned();
+            inner.default_provider = inner.providers.keys().next().cloned();
         }
 
-        info!("LLM Router initialized from config with {} providers", self.providers.len());
+        info!("LLM Router initialized from config with {} providers", inner.providers.len());
         Ok(())
     }
 
+    /// Reload configuration from the configuration module
+    /// This should be called when configuration changes are detected
+    /// Can be triggered via event loop, hook, or direct call
+    pub fn reload_config(&self) -> LLMResult<()> {
+        info!("LLM Router: Reloading configuration");
+        self.initialize()
+    }
+
     /// Add a provider to the router
-    pub fn add_provider(&mut self, name: String, provider: GenericLLMProvider) -> LLMResult<()> {
+    pub fn add_provider(&self, name: String, provider: GenericLLMProvider) -> LLMResult<()> {
         let models = provider.config().models.clone();
         let default_model = provider.config().default_model().to_string();
 
+        let mut inner = self.inner.write();
         for model in &models {
-            self.model_to_provider.insert(model.clone(), name.clone());
+            inner.model_to_provider.insert(model.clone(), name.clone());
         }
 
-        self.provider_default_models.insert(name.clone(), default_model);
-        self.providers.insert(name.clone(), Arc::new(provider));
+        inner.provider_default_models.insert(name.clone(), default_model);
+        inner.providers.insert(name.clone(), Arc::new(provider));
 
-        if self.default_provider.is_none() {
-            self.default_provider = Some(name.clone());
+        if inner.default_provider.is_none() {
+            inner.default_provider = Some(name.clone());
         }
 
         info!("Added provider '{}' with models: {:?}", name, models);
@@ -169,22 +204,24 @@ impl LLMRouter {
     }
 
     /// Set the default provider
-    pub fn set_default_provider(&mut self, name: String) {
-        if self.providers.contains_key(&name) {
-            self.default_provider = Some(name);
+    pub fn set_default_provider(&self, name: String) {
+        let mut inner = self.inner.write();
+        if inner.providers.contains_key(&name) {
+            inner.default_provider = Some(name);
         }
     }
 
     /// Get the provider for a specific model
     fn get_provider_for_model(&self, model: &str) -> Option<Arc<dyn LLMProvider>> {
-        if let Some(provider_name) = self.model_to_provider.get(model) {
-            if let Some(provider) = self.providers.get(provider_name) {
+        let inner = self.inner.read();
+        if let Some(provider_name) = inner.model_to_provider.get(model) {
+            if let Some(provider) = inner.providers.get(provider_name) {
                 return Some(provider.clone());
             }
         }
 
-        if let Some(ref default) = self.default_provider {
-            if let Some(provider) = self.providers.get(default) {
+        if let Some(ref default) = inner.default_provider {
+            if let Some(provider) = inner.providers.get(default) {
                 return Some(provider.clone());
             }
         }
@@ -194,22 +231,23 @@ impl LLMRouter {
 
     /// Get default model for a provider
     fn get_default_model(&self, provider_name: &str) -> Option<String> {
-        self.provider_default_models.get(provider_name).cloned()
+        let inner = self.inner.read();
+        inner.provider_default_models.get(provider_name).cloned()
     }
 
     /// Check if router is empty
     pub fn is_empty(&self) -> bool {
-        self.providers.is_empty()
+        self.inner.read().providers.is_empty()
     }
 
     /// Get list of all configured models
     pub fn models(&self) -> Vec<String> {
-        self.model_to_provider.keys().cloned().collect()
+        self.inner.read().model_to_provider.keys().cloned().collect()
     }
 
     /// Get list of all provider names
     pub fn provider_names(&self) -> Vec<String> {
-        self.providers.keys().cloned().collect()
+        self.inner.read().providers.keys().cloned().collect()
     }
 }
 
@@ -225,7 +263,7 @@ impl LLMProvider for LLMRouter {
     where
         Self: Sized,
     {
-        let mut router = Self::new();
+        let router = Self::new();
         router.initialize()?;
         Ok(router)
     }
@@ -243,9 +281,10 @@ impl LLMProvider for LLMRouter {
         request: ChatCompletionRequest,
     ) -> LLMResult<ChatCompletionResponse> {
         let model = if request.model.is_empty() {
-            if let Some(ref default) = self.default_provider {
-                if let Some(default_model) = self.get_default_model(default) {
-                    default_model
+            let inner = self.inner.read();
+            if let Some(ref default) = inner.default_provider {
+                if let Some(default_model) = inner.provider_default_models.get(default) {
+                    default_model.clone()
                 } else {
                     return Err(LLMError::NotInitialized);
                 }
@@ -273,9 +312,10 @@ impl LLMProvider for LLMRouter {
         request: ChatCompletionRequest,
     ) -> LLMResult<CompletionStream> {
         let model = if request.model.is_empty() {
-            if let Some(ref default) = self.default_provider {
-                if let Some(default_model) = self.get_default_model(default) {
-                    default_model
+            let inner = self.inner.read();
+            if let Some(ref default) = inner.default_provider {
+                if let Some(default_model) = inner.provider_default_models.get(default) {
+                    default_model.clone()
                 } else {
                     return Err(LLMError::NotInitialized);
                 }
@@ -301,14 +341,21 @@ impl LLMProvider for LLMRouter {
     async fn count_tokens(&self, text: &str, model: &str) -> LLMResult<TokenCount> {
         if let Some(provider) = self.get_provider_for_model(model) {
             provider.count_tokens(text, model).await
-        } else if let Some(ref default) = self.default_provider {
-            if let Some(provider) = self.providers.get(default) {
+        } else {
+            let provider = {
+                let inner = self.inner.read();
+                if let Some(ref default) = inner.default_provider {
+                    inner.providers.get(default).cloned()
+                } else {
+                    None
+                }
+            };
+
+            if let Some(provider) = provider {
                 provider.count_tokens(text, model).await
             } else {
                 Err(LLMError::ModelNotFound(model.to_string()))
             }
-        } else {
-            Err(LLMError::ModelNotFound(model.to_string()))
         }
     }
 
@@ -342,10 +389,15 @@ impl LLMProvider for LLMRouter {
     }
 
     async fn health_check(&self) -> LLMResult<ProviderStatus> {
+        let providers: Vec<Arc<dyn LLMProvider>> = {
+            let inner = self.inner.read();
+            inner.providers.values().cloned().collect()
+        };
+
         let mut all_healthy = true;
         let mut max_latency = 0u64;
 
-        for provider in self.providers.values() {
+        for provider in &providers {
             if let Ok(status) = provider.health_check().await {
                 if !status.healthy {
                     all_healthy = false;
@@ -369,10 +421,7 @@ impl LLMProvider for LLMRouter {
 impl Clone for LLMRouter {
     fn clone(&self) -> Self {
         Self {
-            providers: self.providers.clone(),
-            model_to_provider: self.model_to_provider.clone(),
-            default_provider: self.default_provider.clone(),
-            provider_default_models: self.provider_default_models.clone(),
+            inner: self.inner.clone(),
         }
     }
 }

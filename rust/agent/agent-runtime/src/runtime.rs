@@ -80,12 +80,13 @@ impl AgentRuntimeImpl {
 
     /// Initialize the LLM router from environment variables
     fn initialize_llm_router(&mut self) -> RuntimeResult<()> {
-        let mut router = LLMRouter::new();
+        let router = LLMRouter::new();
         router.initialize()
             .map_err(|e| AgentRuntimeError::InitializationFailed(format!("failed to initialize LLM router: {}", e)))?;
 
         if !router.is_empty() {
-            self.llm_router = Some(Arc::new(router));
+            let router_arc = Arc::new(router);
+            self.llm_router = Some(router_arc);
             if let Some(r) = &self.llm_router {
                 let models = r.models();
                 if !models.is_empty() {
