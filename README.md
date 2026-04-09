@@ -365,10 +365,37 @@ cargo run -p knight-agent
 
 **配置说明：**
 - **knight.json** - 唯一用户需要配置的文件，包含 LLM 提供者设置（JSON 格式）
+- **全局配置存储** - 使用 OnceLock 实现线程安全的全局配置单例，所有模块统一读取
+- **热重载支持** - 配置变更自动检测，LLM Router 支持运行时重载配置
 - **config/agent.yaml** - Agent 相关配置（已合并 agent-runtime、skill-engine、task-manager、workflows-directory、agent-variants、external-agent）
 - **config/core.yaml** - Core 相关配置（已合并 command、cli、event-loop、hooks、orchestrator、router、session-manager、bootstrap）
 - **config/services.yaml** - Services 相关配置（已合并 mcp-client、report-skill、timer-system）
 - **config/*.yaml** - 系统内部配置，使用 YAML 格式，通常不需要手动修改
+
+**配置架构：**
+```
+系统启动
+    ↓
+init_global_config()
+    ↓
+┌─────────────────────────────────────────┐
+│  全局配置存储 (OnceLock + Arc)           │
+│  - knight.json (LLM Provider)            │
+│  - config/*.yaml (系统配置)               │
+└─────────────────────────────────────────┘
+    ↓
+其他模块读取配置
+    ↓
+┌─────────────────────────────────────────┐
+│  LLMRouter::initialize()                │
+│    └── get_llm_config() → LlmConfig      │
+│                                         │
+│  Agent Runtime                         │
+│  Logging System                         │
+│  Monitor                                │
+│  ...                                   │
+└─────────────────────────────────────────┘
+```
 
 **配置合并说明：** 已从 26 个独立配置文件合并为 11 个配置文件，减少配置复杂度。
 
