@@ -650,7 +650,8 @@ impl LLMProvider for GenericLLMProvider {
         let mut req_builder = self.client.post(&url);
         req_builder = req_builder
             .header("content-type", "application/json")
-            .header("accept", "text/event-stream");
+            .header("accept", "text/event-stream")
+            .header("accept-encoding", "identity");  // Disable compression to avoid decoding issues
 
         match self.config.protocol {
             LLMProtocol::Anthropic => {
