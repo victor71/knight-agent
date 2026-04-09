@@ -270,6 +270,9 @@ pub struct ChatCompletionChunk {
     pub type_field: String,
     pub role: Option<String>,
     pub content: Option<String>,
+    /// Whether this chunk contains thinking content (should be filtered by UI)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub is_thinking: Option<bool>,
     pub model: String,
     pub choices: Vec<ChoiceChunk>,
 }

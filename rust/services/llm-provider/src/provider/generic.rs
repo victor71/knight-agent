@@ -897,11 +897,23 @@ impl GenericLLMProvider {
             }
         };
 
+        // Track if this chunk contains thinking content (for MiniMax Anthropic format)
+        let is_thinking = match self.config.protocol {
+            LLMProtocol::Anthropic => {
+                data.get("delta")
+                    .and_then(|d| d.get("type"))
+                    .and_then(|t| t.as_str())
+                    .map(|t| t == "thinking_delta")
+            }
+            _ => Some(false),
+        };
+
         Some(ChatCompletionChunk {
             id,
             type_field: "chat.completion.chunk".to_string(),
             role: None,
             content,
+            is_thinking,
             model,
             choices: vec![],
         })

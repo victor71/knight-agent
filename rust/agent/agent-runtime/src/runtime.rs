@@ -457,6 +457,12 @@ impl AgentRuntimeImpl {
     fn extract_text_from_chunk(&self, chunk: &llm_provider::ChatCompletionChunk) -> Option<String> {
         use llm_provider::Delta;
 
+        // Skip thinking chunks - they should not be shown to users
+        if chunk.is_thinking == Some(true) {
+            debug!("Skipping thinking chunk");
+            return None;
+        }
+
         // Try to get text from choices (Anthropic/SSE format)
         for choice in &chunk.choices {
             match &choice.delta {
