@@ -679,11 +679,15 @@ impl LLMProvider for GenericLLMProvider {
             LLMError::InferenceFailed(format!("failed to read streaming response: {}", e))
         })?;
 
+        info!("LLM streaming response received, body_len={}, parsing chunks...", body.len());
+
         let chunks: Vec<LLMResult<ChatCompletionChunk>> = body
             .lines()
             .filter_map(|line| self.parse_stream_chunk(line))
             .map(Ok)
             .collect();
+
+        info!("LLM streaming parsed {} chunks", chunks.len());
 
         Ok(Box::pin(futures::stream::iter(chunks)))
     }
@@ -845,6 +849,8 @@ impl GenericLLMProvider {
 
         let json_str = &line[6..];
         let data: serde_json::Value = serde_json::from_str(json_str).ok()?;
+
+        debug!("LLM stream chunk parsed: id={}", data.get("id").and_then(|v| v.as_str()).unwrap_or(""));
 
         let id = data.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
         let model = data.get("model").and_then(|v| v.as_str()).unwrap_or("").to_string();

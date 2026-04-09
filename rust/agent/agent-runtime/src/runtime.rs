@@ -315,6 +315,7 @@ impl AgentRuntimeImpl {
 
         // Call LLM router if available
         let response = if let Some(ref router) = self.llm_router {
+            info!("[AGENT-RUNTIME] LLM router available for agent {}, starting streaming", agent_id);
             info!("Calling LLM router for agent {} with streaming", agent_id);
 
             // Convert agent-runtime Message to LLM provider format
@@ -359,10 +360,13 @@ impl AgentRuntimeImpl {
         request: llm_provider::ChatCompletionRequest,
         stream_callback: Option<Box<dyn Fn(String) -> bool + Send + Sync>>,
     ) -> RuntimeResult<Message> {
+        info!("[AGENT-RUNTIME] handle_streaming_with_callback: has_callback={}", stream_callback.is_some());
+
         let stream_result = router.stream_completion(request.clone()).await;
 
         match stream_result {
             Ok(stream) => {
+                info!("[AGENT-RUNTIME] Stream created successfully, starting to receive chunks");
                 // Collect all chunks from the stream
                 let mut full_content = String::new();
                 let mut chunk_count = 0;
@@ -377,24 +381,28 @@ impl AgentRuntimeImpl {
                             if let Some(text) = self.extract_text_from_chunk(&chunk) {
                                 // Call callback if provided
                                 if let Some(ref callback) = stream_callback {
+                                    chunk_count += 1;
+                                    info!("[AGENT-RUNTIME] Stream chunk {}: {} chars, calling callback", chunk_count, text.len());
                                     if !callback(text.clone()) {
-                                        debug!("Stream callback returned false, stopping");
+                                        info!("[AGENT-RUNTIME] Callback returned false, stopping stream");
                                         break;
                                     }
                                 }
                                 full_content.push_str(&text);
-                                chunk_count += 1;
+                                if stream_callback.is_none() {
+                                    chunk_count += 1;
+                                }
                                 debug!("Received stream chunk {}: {} chars", chunk_count, text.len());
                             }
                         }
                         Err(e) => {
-                            warn!("Stream chunk error: {:?}", e);
+                            warn!("[AGENT-RUNTIME] Stream chunk error: {:?}", e);
                             break;
                         }
                     }
                 }
 
-                info!("Streaming complete: {} chunks, {} total chars", chunk_count, full_content.len());
+                info!("[AGENT-RUNTIME] Streaming complete: {} chunks, {} total chars", chunk_count, full_content.len());
 
                 if full_content.is_empty() {
                     Ok(Message::assistant("No response from LLM".to_string()))
@@ -403,9 +411,9 @@ impl AgentRuntimeImpl {
                 }
             }
             Err(e) => {
-                warn!("LLM streaming failed: {:?}", e);
+                warn!("[AGENT-RUNTIME] LLM streaming failed: {:?}", e);
                 // Fall back to regular request
-                info!("Falling back to regular chat completion");
+                info!("[AGENT-RUNTIME] Falling back to regular chat completion");
                 let mut fallback_request = request;
                 fallback_request.stream = false;
                 self.handle_regular_request(router, fallback_request).await

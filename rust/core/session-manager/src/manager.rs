@@ -466,6 +466,9 @@ impl SessionManagerImpl {
         content: String,
         stream_callback: Option<StreamCallback>,
     ) -> SessionResult<String> {
+        info!("[SESSION-MANAGER] send_message_to_session_streaming: session_id={}, has_callback={}",
+              session_id, stream_callback.is_some());
+
         // Verify session exists
         {
             let sessions = self.sessions.read().await;
@@ -484,10 +487,14 @@ impl SessionManagerImpl {
             .await
             .map_err(|e| SessionError::CompressionError(e.to_string()))?;
 
+        info!("[SESSION-MANAGER] Agent ID: {}, calling send_message_streaming", agent_id);
+
         // Send message to agent with streaming callback
         let response = agent_runtime.send_message_streaming(&agent_id, content.clone(), stream_callback)
             .await
             .map_err(|e| SessionError::CompressionError(e.to_string()))?;
+
+        info!("[SESSION-MANAGER] send_message_streaming returned, response_len={}", response.len());
 
         // Add user message to session context
         let _ = self.add_message(session_id, Message::user(
