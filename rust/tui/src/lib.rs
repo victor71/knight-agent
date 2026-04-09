@@ -24,7 +24,7 @@ pub use state::{
 };
 
 use anyhow::Result;
-use crossterm::event::{self as crossterm_event, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{self as crossterm_event, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEvent, MouseEventKind};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
@@ -126,8 +126,11 @@ impl TuiApp {
                                 }
                             }
                         }
+                        Ok(Event::Mouse(mouse)) => {
+                            self.handle_mouse_event(mouse);
+                        }
                         Ok(_) => {
-                            // Ignore non-key events
+                            // Ignore other events (focus, paste, etc.)
                         }
                         Err(e) => {
                             warn!("Event read error: {:?}, continuing...", e);
@@ -173,6 +176,10 @@ impl TuiApp {
                 }
             }
 
+            // Update auto-scroll after processing events
+            let visible = self.get_output_visible_height();
+            self.state.update_auto_scroll(visible);
+
             // Process pending agent input if any (spawn as background task to avoid blocking)
             if let Some(input) = self.pending_agent_input.take() {
                 // Take ownership of what we need for the spawned task
@@ -212,12 +219,15 @@ impl TuiApp {
             (KeyCode::Char('q'), KeyModifiers::CONTROL) => {
                 self.state.input_buffer = "/quit".to_string();
             }
-            // Popup navigation
+            // Popup navigation / Output scroll
             (KeyCode::Up, KeyModifiers::NONE) => {
                 if self.state.active_popup.is_some() {
                     if self.state.popup_selected_index > 0 {
                         self.state.popup_selected_index -= 1;
                     }
+                } else {
+                    // Scroll output up when no popup
+                    self.state.scroll_up(1);
                 }
             }
             (KeyCode::Down, KeyModifiers::NONE) => {
@@ -230,7 +240,31 @@ impl TuiApp {
                     if self.state.popup_selected_index < max_index {
                         self.state.popup_selected_index += 1;
                     }
+                } else {
+                    // Scroll output down when no popup
+                    let visible = self.get_output_visible_height();
+                    self.state.scroll_down(1, visible);
                 }
+            }
+            // Page Up: Scroll output up by page
+            (KeyCode::PageUp, _) => {
+                let visible = self.get_output_visible_height();
+                self.state.scroll_up(visible.saturating_sub(2).max(3));
+            }
+            // Page Down: Scroll output down by page
+            (KeyCode::PageDown, _) => {
+                let visible = self.get_output_visible_height();
+                self.state.scroll_down(visible.saturating_sub(2).max(3), visible);
+            }
+            // Home: Scroll to top
+            (KeyCode::Home, _) => {
+                self.state.output_scroll = 0;
+                self.state.auto_scroll = false;
+            }
+            // End: Scroll to bottom
+            (KeyCode::End, _) => {
+                let visible = self.get_output_visible_height();
+                self.state.scroll_to_bottom(visible);
             }
             (KeyCode::Enter, KeyModifiers::NONE) => {
                 if let Some(popup) = self.state.active_popup {
@@ -335,6 +369,34 @@ impl TuiApp {
             _ => {}
         }
         Ok(())
+    }
+
+    /// Handle a mouse event (for scrolling)
+    fn handle_mouse_event(&mut self, mouse: MouseEvent) {
+        match mouse.kind {
+            MouseEventKind::ScrollUp => {
+                // Scroll output up when mouse wheel scrolls up
+                self.state.scroll_up(3);
+            }
+            MouseEventKind::ScrollDown => {
+                // Scroll output down when mouse wheel scrolls down
+                let visible = self.get_output_visible_height();
+                self.state.scroll_down(3, visible);
+            }
+            _ => {
+                // Ignore other mouse events (clicks, drags, etc.)
+            }
+        }
+    }
+
+    /// Get the visible height of the output area in rows
+    fn get_output_visible_height(&self) -> usize {
+        // The output area is between header and status bar
+        // Header: 4 rows (title bar, session bar, separator, labels)
+        // Input area: 3 rows (input area, separator, status)
+        // Total fixed: ~7 rows
+        let fixed_rows = 7;
+        self.state.terminal_size.1.saturating_sub(fixed_rows as u16) as usize
     }
 
     /// Route non-command input to agent via daemon client (background task version)

@@ -24,6 +24,8 @@ pub struct AppState {
     pub output_lines: Vec<OutputLine>,
     pub output_scroll: usize,
     pub max_output_lines: usize,
+    /// Whether to auto-scroll to bottom when new content arrives
+    pub auto_scroll: bool,
 
     // System state cache (snapshots for rendering)
     pub system_status: SystemStatusSnapshot,
@@ -74,6 +76,7 @@ impl AppState {
             output_lines: Vec::new(),
             output_scroll: 0,
             max_output_lines: 1000,
+            auto_scroll: true,
             system_status: SystemStatusSnapshot::default(),
             agents: Vec::new(),
             session_info: SessionInfo::default(),
@@ -138,6 +141,7 @@ impl AppState {
             AppEvent::ClearOutput => {
                 self.output_lines.clear();
                 self.output_scroll = 0;
+                self.auto_scroll = true;
             }
             AppEvent::SessionListUpdate(sessions) => {
                 self.sessions = sessions.clone();
@@ -212,6 +216,45 @@ impl AppState {
         } else {
             self.active_popup = Some(popup);
             self.popup_selected_index = 0;
+        }
+    }
+
+    /// Scroll output up by `lines` rows
+    pub fn scroll_up(&mut self, lines: usize) {
+        self.output_scroll = self.output_scroll.saturating_sub(lines);
+        // User manually scrolled up, disable auto-scroll
+        self.auto_scroll = false;
+    }
+
+    /// Scroll output down by `lines` rows
+    pub fn scroll_down(&mut self, lines: usize, visible_height: usize) {
+        let max_scroll = self.get_max_scroll(visible_height);
+        self.output_scroll = self.output_scroll.saturating_add(lines).min(max_scroll);
+        // If scrolled to bottom, re-enable auto-scroll
+        if self.output_scroll >= max_scroll {
+            self.auto_scroll = true;
+        }
+    }
+
+    /// Scroll to bottom of output
+    pub fn scroll_to_bottom(&mut self, visible_height: usize) {
+        self.output_scroll = self.get_max_scroll(visible_height);
+        self.auto_scroll = true;
+    }
+
+    /// Get the maximum scroll offset based on content and visible area
+    pub fn get_max_scroll(&self, visible_height: usize) -> usize {
+        // Rough estimate: each output line could produce multiple display lines
+        // due to wrapping. We estimate ~1.5x for safety.
+        let total_display_lines = self.output_lines.len()
+            + self.output_lines.iter().map(|l| l.content.len() / 100).sum::<usize>();
+        total_display_lines.saturating_sub(visible_height)
+    }
+
+    /// Update scroll position if auto_scroll is enabled
+    pub fn update_auto_scroll(&mut self, visible_height: usize) {
+        if self.auto_scroll {
+            self.output_scroll = self.get_max_scroll(visible_height);
         }
     }
 

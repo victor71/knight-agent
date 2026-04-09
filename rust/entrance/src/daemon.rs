@@ -8,12 +8,181 @@
 use anyhow::{Context, Result};
 use bootstrap::KnightAgentSystem;
 use session_manager::{AgentRuntimeProxy, StreamCallback};
+use std::io::Write as IoWrite;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::process::Command;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tokio::sync::broadcast;
-use tracing::{info, warn};
+use tracing::{info, warn, Level};
+use tracing_appender::non_blocking::WorkerGuard;
+use tracing_subscriber::fmt::format::FmtSpan;
 
 use crate::{ensure_dir, get_home_dir, AGENT_SUBDIRS, CONFIG_DIR};
+
+/// Session-based rotating log writer state
+pub(crate) struct SessionLogWriter {
+    log_dir: PathBuf,
+    current_session_id: Mutex<Option<String>>,
+    current_file: Mutex<Option<PathBuf>>,
+    current_size: Mutex<u64>,
+    file_index: Mutex<u32>,
+    max_file_size: u64,
+}
+
+impl SessionLogWriter {
+    pub(crate) fn new(log_dir: PathBuf, max_file_size: u64) -> Self {
+        Self {
+            log_dir,
+            current_session_id: Mutex::new(None),
+            current_file: Mutex::new(None),
+            current_size: Mutex::new(0),
+            file_index: Mutex::new(0),
+            max_file_size,
+        }
+    }
+
+    fn generate_log_path(&self, session_id: &str, index: u32) -> PathBuf {
+        let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+        let filename = if index == 0 {
+            format!("daemon_{}.log", timestamp)
+        } else {
+            format!("daemon_{}_{}.log", timestamp, index)
+        };
+        self.log_dir.join(filename)
+    }
+
+    pub(crate) fn set_session(&self, session_id: String) -> Result<()> {
+        let mut current_session = self.current_session_id.lock().unwrap();
+        if current_session.as_ref() == Some(&session_id) {
+            return Ok(());
+        }
+        *current_session = Some(session_id.clone());
+        *self.file_index.lock().unwrap() = 0;
+        *self.current_size.lock().unwrap() = 0;
+
+        let log_path = self.generate_log_path(&session_id, 0);
+        std::fs::write(&log_path, "").context("Failed to create log file")?;
+        *self.current_file.lock().unwrap() = Some(log_path);
+
+        info!("Created new log file for daemon session: {}", session_id);
+        Ok(())
+    }
+
+    fn check_rotation(&self) -> Result<()> {
+        let current_session = self.current_session_id.lock().unwrap();
+        let session_id = match current_session.as_ref() {
+            Some(id) => id,
+            None => return Ok(()),
+        };
+
+        let current_file = self.current_file.lock().unwrap();
+        let file_path = match current_file.as_ref() {
+            Some(p) => p,
+            None => return Ok(()),
+        };
+
+        let metadata = std::fs::metadata(file_path)?;
+        let size = metadata.len();
+        *self.current_size.lock().unwrap() = size;
+
+        if size >= self.max_file_size {
+            drop(current_file);
+            let mut index = *self.file_index.lock().unwrap() + 1;
+            *self.file_index.lock().unwrap() = index;
+
+            let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+            let mut new_path;
+            loop {
+                new_path = self.log_dir.join(format!("daemon_{}_{}.log", timestamp, index));
+                if !new_path.exists() {
+                    break;
+                }
+                index += 1;
+            }
+
+            std::fs::write(&new_path, "")?;
+            *self.current_file.lock().unwrap() = Some(new_path.clone());
+            *self.current_size.lock().unwrap() = 0;
+
+            info!("Rotated log file to: {}", new_path.display());
+        }
+
+        Ok(())
+    }
+
+    fn write_data(&self, buf: &[u8]) -> std::io::Result<usize> {
+        if let Err(e) = self.check_rotation() {
+            eprintln!("Error checking log rotation: {}", e);
+        }
+
+        let current_file = self.current_file.lock().unwrap();
+        let file_path = match current_file.as_ref() {
+            Some(p) => p,
+            None => return Ok(0),
+        };
+
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(file_path)?;
+
+        let result = IoWrite::write(&mut file, buf);
+
+        if result.is_ok() {
+            let mut size = self.current_size.lock().unwrap();
+            *size += buf.len() as u64;
+        }
+
+        result
+    }
+
+    fn flush_data(&self) -> std::io::Result<()> {
+        let current_file = self.current_file.lock().unwrap();
+        if let Some(file_path) = current_file.as_ref() {
+            let mut file = std::fs::OpenOptions::new().append(true).open(file_path)?;
+            IoWrite::flush(&mut file)
+        } else {
+            Ok(())
+        }
+    }
+}
+
+struct LogWriter(Arc<Mutex<SessionLogWriter>>);
+
+impl std::io::Write for LogWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().write_data(buf)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.0.lock().unwrap().flush_data()
+    }
+}
+
+/// Initialize logging for daemon
+fn init_logging(log_dir: &PathBuf, max_file_size_mb: u64) -> Result<(WorkerGuard, Arc<Mutex<SessionLogWriter>>)> {
+    let max_file_size = max_file_size_mb * 1024 * 1024;
+    let log_writer = Arc::new(Mutex::new(SessionLogWriter::new(log_dir.clone(), max_file_size)));
+    log_writer.lock().unwrap().set_session("daemon".to_string())?;
+
+    let (file_writer, guard) = tracing_appender::non_blocking(LogWriter(log_writer.clone()));
+
+    let subscriber = tracing_subscriber::fmt::SubscriberBuilder::default()
+        .with_max_level(Level::INFO)
+        .with_target(true)
+        .with_thread_ids(true)
+        .with_file(true)
+        .with_line_number(true)
+        .with_span_events(FmtSpan::CLOSE)
+        .with_ansi(false)
+        .with_writer(file_writer)
+        .finish();
+
+    tracing::subscriber::set_global_default(subscriber)?;
+
+    Ok((guard, log_writer))
+}
 
 /// Daemon state
 pub struct DaemonState {
@@ -77,9 +246,11 @@ impl DaemonState {
     }
 
     /// Register IPC method handlers
-    pub async fn register_handlers(&self, server: &mut ipc_contract::IpcServer, shutdown_tx: broadcast::Sender<()>) {
+    pub async fn register_handlers(&self, server: &mut ipc_contract::IpcServer, shutdown_tx: broadcast::Sender<()>, daemon_addr: String) {
 
         let router = self.router.clone();
+        let session_manager = self.session_manager.clone();
+        let daemon_addr_clone = daemon_addr.clone();
 
         // handle_input handler
         server.register("handle_input", move |params: serde_json::Value| {
@@ -153,13 +324,22 @@ impl DaemonState {
                     Ok(result) => {
                         info!("[DAEMON] send_message_to_session_streaming completed, response_len={}", result.len());
 
-                        // Wait for streaming to complete before returning final response
-                        tokio::time::timeout(tokio::time::Duration::from_millis(100), done_rx)
-                            .await
-                            .ok();
+                        // Wait for streaming chunks to be fully forwarded before returning response
+                        // This is critical - don't close the connection until all chunks are sent
+                        match tokio::time::timeout(tokio::time::Duration::from_secs(5), done_rx).await {
+                            Ok(Ok(())) => {
+                                info!("[DAEMON] All chunks forwarded successfully");
+                            }
+                            Ok(Err(_)) => {
+                                warn!("[DAEMON] Chunk forwarding channel closed unexpectedly");
+                            }
+                            Err(_) => {
+                                warn!("[DAEMON] Timeout waiting for chunk forwarding");
+                            }
+                        }
 
-                        // Small delay to ensure all chunks are sent
-                        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+                        // Additional delay to ensure OS buffers are flushed
+                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
                         Ok(serde_json::json!({ "response": result }))
                     }
@@ -196,10 +376,11 @@ impl DaemonState {
             })
         }).await;
 
-        // create_session handler
+        // create_session handler - spawns a dedicated session process
         let session_manager = self.session_manager.clone();
         server.register("create_session", move |params: serde_json::Value| {
             let session_manager = session_manager.clone();
+            let daemon_addr = daemon_addr_clone.clone();
             Box::pin(async move {
                 let name = params.get("name").and_then(|v| v.as_str()).map(|s| s.to_string());
                 let workspace = params.get("workspace").and_then(|v| v.as_str()).unwrap_or(".").to_string();
@@ -212,7 +393,25 @@ impl DaemonState {
                 let session = session_manager.create_session(request).await
                     .map_err(|e| ipc_contract::IPCError::InternalError(e.to_string()))?;
 
-                Ok(serde_json::json!({ "session_id": session.id }))
+                // Spawn dedicated session process
+                let exe_path = std::env::current_exe()
+                    .map_err(|e| ipc_contract::IPCError::InternalError(format!("failed to get exe path: {}", e)))?;
+
+                let child = Command::new(&exe_path)
+                    .arg("session")
+                    .arg("--session-id")
+                    .arg(session.id.clone())
+                    .arg("--daemon-addr")
+                    .arg(&daemon_addr)
+                    .spawn()
+                    .map_err(|e| ipc_contract::IPCError::InternalError(format!("failed to spawn session process: {}", e)))?;
+
+                info!("Spawned session process for {} with PID: {}", session.id, child.id());
+
+                Ok(serde_json::json!({
+                    "session_id": session.id,
+                    "process_id": child.id()
+                }))
             })
         }).await;
 
@@ -302,9 +501,7 @@ impl DaemonState {
 
 /// Run the daemon process
 pub(crate) async fn run_daemon(port: u16) -> Result<()> {
-    info!("Starting Knight Agent daemon on port {}...", port);
-
-    // Ensure system configuration
+    // Ensure system configuration first
     let home_dir = get_home_dir()?;
     let config_dir = home_dir.join(CONFIG_DIR);
     if !config_dir.exists() {
@@ -317,6 +514,13 @@ pub(crate) async fn run_daemon(port: u16) -> Result<()> {
         let dir_path = config_dir.join(subdir);
         ensure_dir(&dir_path, subdir)?;
     }
+
+    // Initialize logging before anything else
+    let log_dir = config_dir.join("logs");
+    std::fs::create_dir_all(&log_dir).context("Failed to create logs directory")?;
+    let (_guard, _log_writer) = init_logging(&log_dir, 10)?;  // 10MB max file size
+
+    info!("Starting Knight Agent daemon on port {}...", port);
 
     // Initialize daemon state
     let state = DaemonState::new().await?;
@@ -337,13 +541,15 @@ pub(crate) async fn run_daemon(port: u16) -> Result<()> {
     // Create broadcast channel for graceful shutdown
     let (shutdown_tx, mut shutdown_rx) = broadcast::channel(1);
 
-    // Register method handlers
-    state.register_handlers(&mut server, shutdown_tx).await;
-
-    // Start the server
+    // Start the server first to get the bound address
     info!("Starting IPC server on {}...", addr);
     let bound_addr = server.start().await
         .context("IPC server failed")?;
+
+    info!("IPC server listening on {}", bound_addr);
+
+    // Register method handlers (now we have the actual bound address)
+    state.register_handlers(&mut server, shutdown_tx, addr).await;
 
     info!("IPC server listening on {}", bound_addr);
 

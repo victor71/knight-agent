@@ -306,7 +306,7 @@ pub(crate) fn init_logging(log_dir: &Path, config: &configuration::LoggingConfig
     let log_writer = Arc::new(Mutex::new(SessionLogWriter::new(log_dir.to_path_buf(), max_file_size)));
 
     // Set the default session
-    log_writer.lock().unwrap().set_session("default".to_string())?;
+    log_writer.lock().unwrap().set_session("inprocess".to_string())?;
 
     // Create a non-blocking writer from our session log writer wrapper
     let (file_writer, guard) = tracing_appender::non_blocking(LogWriter(log_writer.clone()));

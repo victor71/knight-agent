@@ -8,6 +8,27 @@ use ratatui::text::{Line, Span};
 
 /// Render markdown content to styled lines
 pub fn render_markdown(content: &str) -> Vec<Line<'static>> {
+    // Limit recursion depth to prevent stack overflow
+    thread_local! {
+        static RECURSION_DEPTH: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    let depth = RECURSION_DEPTH.with(|d| d.get());
+    if depth > 10 {
+        // Too deep, render as plain text with simple styling
+        return vec![Line::from(vec![Span::styled(
+            content.to_string(),
+            Style::default().fg(Color::White),
+        )])];
+    }
+
+    RECURSION_DEPTH.with(|d| d.set(depth + 1));
+    let result = render_markdown_inner(content);
+    RECURSION_DEPTH.with(|d| d.set(depth));
+    result
+}
+
+fn render_markdown_inner(content: &str) -> Vec<Line<'static>> {
     // First, check if content contains tables and handle them separately
     if content.contains('|') && content.contains("---") {
         return render_markdown_with_tables(content);

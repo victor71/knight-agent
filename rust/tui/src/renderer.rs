@@ -4,6 +4,7 @@
 
 use anyhow::Result;
 use crossterm::{
+    event::{DisableMouseCapture, EnableMouseCapture},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -21,7 +22,7 @@ impl AppTerminal {
     pub fn new() -> Result<Self> {
         enable_raw_mode()?;
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen)?;
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
         let backend = CrosstermBackend::new(stdout);
         let terminal = Terminal::new(backend)?;
 
@@ -29,7 +30,7 @@ impl AppTerminal {
         let original_hook = panic::take_hook();
         panic::set_hook(Box::new(move |panic_info| {
             let _ = disable_raw_mode();
-            let _ = execute!(io::stdout(), LeaveAlternateScreen);
+            let _ = execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
             original_hook(panic_info);
         }));
 
@@ -62,7 +63,7 @@ impl AppTerminal {
     /// Restore terminal state (called on drop)
     pub fn restore(&mut self) -> Result<()> {
         disable_raw_mode()?;
-        execute!(io::stdout(), LeaveAlternateScreen)?;
+        execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture)?;
         Ok(())
     }
 }

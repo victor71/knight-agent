@@ -98,7 +98,7 @@ pub struct ProviderConfig {
 }
 
 fn default_timeout() -> u64 {
-    120
+    600  // 10 minutes for streaming responses
 }
 
 impl ProviderConfig {
@@ -120,8 +120,11 @@ pub struct GenericLLMProvider {
 impl GenericLLMProvider {
     /// Create a new provider with configuration
     pub fn new(config: ProviderConfig) -> LLMResult<Self> {
+        // Disable gzip and brotli decompression to avoid decoding issues
         let client = Client::builder()
             .timeout(Duration::from_secs(config.timeout_secs))
+            .no_gzip()  // Disable automatic gzip decompression
+            .no_brotli()  // Disable automatic brotli decompression
             .build()
             .map_err(|e| LLMError::InferenceFailed(format!("failed to create HTTP client: {}", e)))?;
 
@@ -681,13 +684,14 @@ impl LLMProvider for GenericLLMProvider {
             )));
         }
 
-        // Create true streaming response using bytes_stream
-        let byte_stream = response.bytes_stream();
+        // Create streaming response using chunks - this is more reliable than bytes_stream
+        // because chunk() returns raw HTTP chunks without additional decoding
+        let mut response = response;
+        let protocol = self.config.protocol;
 
         // Track first token latency
         let first_token_logged = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let chunk_count = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
-        let protocol = self.config.protocol;
 
         // Create a stream that yields parsed chunks
         let chunk_stream = async_stream::try_stream! {
@@ -695,16 +699,33 @@ impl LLMProvider for GenericLLMProvider {
             let mut first_byte = true;
             const MAX_BUFFER_SIZE: usize = 10 * 1024 * 1024; // 10MB limit for safety
 
-            futures::pin_mut!(byte_stream);
+            loop {
+                debug!("LLM calling response.chunk()...");
+                let chunk = response.chunk().await
+                    .map_err(|e| {
+                        error!("LLM response.chunk() error: {}, type: {:?}", e, std::any::type_name::<reqwest::Error>());
+                        // Try to provide more context about the error
+                        if e.is_timeout() {
+                            error!("LLM stream timeout after {}ms", stream_start.elapsed().as_millis());
+                        } else if e.is_connect() {
+                            error!("LLM connection error");
+                        } else if e.is_body() {
+                            error!("LLM body error - possibly encoding or compression issue");
+                        }
+                        LLMError::InferenceFailed(format!("chunk error: {}", e))
+                    })?;
 
-            while let Some(bytes_result) = byte_stream.next().await {
-                debug!("LLM byte_stream.next() returned, reading bytes...");
-                let bytes: Bytes = bytes_result.map_err(|e| {
-                    error!("LLM stream read error: {}", e);
-                    LLMError::InferenceFailed(format!("stream read error: {}", e))
-                })?;
-
-                debug!("LLM received {} bytes from stream", bytes.len());
+                let bytes = match chunk {
+                    Some(c) => {
+                        let b = Bytes::from(c);
+                        debug!("LLM received {} bytes from chunk()", b.len());
+                        b
+                    }
+                    None => {
+                        info!("LLM response.chunk() returned None - stream ended");
+                        break;
+                    }
+                };
 
                 // Log first byte latency
                 if first_byte {
@@ -734,8 +755,8 @@ impl LLMProvider for GenericLLMProvider {
                     }
 
                     let line_bytes = buffer.drain(..=newline_pos).collect::<Vec<_>>();
-                    // Remove the newline character that was included in drain
-                    buffer = buffer.drain(..1).collect::<Vec<_>>();
+                    // After draining the line, the buffer now contains remaining bytes
+                    // No need for additional drain
 
                     // Parse line (excluding newline) - handle invalid UTF-8 gracefully
                     let line = std::str::from_utf8(&line_bytes)
@@ -769,7 +790,7 @@ impl LLMProvider for GenericLLMProvider {
                 }
                 debug!("LLM finished processing lines, remaining buffer: {} bytes", buffer.len());
             }
-            info!("LLM byte_stream ended, exiting chunk loop");
+            info!("LLM chunk loop ended");
 
             info!("LLM streaming complete: {} chunks, {}ms total",
                   chunk_count.load(std::sync::atomic::Ordering::Relaxed),

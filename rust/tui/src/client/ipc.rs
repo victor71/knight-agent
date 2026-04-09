@@ -6,6 +6,7 @@
 use async_trait::async_trait;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::future::Future;
 use tokio::sync::{mpsc, Mutex};
 use tracing::info;
@@ -139,18 +140,42 @@ impl DaemonClient for IpcDaemonClient {
             if let Some(callback) = stream_callback {
                 match client.request_streaming("send_message".to_string(), params).await {
                     Ok((mut chunk_rx, response_rx)) => {
-                        // Spawn task to handle chunks
-                        tokio::spawn(async move {
-                            while let Some(chunk) = chunk_rx.recv().await {
-                                if !callback(chunk.chunk) {
-                                    break; // Stop streaming
+                        // Spawn task to handle chunks with timeout
+                        let chunk_tx = Arc::new(AtomicBool::new(true));
+                        let chunk_tx_for_task = chunk_tx.clone();
+
+                        let handle = tokio::spawn(async move {
+                            while chunk_tx_for_task.load(Ordering::SeqCst) {
+                                tokio::select! {
+                                    chunk = chunk_rx.recv() => {
+                                        match chunk {
+                                            Some(c) => {
+                                                if !callback(c.chunk) {
+                                                    break;
+                                                }
+                                            }
+                                            None => break, // Channel closed
+                                        }
+                                    }
+                                    _ = tokio::time::sleep(std::time::Duration::from_secs(60)) => {
+                                        // Timeout - stop waiting for more chunks
+                                        break;
+                                    }
                                 }
                             }
                         });
 
-                        // Wait for final response
-                        let response = client.wait_for_stream_response(response_rx).await
+                        // Wait for final response with timeout
+                        let response = tokio::time::timeout(
+                            std::time::Duration::from_secs(120),
+                            client.wait_for_stream_response(response_rx)
+                        ).await
+                            .map_err(|_| DaemonClientError::InternalError("Streaming timed out after 120 seconds".to_string()))?
                             .map_err(|e| DaemonClientError::InternalError(e.to_string()))?;
+
+                        // Signal chunk handler to stop and wait for it
+                        chunk_tx.store(false, Ordering::SeqCst);
+                        let _ = handle.await;
 
                         let response_obj: serde_json::Value = response;
                         let result = response_obj.get("response")

@@ -39,9 +39,9 @@ pub enum Command {
 }
 
 impl Args {
-    /// Check if we should run in single-process mode
+    /// Check if we should run in single-process mode (only when explicitly specified)
     pub fn is_in_process_mode(&self) -> bool {
-        self.in_process || self.command.is_none()
+        self.in_process
     }
 
     /// Check if we should run as daemon
@@ -52,5 +52,10 @@ impl Args {
     /// Check if we should run as session
     pub fn is_session_mode(&self) -> bool {
         matches!(self.command, Some(Command::Session { .. }))
+    }
+
+    /// Check if we should run in IPC mode (default when no subcommand specified)
+    pub fn is_ipc_mode(&self) -> bool {
+        self.command.is_none()
     }
 }
