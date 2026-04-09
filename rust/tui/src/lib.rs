@@ -380,20 +380,22 @@ impl TuiApp {
                 // Create streaming callback that sends StreamChunk events
                 let event_tx_clone = event_tx.clone();
                 let stream_callback: Box<dyn Fn(String) -> bool + Send + Sync> = Box::new(move |chunk: String| -> bool {
+                    info!("[TUI] Stream callback called: {} chars", chunk.len());
                     // Send stream chunk to TUI - ignore send errors (channel may be closed)
                     let _ = event_tx_clone.send(AppEvent::StreamChunk(chunk));
                     true  // Continue streaming
                 });
 
+                info!("[TUI] Starting send_message_streaming");
                 // Forward to agent - use daemon client's send_message_streaming
                 match client.send_message_streaming(&session_id, input, Some(stream_callback)).await {
                     Ok(response) => {
-                        info!("Agent response received, length: {}", response.len());
+                        info!("[TUI] Agent response received, length: {}", response.len());
                         // Note: Don't send OutputLine here since streaming already displayed chunks
-                        debug!("Streaming completed, final response length: {}", response.len());
+                        debug!("[TUI] Streaming completed, final response length: {}", response.len());
                     }
                     Err(e) => {
-                        warn!("Daemon client send_message error: {:?}", e);
+                        warn!("[TUI] Daemon client send_message error: {:?}", e);
                         let _ = event_tx.send(AppEvent::OutputLine(
                             crate::state::OutputLine {
                                 content: format!("Agent error: {}", e),

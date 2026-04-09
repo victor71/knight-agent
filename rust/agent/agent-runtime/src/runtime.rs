@@ -370,6 +370,8 @@ impl AgentRuntimeImpl {
                 // Collect all chunks from the stream
                 let mut full_content = String::new();
                 let mut chunk_count = 0;
+                let mut empty_chunks = 0;
+                let mut thinking_chunks = 0;
 
                 use futures::StreamExt;
                 let mut stream = stream;
@@ -377,6 +379,10 @@ impl AgentRuntimeImpl {
                 while let Some(chunk_result) = stream.next().await {
                     match chunk_result {
                         Ok(chunk) => {
+                            // Debug: log chunk details
+                            debug!("[AGENT-RUNTIME] Raw chunk: id={}, content_len={:?}, is_thinking={:?}",
+                                   chunk.id, chunk.content.as_ref().map(|s| s.len()), chunk.is_thinking);
+
                             // Extract text from chunk
                             if let Some(text) = self.extract_text_from_chunk(&chunk) {
                                 // Call callback if provided
@@ -393,6 +399,17 @@ impl AgentRuntimeImpl {
                                     chunk_count += 1;
                                 }
                                 debug!("Received stream chunk {}: {} chars", chunk_count, text.len());
+                            } else {
+                                // Track why chunk was skipped
+                                if chunk.is_thinking == Some(true) {
+                                    thinking_chunks += 1;
+                                } else {
+                                    empty_chunks += 1;
+                                }
+                                if empty_chunks <= 5 {  // Only log first few empty chunks
+                                    debug!("[AGENT-RUNTIME] Skipped chunk: content={:?}, is_thinking={:?}",
+                                           chunk.content, chunk.is_thinking);
+                                }
                             }
                         }
                         Err(e) => {
@@ -402,9 +419,12 @@ impl AgentRuntimeImpl {
                     }
                 }
 
-                info!("[AGENT-RUNTIME] Streaming complete: {} chunks, {} total chars", chunk_count, full_content.len());
+                info!("[AGENT-RUNTIME] Streaming complete: {} text chunks, {} empty chunks, {} thinking chunks, {} total chars",
+                      chunk_count, empty_chunks, thinking_chunks, full_content.len());
 
                 if full_content.is_empty() {
+                    warn!("[AGENT-RUNTIME] No content received from stream! empty_chunks={}, thinking_chunks={}",
+                          empty_chunks, thinking_chunks);
                     Ok(Message::assistant("No response from LLM".to_string()))
                 } else {
                     Ok(Message::assistant(full_content))

@@ -7,6 +7,7 @@ use crate::state::*;
 use chrono::{DateTime, Local};
 use std::time::Duration;
 use tokio::sync::mpsc;
+use tracing::{info, debug};
 
 use crate::event::AppEvent;
 
@@ -104,6 +105,9 @@ impl AppState {
                 self.add_output_line(line.clone());
             }
             AppEvent::StreamChunk(chunk) => {
+                // Log chunk reception
+                info!("[TUI-STATE] StreamChunk received: {} chars", chunk.len());
+
                 // Check if this chunk contains thinking content
                 let is_thinking = chunk.contains("Thinking:") || chunk.contains("Thought:") ||
                                   chunk.contains("<thinking>") || chunk.contains("💭");
@@ -119,6 +123,7 @@ impl AppState {
                 if let Some(last) = self.output_lines.last_mut() {
                     if std::mem::discriminant(&last.style) == std::mem::discriminant(&style) {
                         last.content.push_str(chunk);
+                        debug!("[TUI-STATE] Appended chunk to last line, total: {} chars", last.content.len());
                         return;
                     }
                 }
@@ -128,6 +133,7 @@ impl AppState {
                     timestamp: Local::now(),
                     ..Default::default()
                 });
+                debug!("[TUI-STATE] Added new output line for chunk");
             }
             AppEvent::ClearOutput => {
                 self.output_lines.clear();
