@@ -341,24 +341,33 @@ impl DaemonState {
                     // Relay streaming request to session
                     match session_client.request_streaming("send_message".to_string(), relay_params).await {
                         Ok((mut chunk_rx, response_rx)) => {
-                            // Forward chunks to the original caller
-                            let mut sequence = 0u64;
-                            while let Some(chunk_msg) = chunk_rx.recv().await {
-                                let _ = stream_ctx.send_chunk(chunk_msg.chunk, sequence, false);
-                                sequence += 1;
-                            }
+                            // Spawn task to forward chunks asynchronously
+                            let chunk_task = tokio::spawn(async move {
+                                let mut sequence = 0u64;
+                                while let Some(chunk_msg) = chunk_rx.recv().await {
+                                    if stream_ctx.send_chunk(chunk_msg.chunk, sequence, false).is_err() {
+                                        break;
+                                    }
+                                    sequence += 1;
+                                }
+                            });
 
-                            // Wait for final response
-                            match response_rx.await {
+                            // Wait for final response from session
+                            let response_result = response_rx.await;
+
+                            // Wait for chunk forwarding to complete
+                            let _ = chunk_task.await;
+
+                            session_client.disconnect().await;
+
+                            match response_result {
                                 Ok(response) => {
-                                    session_client.disconnect().await;
                                     // Extract result from ResponseMessage
                                     Ok(response.result.unwrap_or(serde_json::json!({
                                         "response": ""
                                     })))
                                 }
                                 Err(e) => {
-                                    session_client.disconnect().await;
                                     Ok(serde_json::json!({
                                         "response": format!("Error: {}", e),
                                         "error": true

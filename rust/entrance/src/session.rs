@@ -389,12 +389,11 @@ async fn register_session_handlers(
 
             info!("[SESSION] send_message streaming: content_len={}", content.len());
 
-            // Create channels to receive chunks from the agent and signal completion
+            // Create channel to receive chunks from the agent
             let (chunk_tx, mut chunk_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
-            let (done_tx, mut done_rx) = tokio::sync::oneshot::channel::<()>();
 
             // Spawn task to forward chunks to StreamingContext
-            tokio::spawn(async move {
+            let stream_task = tokio::spawn(async move {
                 let mut sequence = 0u64;
                 let mut total_chunks = 0;
                 while let Some(chunk) = chunk_rx.recv().await {
@@ -404,7 +403,6 @@ async fn register_session_handlers(
                     sequence += 1;
                 }
                 info!("[SESSION] Stream forwarding complete: {} total chunks", total_chunks);
-                let _ = done_tx.send(());
             });
 
             // Create streaming callback
@@ -417,19 +415,18 @@ async fn register_session_handlers(
             });
 
             // Call session manager with this session's context
-            match session_manager.send_message_to_session_streaming(&session_id, content, Some(stream_callback)).await {
-                Ok(result) => {
-                    info!("[SESSION] send_message_to_session_streaming completed, response_len={}", result.len());
+            let result = session_manager.send_message_to_session_streaming(&session_id, content, Some(stream_callback)).await;
 
-                    // Wait for streaming chunks to be fully forwarded
-                    match tokio::time::timeout(tokio::time::Duration::from_secs(5), done_rx).await {
-                        Ok(Ok(())) => info!("[SESSION] All chunks forwarded successfully"),
-                        Ok(Err(_)) => warn!("[SESSION] Chunk forwarding channel closed unexpectedly"),
-                        Err(_) => warn!("[SESSION] Timeout waiting for chunk forwarding"),
-                    }
+            // Signal end of chunks by dropping chunk_tx
+            drop(chunk_tx);
 
-                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                    Ok(serde_json::json!({ "response": result }))
+            // Wait for streaming task to complete
+            let _ = stream_task.await;
+
+            match result {
+                Ok(response_text) => {
+                    info!("[SESSION] send_message_to_session_streaming completed, response_len={}", response_text.len());
+                    Ok(serde_json::json!({ "response": response_text }))
                 }
                 Err(e) => {
                     warn!("[SESSION] send_message_to_session_streaming error: {:?}", e);
