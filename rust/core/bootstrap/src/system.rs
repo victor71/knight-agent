@@ -129,10 +129,14 @@ impl KnightAgentSystem {
         let module_count = modules.len();
         let initialized_count = modules.values().filter(|m| m.initialized).count();
 
+        // System is ready when all expected modules for this mode are initialized
+        let expected_count = self.config.mode.expected_module_count();
+        let ready = initialized && module_count == expected_count;
+
         SystemStatus {
             stage: stage.as_u8(),
             initialized,
-            ready: initialized && module_count == 23, // Total module count
+            ready,
             module_count,
             initialized_count,
         }

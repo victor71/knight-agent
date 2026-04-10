@@ -219,6 +219,18 @@ pub enum BootstrapMode {
     Session,
 }
 
+impl BootstrapMode {
+    /// Get the expected module count for this mode
+    /// Daemon: 10 modules (communication proxy only)
+    /// Session: 24 modules (full LLM stack)
+    pub fn expected_module_count(&self) -> usize {
+        match self {
+            BootstrapMode::Daemon => 10,
+            BootstrapMode::Session => 24,
+        }
+    }
+}
+
 impl Default for BootstrapConfig {
     fn default() -> Self {
         Self {

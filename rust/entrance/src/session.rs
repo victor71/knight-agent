@@ -6,7 +6,7 @@
 
 use anyhow::{Context, Result};
 use bootstrap::{BootstrapConfig, BootstrapMode, KnightAgentSystem};
-use session_manager::StreamCallback;
+use session_manager::{CreateSessionRequest, StreamCallback};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -264,6 +264,26 @@ pub(crate) async fn run_session(session_id: String, daemon_addr: String) -> Resu
     match session_manager.restore_sessions().await {
         Ok(_) => info!("Restored sessions from storage"),
         Err(e) => info!("No sessions to restore or restore failed: {}", e),
+    }
+
+    // Create this session in the session manager so messages can be processed
+    // The session was created by the daemon, but we need it locally to handle messages
+    let workspace = std::env::current_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| ".".to_string());
+
+    match session_manager.create_session(session_manager::CreateSessionRequest {
+        name: Some(session_id.clone()),
+        workspace,
+        project_type: None,
+        description: None,
+        tags: None,
+    }).await {
+        Ok(session) => info!("Created session {} in session manager", session.id),
+        Err(e) => {
+            // Session might already exist (e.g., from restore)
+            info!("Create session result: {} (session may already exist)", e);
+        }
     }
 
     // Create session state
