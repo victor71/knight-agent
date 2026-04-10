@@ -252,6 +252,8 @@ impl Session {
 /// Session creation request
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateSessionRequest {
+    /// Optional ID - if not provided, a new ID will be generated
+    pub id: Option<String>,
     pub name: Option<String>,
     pub workspace: String,
     pub project_type: Option<ProjectType>,
@@ -262,6 +264,7 @@ pub struct CreateSessionRequest {
 impl CreateSessionRequest {
     pub fn new(workspace: impl Into<String>) -> Self {
         Self {
+            id: None,
             name: None,
             workspace: workspace.into(),
             project_type: None,

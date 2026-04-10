@@ -61,7 +61,7 @@ impl SessionManagerImpl {
 
     /// Create a new session
     pub async fn create_session(&self, request: CreateSessionRequest) -> SessionResult<Session> {
-        let id = generate_session_id();
+        let id = request.id.unwrap_or_else(generate_session_id);
         let workspace = request.workspace;
 
         let metadata = SessionMetadata {

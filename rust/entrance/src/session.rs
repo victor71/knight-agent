@@ -273,6 +273,7 @@ pub(crate) async fn run_session(session_id: String, daemon_addr: String) -> Resu
         .unwrap_or_else(|_| ".".to_string());
 
     match session_manager.create_session(session_manager::CreateSessionRequest {
+        id: Some(session_id.clone()),  // Use the session_id from daemon
         name: Some(session_id.clone()),
         workspace,
         project_type: None,
