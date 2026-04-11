@@ -31,7 +31,7 @@ use crossterm::event::{
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 use widgets::*;
 
 /// Main TUI application
@@ -202,8 +202,6 @@ impl TuiApp {
 
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
-
-        Ok(())
     }
 
     /// Handle a key event

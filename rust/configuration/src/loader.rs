@@ -47,6 +47,9 @@ pub enum SystemConfig {
     Security(SecurityConfig),
 }
 
+/// Config parser function type alias
+type ConfigParser = fn(&str) -> Result<SystemConfig, serde_yaml::Error>;
+
 /// Configuration loader
 pub struct ConfigLoader {
     /// Config directory path
@@ -134,7 +137,7 @@ impl ConfigLoader {
         let mut configs = HashMap::new();
 
         // Define system config files and their loaders
-        let system_files: &[(&str, fn(&str) -> Result<SystemConfig, serde_yaml::Error>)] = &[
+        let system_files: &[(&str, ConfigParser)] = &[
             ("agent", |content| {
                 serde_yaml::from_str(content).map(SystemConfig::Agent)
             }),

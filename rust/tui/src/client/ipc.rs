@@ -20,8 +20,6 @@ use super::{DaemonClient, DaemonClientError, DaemonClientResult};
 pub struct IpcDaemonClient {
     /// IPC client for communication (wrapped in Mutex for mutable access)
     ipc_client: Arc<Mutex<ipc_contract::IpcClient>>,
-    /// Daemon address
-    daemon_addr: String,
 }
 
 impl IpcDaemonClient {
@@ -53,7 +51,6 @@ impl IpcDaemonClient {
 
         Ok(Self {
             ipc_client: Arc::new(Mutex::new(ipc_client)),
-            daemon_addr,
         })
     }
 
@@ -152,7 +149,7 @@ impl DaemonClient for IpcDaemonClient {
                 "content": content,
             });
 
-            let mut client = client.lock().await;
+            let client = client.lock().await;
 
             // Use streaming if callback provided
             if let Some(callback) = stream_callback {
@@ -197,7 +194,11 @@ impl DaemonClient for IpcDaemonClient {
                                 "Streaming timed out after 120 seconds".to_string(),
                             )
                         })?
-                        .map_err(|e| DaemonClientError::InternalError(e.to_string()))?;
+                        .map_err(|_e| {
+                            DaemonClientError::InternalError(
+                                "Failed to wait for stream response".to_string(),
+                            )
+                        })?;
 
                         // Signal chunk handler to stop and wait for it
                         chunk_tx.store(false, Ordering::SeqCst);
@@ -400,7 +401,7 @@ impl DaemonClient for IpcDaemonClient {
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0) as u8;
 
-            let initialized = response_obj
+            let _initialized = response_obj
                 .get("initialized")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
@@ -444,8 +445,6 @@ impl DaemonClient for IpcDaemonClient {
         &self,
     ) -> Pin<Box<dyn Future<Output = DaemonClientResult<mpsc::UnboundedReceiver<AppEvent>>> + Send>>
     {
-        let client = self.ipc_client.clone();
-
         Box::pin(async move {
             // TODO: Phase 4 - Implement event subscription via IPC
             // For now, return empty channel
