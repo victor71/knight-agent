@@ -20,10 +20,10 @@ async fn test_bootstrap_stage_enum() {
 #[tokio::test]
 async fn test_bootstrap_stage_modules() {
     let stage1 = BootstrapStage::Stage1Infrastructure;
-    assert_eq!(stage1.modules(), vec!["logging-system"]);
+    assert_eq!(stage1.modules(BootstrapMode::Daemon), vec!["logging-system"]);
 
     let stage8 = BootstrapStage::Stage8SecurityLayer;
-    assert_eq!(stage8.modules(), vec!["sandbox", "ipc-contract"]);
+    assert_eq!(stage8.modules(BootstrapMode::Daemon), vec!["sandbox", "ipc-contract"]);
 }
 
 #[tokio::test]
@@ -50,8 +50,9 @@ async fn test_system_status() {
     assert!(status.initialized);
     assert!(status.ready);
     assert_eq!(status.stage, 8);
-    assert_eq!(status.module_count, 23);
-    assert_eq!(status.initialized_count, 23);
+    // Daemon mode has 10 modules
+    assert_eq!(status.module_count, 10);
+    assert_eq!(status.initialized_count, 10);
 }
 
 #[tokio::test]
@@ -60,7 +61,8 @@ async fn test_module_statuses() {
     system.bootstrap().await.unwrap();
 
     let modules = system.module_statuses().await;
-    assert_eq!(modules.len(), 23);
+    // Daemon mode has 10 modules
+    assert_eq!(modules.len(), 10);
 
     // Check that logging-system is initialized
     let logging_status = system.module_status("logging-system").await;
@@ -78,7 +80,8 @@ async fn test_health_check() {
 
     let detailed_health = system.health_check(true).await.unwrap();
     assert!(detailed_health.healthy);
-    assert_eq!(detailed_health.details.len(), 23);
+    // Daemon mode has 10 modules
+    assert_eq!(detailed_health.details.len(), 10);
 }
 
 #[tokio::test]
