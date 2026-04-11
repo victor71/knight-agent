@@ -15,7 +15,11 @@ pub trait ReportSkill: Send + Sync {
     async fn generate_report(&self, request: GenerateReportRequest) -> ReportSkillResult<Report>;
     async fn get_report(&self, id: &str) -> ReportSkillResult<Report>;
     async fn list_reports(&self) -> ReportSkillResult<Vec<Report>>;
-    async fn schedule_report(&self, request: GenerateReportRequest, schedule: &str) -> ReportSkillResult<String>;
+    async fn schedule_report(
+        &self,
+        request: GenerateReportRequest,
+        schedule: &str,
+    ) -> ReportSkillResult<String>;
     async fn cancel_scheduled_report(&self, task_id: &str) -> ReportSkillResult<()>;
     async fn register_template(&self, template: ReportTemplate) -> ReportSkillResult<()>;
 }

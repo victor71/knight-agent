@@ -1,7 +1,7 @@
 use crate::error::{SandboxError, SandboxResult};
 use crate::types::{
-    SandboxConfig, SandboxInfo, SandboxStatus, FileAction, AccessCheckResult,
-    ResourceUsage, ResourceLimits, Violation
+    AccessCheckResult, FileAction, ResourceLimits, ResourceUsage, SandboxConfig, SandboxInfo,
+    SandboxStatus, Violation,
 };
 
 /// Sandbox trait - provides security boundaries for agent operations
@@ -18,7 +18,10 @@ pub trait Sandbox: Send + Sync {
     async fn create_sandbox(&self, config: SandboxConfig) -> SandboxResult<String>;
     async fn destroy_sandbox(&self, sandbox_id: &str) -> SandboxResult<()>;
     async fn get_sandbox(&self, sandbox_id: &str) -> SandboxResult<Option<SandboxInfo>>;
-    async fn list_sandboxes(&self, status: Option<SandboxStatus>) -> SandboxResult<Vec<SandboxInfo>>;
+    async fn list_sandboxes(
+        &self,
+        status: Option<SandboxStatus>,
+    ) -> SandboxResult<Vec<SandboxInfo>>;
 
     // Access control
     async fn check_file_access(
@@ -45,7 +48,11 @@ pub trait Sandbox: Send + Sync {
     // Resource monitoring
     async fn get_resource_usage(&self, sandbox_id: &str) -> SandboxResult<ResourceUsage>;
     async fn get_resource_limits(&self, sandbox_id: &str) -> SandboxResult<ResourceLimits>;
-    async fn set_resource_limits(&self, sandbox_id: &str, limits: ResourceLimits) -> SandboxResult<()>;
+    async fn set_resource_limits(
+        &self,
+        sandbox_id: &str,
+        limits: ResourceLimits,
+    ) -> SandboxResult<()>;
 
     // Violation handling
     async fn get_violations(
@@ -53,9 +60,17 @@ pub trait Sandbox: Send + Sync {
         sandbox_id: &str,
         time_range: Option<(String, String)>,
     ) -> SandboxResult<Vec<Violation>>;
-    async fn report_violation(&self, sandbox_id: &str, violation: Violation) -> SandboxResult<String>;
+    async fn report_violation(
+        &self,
+        sandbox_id: &str,
+        violation: Violation,
+    ) -> SandboxResult<String>;
 
     // Configuration
     async fn get_sandbox_config(&self, sandbox_id: &str) -> SandboxResult<SandboxConfig>;
-    async fn update_sandbox_config(&self, sandbox_id: &str, config: SandboxConfig) -> SandboxResult<()>;
+    async fn update_sandbox_config(
+        &self,
+        sandbox_id: &str,
+        config: SandboxConfig,
+    ) -> SandboxResult<()>;
 }

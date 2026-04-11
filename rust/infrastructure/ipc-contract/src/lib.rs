@@ -17,10 +17,9 @@ pub use registry::{AwaitInfo, AwaitRegistry};
 pub use server::{IpcServer, IpcServerConfig, ServerEvent, StreamingContext};
 pub use transport::{Connection, TcpConnection, TcpTransport, Transport};
 pub use types::{
-    BaseMessage, ErrorResponse, MessageType, NotificationMessage, PendingQuery,
-    QueryContext, QueryDependencies, QueryType, RequestMessage, RequestOptions,
-    ResponseMessage, StreamChunkMessage, UserQueryMessage, UserResponseData,
-    UserResponseMessage,
+    BaseMessage, ErrorResponse, MessageType, NotificationMessage, PendingQuery, QueryContext,
+    QueryDependencies, QueryType, RequestMessage, RequestOptions, ResponseMessage,
+    StreamChunkMessage, UserQueryMessage, UserResponseData, UserResponseMessage,
 };
 
 mod client;

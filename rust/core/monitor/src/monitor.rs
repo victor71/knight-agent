@@ -80,7 +80,11 @@ impl MonitorImpl {
     }
 
     /// Get system statistics
-    pub async fn get_stats(&self, scope: Option<StatScope>, _id: Option<&str>) -> MonitorResult<SystemStats> {
+    pub async fn get_stats(
+        &self,
+        scope: Option<StatScope>,
+        _id: Option<&str>,
+    ) -> MonitorResult<SystemStats> {
         let scope = scope.unwrap_or(StatScope::All);
 
         let tokens = self.token_usage.read().await.clone();
@@ -124,7 +128,11 @@ impl MonitorImpl {
     }
 
     /// Get system status
-    pub async fn get_status(&self, scope: Option<StatusScope>, _id: Option<&str>) -> MonitorResult<SystemStatus> {
+    pub async fn get_status(
+        &self,
+        scope: Option<StatusScope>,
+        _id: Option<&str>,
+    ) -> MonitorResult<SystemStatus> {
         let _scope = scope.unwrap_or(StatusScope::All);
         let stats = self.get_stats(Some(StatScope::All), None).await?;
 

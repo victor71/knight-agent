@@ -106,7 +106,10 @@ impl Connection for TcpConnection {
 
     async fn close(&mut self) -> IPCResult<()> {
         use tokio::io::AsyncWriteExt;
-        self.framed.get_mut().shutdown().await
+        self.framed
+            .get_mut()
+            .shutdown()
+            .await
             .map_err(|e| IPCError::SendFailed(e.to_string()))?;
         Ok(())
     }
@@ -155,9 +158,9 @@ impl Transport for TcpTransport {
     }
 
     async fn connect(&self, addr: &SocketAddr) -> IPCResult<Self::Connection> {
-        let stream = TcpStream::connect(addr)
-            .await
-            .map_err(|e| IPCError::ConnectionFailed(format!("Failed to connect {}: {}", addr, e)))?;
+        let stream = TcpStream::connect(addr).await.map_err(|e| {
+            IPCError::ConnectionFailed(format!("Failed to connect {}: {}", addr, e))
+        })?;
         Ok(TcpConnection::new(stream, *addr))
     }
 }

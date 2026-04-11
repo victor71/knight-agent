@@ -372,12 +372,18 @@ mod tests {
     fn test_workflow_definition_new() {
         let meta = WorkflowMetadata::new("test", "test", "Test workflow", "test.md");
         let def = WorkflowDefinition::new(meta)
-            .with_steps(vec![
-                WorkflowStep::new("step1", "Step 1", "agent", "Do something"),
-            ])
-            .with_parameters(vec![
-                WorkflowParameter::new("param1", "string", true, "A parameter"),
-            ]);
+            .with_steps(vec![WorkflowStep::new(
+                "step1",
+                "Step 1",
+                "agent",
+                "Do something",
+            )])
+            .with_parameters(vec![WorkflowParameter::new(
+                "param1",
+                "string",
+                true,
+                "A parameter",
+            )]);
 
         assert_eq!(def.steps.len(), 1);
         assert_eq!(def.parameters.len(), 1);

@@ -45,7 +45,6 @@ pub enum TaskType {
     Workflow,
 }
 
-
 /// Task status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -61,7 +60,6 @@ pub enum TaskStatus {
     Skipped,
 }
 
-
 /// Workflow status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -76,7 +74,6 @@ pub enum WorkflowStatus {
     Paused,
 }
 
-
 /// Dependency condition
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -87,7 +84,6 @@ pub enum DependencyCondition {
     Failed,
     Completed,
 }
-
 
 /// Task definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -247,7 +243,6 @@ pub enum RetryBackoff {
     Exponential,
 }
 
-
 /// Workflow definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkflowDefinition {
@@ -404,7 +399,10 @@ pub struct TaskExecutionResult {
 }
 
 impl TaskExecutionResult {
-    pub fn success(outputs: serde_json::Map<String, serde_json::Value>, execution_time_ms: u64) -> Self {
+    pub fn success(
+        outputs: serde_json::Map<String, serde_json::Value>,
+        execution_time_ms: u64,
+    ) -> Self {
         Self {
             success: true,
             outputs,
@@ -491,7 +489,11 @@ impl Workflow {
             description: def.description.clone(),
             status: WorkflowStatus::Pending,
             variables: def.variables.clone(),
-            tasks: def.tasks.iter().map(|t| Task::from_definition(t, Some(def.id.clone()))).collect(),
+            tasks: def
+                .tasks
+                .iter()
+                .map(|t| Task::from_definition(t, Some(def.id.clone())))
+                .collect(),
             progress: 0.0,
             started_at: None,
             completed_at: None,
@@ -623,8 +625,8 @@ mod tests {
 
     #[test]
     fn test_task_definition_with_skill() {
-        let task = TaskDefinition::new("task-1", "Test Task", "A test task")
-            .with_skill("code-review");
+        let task =
+            TaskDefinition::new("task-1", "Test Task", "A test task").with_skill("code-review");
         assert_eq!(task.skill, Some("code-review".to_string()));
         assert_eq!(task.task_type, TaskType::Skill);
     }

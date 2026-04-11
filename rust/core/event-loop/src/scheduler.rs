@@ -65,10 +65,7 @@ impl EventScheduler {
                 debug!("Event {} already scheduled, updating", event.id);
             }
             map.insert(event.id.clone(), scheduled);
-            info!(
-                "Scheduled event '{}' with delay {}ms",
-                event.id, delay_ms
-            );
+            info!("Scheduled event '{}' with delay {}ms", event.id, delay_ms);
             true
         } else {
             false
@@ -188,10 +185,7 @@ mod tests {
         scheduler.schedule(event, 500);
 
         // Should have time remaining
-        let remaining = scheduler
-            .get_ready_events()
-            .first()
-            .map(|_| ());
+        let remaining = scheduler.get_ready_events().first().map(|_| ());
         // No events ready yet (delay is 500ms)
         assert!(scheduler.len() == 1);
     }

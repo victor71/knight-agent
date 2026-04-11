@@ -101,8 +101,12 @@ impl CommandParser {
             }
         }
 
-        let name = name.ok_or_else(|| CommandError::ParseError("Missing 'name' in front matter".to_string()))?;
-        let description = description.ok_or_else(|| CommandError::ParseError("Missing 'description' in front matter".to_string()))?;
+        let name = name.ok_or_else(|| {
+            CommandError::ParseError("Missing 'name' in front matter".to_string())
+        })?;
+        let description = description.ok_or_else(|| {
+            CommandError::ParseError("Missing 'description' in front matter".to_string())
+        })?;
 
         let file_path = path.to_string_lossy().to_string();
 
@@ -154,7 +158,9 @@ impl CommandParser {
         }
 
         if syntax.is_empty() {
-            return Err(CommandError::ParseError("Missing Usage section".to_string()));
+            return Err(CommandError::ParseError(
+                "Missing Usage section".to_string(),
+            ));
         }
 
         Ok(CommandUsage {
@@ -193,7 +199,10 @@ impl CommandParser {
 
             // Parse arg definition like `- name: path` or `- path (optional): description`
             if trimmed.starts_with('-') || trimmed.starts_with('`') {
-                let clean = trimmed.trim_start_matches('-').trim_start_matches('`').trim();
+                let clean = trimmed
+                    .trim_start_matches('-')
+                    .trim_start_matches('`')
+                    .trim();
                 if clean.is_empty() {
                     continue;
                 }
@@ -209,16 +218,17 @@ impl CommandParser {
                 let (name, default) = if let Some(paren_start) = name_part.find('(') {
                     let name = name_part[..paren_start].trim();
                     let paren_content = &name_part[paren_start..];
-                    let default = if paren_content.contains("optional") || paren_content.contains("=") {
-                        paren_content
-                            .trim_start_matches('(')
-                            .trim_end_matches(')')
-                            .split('=')
-                            .nth(1)
-                            .map(|s| s.trim().to_string())
-                    } else {
-                        None
-                    };
+                    let default =
+                        if paren_content.contains("optional") || paren_content.contains("=") {
+                            paren_content
+                                .trim_start_matches('(')
+                                .trim_end_matches(')')
+                                .split('=')
+                                .nth(1)
+                                .map(|s| s.trim().to_string())
+                        } else {
+                            None
+                        };
                     (name.to_string(), default)
                 } else {
                     (name_part.to_string(), None)
@@ -277,10 +287,13 @@ impl CommandParser {
 
         // Try to find workflow definition path
         for line in body.lines() {
-            if line.contains("workflow_definition_path") || line.contains("workflow definition path") {
+            if line.contains("workflow_definition_path")
+                || line.contains("workflow definition path")
+            {
                 // Extract path if present
                 if let Some(path_start) = line.find('/') {
-                    let path = line[path_start..].trim_matches(|c| c == '`' || c == ' ' || c == '"');
+                    let path =
+                        line[path_start..].trim_matches(|c| c == '`' || c == ' ' || c == '"');
                     if !path.is_empty() && path.starts_with("workflows/") {
                         config.workflow_definition_path = Some(path.to_string());
                     }
@@ -324,7 +337,10 @@ impl ArgBinder {
                     ""
                 };
 
-                bound.insert(name.to_string(), serde_json::Value::String(value.to_string()));
+                bound.insert(
+                    name.to_string(),
+                    serde_json::Value::String(value.to_string()),
+                );
             }
         }
 
@@ -382,7 +398,12 @@ impl VariableResolver {
             if let Some(end) = result[start..].find("}}") {
                 let var_expr = &result[start + 2..start + end];
                 let value = Self::resolve_variable(var_expr.trim(), context);
-                result = format!("{}{}{}", &result[..start], value, &result[start + end + 2..]);
+                result = format!(
+                    "{}{}{}",
+                    &result[..start],
+                    value,
+                    &result[start + end + 2..]
+                );
             } else {
                 break;
             }
@@ -432,7 +453,10 @@ impl VariableResolver {
     }
 
     /// Resolve variables in a JSON value
-    pub fn resolve_value(value: &serde_json::Value, context: &CommandExecutionContext) -> serde_json::Value {
+    pub fn resolve_value(
+        value: &serde_json::Value,
+        context: &CommandExecutionContext,
+    ) -> serde_json::Value {
         match value {
             serde_json::Value::String(s) => {
                 serde_json::Value::String(Self::resolve_string(s, context))
@@ -444,11 +468,11 @@ impl VariableResolver {
                     .collect();
                 serde_json::Value::Object(resolved)
             }
-            serde_json::Value::Array(arr) => {
-                serde_json::Value::Array(
-                    arr.iter().map(|v| Self::resolve_value(v, context)).collect()
-                )
-            }
+            serde_json::Value::Array(arr) => serde_json::Value::Array(
+                arr.iter()
+                    .map(|v| Self::resolve_value(v, context))
+                    .collect(),
+            ),
             _ => value.clone(),
         }
     }
@@ -514,10 +538,9 @@ command_type: workflow
 
     #[test]
     fn test_arg_binder_positional() {
-        let cmd = CommandDefinition::new("test", "Test", "/test <arg>", "test.md")
-            .with_args(vec![
-                CommandArg::new("arg", "An argument").with_required(true),
-            ]);
+        let cmd = CommandDefinition::new("test", "Test", "/test <arg>", "test.md").with_args(vec![
+            CommandArg::new("arg", "An argument").with_required(true),
+        ]);
 
         let bound = ArgBinder::bind_args(&cmd, &["value".to_string()]).unwrap();
         assert_eq!(bound.get("arg").unwrap().as_str().unwrap(), "value");
@@ -526,11 +549,10 @@ command_type: workflow
     #[test]
     fn test_arg_binder_named() {
         let cmd = CommandDefinition::new("test", "Test", "/test --arg <val>", "test.md")
-            .with_args(vec![
-                CommandArg::new("arg", "An argument"),
-            ]);
+            .with_args(vec![CommandArg::new("arg", "An argument")]);
 
-        let bound = ArgBinder::bind_args(&cmd, &["--arg".to_string(), "value".to_string()]).unwrap();
+        let bound =
+            ArgBinder::bind_args(&cmd, &["--arg".to_string(), "value".to_string()]).unwrap();
         assert_eq!(bound.get("arg").unwrap().as_str().unwrap(), "value");
     }
 
@@ -538,10 +560,12 @@ command_type: workflow
     fn test_variable_resolver() {
         let cmd = CommandDefinition::new("test", "Test", "/test", "test.md");
         let mut parsed_args = serde_json::Map::new();
-        parsed_args.insert("name".to_string(), serde_json::Value::String("Alice".to_string()));
+        parsed_args.insert(
+            "name".to_string(),
+            serde_json::Value::String("Alice".to_string()),
+        );
 
-        let context = CommandExecutionContext::new(cmd, parsed_args)
-            .with_user_input("test input");
+        let context = CommandExecutionContext::new(cmd, parsed_args).with_user_input("test input");
 
         let resolved = VariableResolver::resolve_string("Hello {{ name }}!", &context);
         assert_eq!(resolved, "Hello Alice!");
@@ -551,7 +575,10 @@ command_type: workflow
     fn test_variable_resolver_with_filter() {
         let cmd = CommandDefinition::new("test", "Test", "/test", "test.md");
         let mut parsed_args = serde_json::Map::new();
-        parsed_args.insert("name".to_string(), serde_json::Value::String("alice".to_string()));
+        parsed_args.insert(
+            "name".to_string(),
+            serde_json::Value::String("alice".to_string()),
+        );
 
         let context = CommandExecutionContext::new(cmd, parsed_args);
 

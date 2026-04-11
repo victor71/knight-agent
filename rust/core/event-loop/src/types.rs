@@ -35,7 +35,11 @@ fn default_priority() -> u32 {
 
 impl Event {
     /// Create a new event
-    pub fn new(id: impl Into<String>, event_type: impl Into<String>, source: impl Into<String>) -> Self {
+    pub fn new(
+        id: impl Into<String>,
+        event_type: impl Into<String>,
+        source: impl Into<String>,
+    ) -> Self {
         Self {
             id: id.into(),
             event_type: event_type.into(),
@@ -156,7 +160,11 @@ fn default_enabled() -> bool {
 
 impl EventSource {
     /// Create a new event source
-    pub fn new(id: impl Into<String>, name: impl Into<String>, source_type: EventSourceType) -> Self {
+    pub fn new(
+        id: impl Into<String>,
+        name: impl Into<String>,
+        source_type: EventSourceType,
+    ) -> Self {
         Self {
             id: id.into(),
             name: name.into(),

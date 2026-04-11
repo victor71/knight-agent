@@ -7,14 +7,14 @@
 //! - Variant inheritance and override mechanisms
 //! - Agent reference resolution (e.g., "code-reviewer:quick")
 
-pub mod types;
 pub mod registry;
+pub mod types;
 
-pub use types::AgentVariantError;
 pub use registry::AgentVariantRegistryImpl;
+pub use types::AgentVariantError;
 
 // Re-export types for convenience
 pub use types::{
-    ModelConfig, PermissionConfig, AgentDefinition, AgentVariant, VariantOverrides,
-    VariantInfo, AgentVariantInfo, ValidationResult, ResolvedAgentRef,
+    AgentDefinition, AgentVariant, AgentVariantInfo, ModelConfig, PermissionConfig,
+    ResolvedAgentRef, ValidationResult, VariantInfo, VariantOverrides,
 };

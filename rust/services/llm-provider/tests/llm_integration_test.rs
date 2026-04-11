@@ -6,8 +6,7 @@ use std::collections::HashMap;
 
 use llm_provider::{
     provider::{GenericLLMProvider, LLMProtocol, ModelPricing, ProviderConfig},
-    ChatCompletionRequest, Content, Message, MessageRole,
-    LLMProvider,
+    ChatCompletionRequest, Content, LLMProvider, Message, MessageRole,
 };
 
 /// Get API key from knight.json config or fallback to environment variable
@@ -33,7 +32,8 @@ fn get_api_key() -> String {
                 .and_then(|k| k.as_str())
             {
                 // Support ${ENV_VAR} syntax in config
-                if let Some(env_var) = api_key.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
+                if let Some(env_var) = api_key.strip_prefix("${").and_then(|s| s.strip_suffix('}'))
+                {
                     if let Ok(key) = std::env::var(env_var) {
                         return key;
                     }
@@ -117,7 +117,11 @@ async fn test_llm_stream_completion() {
     };
 
     let stream_result = provider.stream_completion(request).await;
-    assert!(stream_result.is_ok(), "Stream failed: {:?}", stream_result.err());
+    assert!(
+        stream_result.is_ok(),
+        "Stream failed: {:?}",
+        stream_result.err()
+    );
 
     use futures::StreamExt;
     let mut stream = stream_result.unwrap();
@@ -140,7 +144,9 @@ async fn test_llm_stream_content_aggregation() {
         model: "MiniMax-M2.7".to_string(),
         messages: vec![Message {
             role: MessageRole::User,
-            content: Some(Content::Text("Say 'Hello World' - just these two words".to_string())),
+            content: Some(Content::Text(
+                "Say 'Hello World' - just these two words".to_string(),
+            )),
             tool_calls: None,
             tool_call_id: None,
         }],
@@ -151,7 +157,11 @@ async fn test_llm_stream_content_aggregation() {
     };
 
     let stream_result = provider.stream_completion(request).await;
-    assert!(stream_result.is_ok(), "Stream failed: {:?}", stream_result.err());
+    assert!(
+        stream_result.is_ok(),
+        "Stream failed: {:?}",
+        stream_result.err()
+    );
 
     use futures::StreamExt;
     let mut stream = stream_result.unwrap();
@@ -172,9 +182,14 @@ async fn test_llm_stream_content_aggregation() {
     println!("Full content: {}", full_content);
 
     assert!(chunk_count > 0, "Should have received at least one chunk");
-    assert!(!full_content.is_empty(), "Should have aggregated some content");
-    assert!(full_content.contains("Hello") || full_content.contains("hello"),
-        "Content should contain 'Hello'");
+    assert!(
+        !full_content.is_empty(),
+        "Should have aggregated some content"
+    );
+    assert!(
+        full_content.contains("Hello") || full_content.contains("hello"),
+        "Content should contain 'Hello'"
+    );
 }
 
 #[tokio::test]
@@ -197,7 +212,11 @@ async fn test_llm_stream_first_token_latency() {
 
     let start = std::time::Instant::now();
     let stream_result = provider.stream_completion(request).await;
-    assert!(stream_result.is_ok(), "Stream failed: {:?}", stream_result.err());
+    assert!(
+        stream_result.is_ok(),
+        "Stream failed: {:?}",
+        stream_result.err()
+    );
 
     use futures::StreamExt;
     let mut stream = stream_result.unwrap();
@@ -212,8 +231,11 @@ async fn test_llm_stream_first_token_latency() {
     println!("First chunk latency: {:?}", first_chunk_time);
 
     // First chunk should arrive within reasonable time (30 seconds)
-    assert!(first_chunk_time.as_secs() < 30,
-        "First chunk took too long: {:?}", first_chunk_time);
+    assert!(
+        first_chunk_time.as_secs() < 30,
+        "First chunk took too long: {:?}",
+        first_chunk_time
+    );
 }
 
 #[tokio::test]
@@ -224,7 +246,9 @@ async fn test_llm_stream_with_thinking_filtering() {
         model: "MiniMax-M2.7".to_string(),
         messages: vec![Message {
             role: MessageRole::User,
-            content: Some(Content::Text("What is 2+2? Just give the answer.".to_string())),
+            content: Some(Content::Text(
+                "What is 2+2? Just give the answer.".to_string(),
+            )),
             tool_calls: None,
             tool_call_id: None,
         }],
@@ -235,7 +259,11 @@ async fn test_llm_stream_with_thinking_filtering() {
     };
 
     let stream_result = provider.stream_completion(request).await;
-    assert!(stream_result.is_ok(), "Stream failed: {:?}", stream_result.err());
+    assert!(
+        stream_result.is_ok(),
+        "Stream failed: {:?}",
+        stream_result.err()
+    );
 
     use futures::StreamExt;
     let mut stream = stream_result.unwrap();
@@ -257,11 +285,20 @@ async fn test_llm_stream_with_thinking_filtering() {
         }
     }
 
-    println!("Thinking chunks: {}, Content chunks: {}", thinking_chunks, content_chunks);
+    println!(
+        "Thinking chunks: {}, Content chunks: {}",
+        thinking_chunks, content_chunks
+    );
     println!("Actual content: {}", actual_content);
 
-    assert!(content_chunks > 0, "Should have received non-thinking content chunks");
-    assert!(!actual_content.is_empty(), "Should have aggregated actual content");
+    assert!(
+        content_chunks > 0,
+        "Should have received non-thinking content chunks"
+    );
+    assert!(
+        !actual_content.is_empty(),
+        "Should have aggregated actual content"
+    );
 }
 
 #[tokio::test]
@@ -283,7 +320,11 @@ async fn test_llm_stream_empty_chunks_handling() {
     };
 
     let stream_result = provider.stream_completion(request).await;
-    assert!(stream_result.is_ok(), "Stream failed: {:?}", stream_result.err());
+    assert!(
+        stream_result.is_ok(),
+        "Stream failed: {:?}",
+        stream_result.err()
+    );
 
     use futures::StreamExt;
     let mut stream = stream_result.unwrap();
@@ -306,11 +347,16 @@ async fn test_llm_stream_empty_chunks_handling() {
         }
     }
 
-    println!("Total chunks: {}, Empty: {}, Non-empty: {}",
-        total_chunks, empty_chunks, non_empty_chunks);
+    println!(
+        "Total chunks: {}, Empty: {}, Non-empty: {}",
+        total_chunks, empty_chunks, non_empty_chunks
+    );
 
     assert!(total_chunks > 0, "Should have received chunks");
-    assert!(non_empty_chunks > 0, "Should have received non-empty chunks");
+    assert!(
+        non_empty_chunks > 0,
+        "Should have received non-empty chunks"
+    );
 }
 
 #[tokio::test]
@@ -321,7 +367,9 @@ async fn test_llm_stream_finish_reason() {
         model: "MiniMax-M2.7".to_string(),
         messages: vec![Message {
             role: MessageRole::User,
-            content: Some(Content::Text("Complete this sentence: The sky is".to_string())),
+            content: Some(Content::Text(
+                "Complete this sentence: The sky is".to_string(),
+            )),
             tool_calls: None,
             tool_call_id: None,
         }],
@@ -332,7 +380,11 @@ async fn test_llm_stream_finish_reason() {
     };
 
     let stream_result = provider.stream_completion(request).await;
-    assert!(stream_result.is_ok(), "Stream failed: {:?}", stream_result.err());
+    assert!(
+        stream_result.is_ok(),
+        "Stream failed: {:?}",
+        stream_result.err()
+    );
 
     use futures::StreamExt;
     let mut stream = stream_result.unwrap();
@@ -359,16 +411,24 @@ async fn test_llm_stream_finish_reason() {
         }
     }
 
-    println!("Total chunks: {}, Final finish_reason: {:?}", chunk_count, last_finish_reason);
+    println!(
+        "Total chunks: {}, Final finish_reason: {:?}",
+        chunk_count, last_finish_reason
+    );
 
     assert!(chunk_count > 0, "Should have received at least one chunk");
 
     // Note: finish_reason might not be set due to current streaming implementation issues
     // This test documents the expected behavior once streaming is fixed
     if last_finish_reason.is_some() {
-        assert!(matches!(last_finish_reason.as_deref(),
-            Some("stop") | Some("end_turn") | Some("max_tokens")),
-            "Finish reason should be valid, got: {:?}", last_finish_reason);
+        assert!(
+            matches!(
+                last_finish_reason.as_deref(),
+                Some("stop") | Some("end_turn") | Some("max_tokens")
+            ),
+            "Finish reason should be valid, got: {:?}",
+            last_finish_reason
+        );
     } else {
         println!("WARNING: No finish_reason received - this indicates streaming issue");
     }

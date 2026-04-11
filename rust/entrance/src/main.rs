@@ -15,15 +15,15 @@ use std::time::Duration;
 use tracing::{info, warn, Level};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::FmtSpan;
-use tui::{DaemonClient, IpcDaemonClient, SystemStatusSnapshot, run_tui};
+use tui::{run_tui, DaemonClient, IpcDaemonClient, SystemStatusSnapshot};
 
 use daemon_manager::connect_to_daemon;
 
 mod args;
-mod in_process;
 mod daemon;
-mod session;
 mod daemon_manager;
+mod in_process;
+mod session;
 
 /// Simple log writer for TUI that writes to a rotating log file
 pub(crate) struct TuiLogWriter {
@@ -53,7 +53,11 @@ impl TuiLogWriter {
         if *size >= self.max_file_size {
             drop(size);
             let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
-            let new_path = self.log_path.parent().unwrap().join(format!("tui_{}.log", timestamp));
+            let new_path = self
+                .log_path
+                .parent()
+                .unwrap()
+                .join(format!("tui_{}.log", timestamp));
             std::fs::write(&new_path, "")?;
             // Note: We'd need to update log_path but this is a simple implementation
         }
@@ -89,7 +93,10 @@ impl std::io::Write for LogWriter {
 }
 
 /// Initialize logging for TUI process
-fn init_tui_logging(log_dir: &PathBuf, max_file_size_mb: u64) -> Result<(WorkerGuard, Arc<Mutex<TuiLogWriter>>)> {
+fn init_tui_logging(
+    log_dir: &PathBuf,
+    max_file_size_mb: u64,
+) -> Result<(WorkerGuard, Arc<Mutex<TuiLogWriter>>)> {
     let log_writer = Arc::new(Mutex::new(TuiLogWriter::new(log_dir, max_file_size_mb)?));
 
     let (file_writer, guard) = tracing_appender::non_blocking(LogWriter(log_writer.clone()));
@@ -153,7 +160,11 @@ pub(crate) fn ensure_dir(path: &Path, name: &str) -> Result<bool> {
             info!("{} directory exists: {}", name, path.display());
             Ok(true)
         } else {
-            tracing::warn!("{} path exists but is not a directory: {}", name, path.display());
+            tracing::warn!(
+                "{} path exists but is not a directory: {}",
+                name,
+                path.display()
+            );
             Ok(false)
         }
     } else {
@@ -182,7 +193,11 @@ async fn main() -> Result<()> {
         }
     } else if args.is_session_mode() {
         // Run as session process
-        if let Some(args::Command::Session { session_id, daemon_addr }) = args.command {
+        if let Some(args::Command::Session {
+            session_id,
+            daemon_addr,
+        }) = args.command
+        {
             session::run_session(session_id, daemon_addr).await
         } else {
             unreachable!()
@@ -206,7 +221,7 @@ async fn run_tui_with_ipc() -> Result<()> {
     let config_dir = home_dir.join(CONFIG_DIR);
     let log_dir = config_dir.join("logs");
     std::fs::create_dir_all(&log_dir).context("Failed to create logs directory")?;
-    let (_guard, _log_writer) = init_tui_logging(&log_dir, 10)?;  // 10MB max file size
+    let (_guard, _log_writer) = init_tui_logging(&log_dir, 10)?; // 10MB max file size
 
     info!("Starting TUI with IPC connection to daemon...");
 
@@ -215,9 +230,8 @@ async fn run_tui_with_ipc() -> Result<()> {
     info!("Connected to daemon at {}", daemon_addr);
 
     // Create IPC daemon client
-    let daemon_client: Arc<dyn DaemonClient> = Arc::new(
-        IpcDaemonClient::new(daemon_addr.clone()).await?
-    );
+    let daemon_client: Arc<dyn DaemonClient> =
+        Arc::new(IpcDaemonClient::new(daemon_addr.clone()).await?);
 
     // Get initial system status from daemon
     let initial_status = match daemon_client.get_system_status().await {
@@ -240,7 +254,10 @@ async fn run_tui_with_ipc() -> Result<()> {
             } else {
                 // Create a new default session
                 info!("Creating new default session...");
-                match daemon_client.create_session(Some("default".to_string()), ".".to_string()).await {
+                match daemon_client
+                    .create_session(Some("default".to_string()), ".".to_string())
+                    .await
+                {
                     Ok(session_id) => {
                         info!("Created session: {}", session_id);
                         Some(session_id)

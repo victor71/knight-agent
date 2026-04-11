@@ -5,4 +5,4 @@
 
 mod generic;
 
-pub use generic::{LLMProtocol, ModelPricing, ProviderConfig, GenericLLMProvider};
+pub use generic::{GenericLLMProvider, LLMProtocol, ModelPricing, ProviderConfig};

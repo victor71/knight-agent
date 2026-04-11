@@ -2,8 +2,8 @@
 //!
 //! Handles timer scheduling and execution.
 
-use std::collections::BinaryHeap;
 use std::cmp::Ordering;
+use std::collections::BinaryHeap;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -88,7 +88,9 @@ impl TimerScheduler {
     /// Add a oneshot timer
     pub async fn add_oneshot(&self, timer: Timer) -> Result<String, TimerError> {
         if timer.status != TimerStatus::Pending {
-            return Err(TimerError::CreationFailed("Timer must be in pending status".into()));
+            return Err(TimerError::CreationFailed(
+                "Timer must be in pending status".into(),
+            ));
         }
 
         let timer_id = timer.id.clone();
@@ -99,14 +101,17 @@ impl TimerScheduler {
     /// Add an interval timer
     pub async fn add_interval(&self, mut timer: Timer) -> Result<String, TimerError> {
         if timer.timer_type != TimerType::Interval {
-            return Err(TimerError::CreationFailed("Timer type must be interval".into()));
+            return Err(TimerError::CreationFailed(
+                "Timer type must be interval".into(),
+            ));
         }
 
         let timer_id = timer.id.clone();
 
         // Calculate first execution time
         if let TimerConfig::Interval(config) = &mut timer.config {
-            let next = chrono::Utc::now() + chrono::Duration::milliseconds(config.interval_ms as i64);
+            let next =
+                chrono::Utc::now() + chrono::Duration::milliseconds(config.interval_ms as i64);
             config.next_execution = Some(next.to_rfc3339());
         }
 
@@ -157,7 +162,9 @@ impl TimerScheduler {
                 if let Some(next_str) = &config.next_execution {
                     chrono::DateTime::parse_from_rfc3339(next_str)
                         .map(|_| Instant::now() + Duration::from_millis(config.interval_ms))
-                        .unwrap_or_else(|_| Instant::now() + Duration::from_millis(config.interval_ms))
+                        .unwrap_or_else(|_| {
+                            Instant::now() + Duration::from_millis(config.interval_ms)
+                        })
                 } else {
                     Instant::now() + Duration::from_millis(config.interval_ms)
                 }
@@ -318,7 +325,10 @@ impl TimerScheduler {
             .ok_or_else(|| TimerError::NotFound(timer_id.to_string()))?;
 
         let start = Instant::now();
-        let _scheduled_at = timer.last_execution.clone().unwrap_or_else(|| timer.created_at.clone());
+        let _scheduled_at = timer
+            .last_execution
+            .clone()
+            .unwrap_or_else(|| timer.created_at.clone());
 
         // Execute the callback (for now, just simulate success)
         // In a real implementation, this would trigger the callback
@@ -345,11 +355,14 @@ impl TimerScheduler {
             }
             TimerConfig::Interval(config) => {
                 config.execution_count += 1;
-                if config.max_executions > 0 && config.execution_count >= config.max_executions as u32 {
+                if config.max_executions > 0
+                    && config.execution_count >= config.max_executions as u32
+                {
                     timer.status = TimerStatus::Completed;
                 } else {
                     // Reschedule
-                    let next = chrono::Utc::now() + chrono::Duration::milliseconds(config.interval_ms as i64);
+                    let next = chrono::Utc::now()
+                        + chrono::Duration::milliseconds(config.interval_ms as i64);
                     config.next_execution = Some(next.to_rfc3339());
                 }
             }
@@ -377,7 +390,12 @@ impl TimerScheduler {
                 (stats.avg_execution_time_ms * (n - 1.0) + result.duration_ms as f64) / n;
         }
 
-        debug!("Executed timer {} in {:?}, result: {:?}", timer_id, start.elapsed(), result.status);
+        debug!(
+            "Executed timer {} in {:?}, result: {:?}",
+            timer_id,
+            start.elapsed(),
+            result.status
+        );
         Ok(result)
     }
 
@@ -425,7 +443,8 @@ impl TimerScheduler {
                 }
                 TimerConfig::Interval(config) => {
                     config.execution_count = 0;
-                    let next = chrono::Utc::now() + chrono::Duration::milliseconds(config.interval_ms as i64);
+                    let next = chrono::Utc::now()
+                        + chrono::Duration::milliseconds(config.interval_ms as i64);
                     config.next_execution = Some(next.to_rfc3339());
                 }
                 TimerConfig::Cron(config) => {

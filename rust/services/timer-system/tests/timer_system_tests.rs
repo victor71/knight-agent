@@ -1,8 +1,8 @@
 //! Timer Scheduler Tests
 
+use std::collections::HashMap;
 use timer_system::scheduler::TimerScheduler;
 use timer_system::{Timer, TimerCallback, TimerStatus};
-use std::collections::HashMap;
 
 #[tokio::test]
 async fn test_add_and_get_timer() {
@@ -68,8 +68,20 @@ async fn test_pause_resume() {
 async fn test_list_timers() {
     let scheduler = TimerScheduler::new();
 
-    let timer1 = Timer::oneshot("t1".to_string(), 1000, TimerCallback::Callback { handler: String::new() });
-    let timer2 = Timer::interval("t2".to_string(), 1000, TimerCallback::Callback { handler: String::new() });
+    let timer1 = Timer::oneshot(
+        "t1".to_string(),
+        1000,
+        TimerCallback::Callback {
+            handler: String::new(),
+        },
+    );
+    let timer2 = Timer::interval(
+        "t2".to_string(),
+        1000,
+        TimerCallback::Callback {
+            handler: String::new(),
+        },
+    );
 
     scheduler.add_oneshot(timer1).await.unwrap();
     scheduler.add_interval(timer2).await.unwrap();
@@ -82,8 +94,20 @@ async fn test_list_timers() {
 async fn test_stats() {
     let scheduler = TimerScheduler::new();
 
-    let timer1 = Timer::oneshot("t1".to_string(), 1000, TimerCallback::Callback { handler: String::new() });
-    let timer2 = Timer::interval("t2".to_string(), 1000, TimerCallback::Callback { handler: String::new() });
+    let timer1 = Timer::oneshot(
+        "t1".to_string(),
+        1000,
+        TimerCallback::Callback {
+            handler: String::new(),
+        },
+    );
+    let timer2 = Timer::interval(
+        "t2".to_string(),
+        1000,
+        TimerCallback::Callback {
+            handler: String::new(),
+        },
+    );
 
     scheduler.add_oneshot(timer1).await.unwrap();
     scheduler.add_interval(timer2).await.unwrap();

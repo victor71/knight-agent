@@ -22,16 +22,15 @@ pub fn render_header(f: &mut Frame, area: ratatui::layout::Rect, app: &AppState)
             Span::styled("📦 ", Style::default().fg(Color::Cyan)),
             Span::styled(
                 &app.project_info.path,
-                Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
             ),
         ]),
         Line::from(vec![
             Span::styled("Branch: ", Style::default().fg(Color::Gray)),
             Span::styled(
-                app.project_info
-                    .git_branch
-                    .as_deref()
-                    .unwrap_or("none"),
+                app.project_info.git_branch.as_deref().unwrap_or("none"),
                 Style::default()
                     .fg(Color::Green)
                     .add_modifier(Modifier::ITALIC),
@@ -52,8 +51,8 @@ pub fn render_header(f: &mut Frame, area: ratatui::layout::Rect, app: &AppState)
         ]),
     ];
 
-    let project_paragraph = Paragraph::new(project_info)
-        .block(Block::default().borders(Borders::ALL));
+    let project_paragraph =
+        Paragraph::new(project_info).block(Block::default().borders(Borders::ALL));
     f.render_widget(project_paragraph, chunks.left);
 
     // Center section: Session info
@@ -78,7 +77,9 @@ pub fn render_header(f: &mut Frame, area: ratatui::layout::Rect, app: &AppState)
             Span::styled("[", Style::default().fg(Color::Gray)),
             Span::styled(
                 "+ New",
-                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
             ),
             Span::raw("] "),
             Span::styled("[", Style::default().fg(Color::Gray)),
@@ -105,12 +106,12 @@ pub fn render_header(f: &mut Frame, area: ratatui::layout::Rect, app: &AppState)
     let uptime_hours = uptime_mins / 60;
 
     let stats_info = vec![
-        Line::from(vec![
-            Span::styled(
-                time,
-                Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
-            ),
-        ]),
+        Line::from(vec![Span::styled(
+            time,
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(vec![
             Span::styled("CPU: ", Style::default().fg(Color::Gray)),
             Span::styled(
@@ -127,7 +128,12 @@ pub fn render_header(f: &mut Frame, area: ratatui::layout::Rect, app: &AppState)
         Line::from(vec![
             Span::styled("Uptime: ", Style::default().fg(Color::Gray)),
             Span::styled(
-                format!("{:02}:{:02}:{:02}", uptime_hours, uptime_mins % 60, uptime_secs % 60),
+                format!(
+                    "{:02}:{:02}:{:02}",
+                    uptime_hours,
+                    uptime_mins % 60,
+                    uptime_secs % 60
+                ),
                 Style::default().fg(Color::Cyan),
             ),
         ]),

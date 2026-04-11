@@ -22,15 +22,23 @@ impl ContentType {
         }
 
         // Check for code patterns
-        if content.contains("```") || content.contains("def ") || content.contains("class ")
-            || content.contains("function ") || content.contains("pub fn")
+        if content.contains("```")
+            || content.contains("def ")
+            || content.contains("class ")
+            || content.contains("function ")
+            || content.contains("pub fn")
         {
             return ContentType::Code;
         }
 
         // Check for log patterns
-        if content.contains("[LOG]") || content.contains("DEBUG") || content.contains("INFO")
-            || content.contains(" WARN") || regex::Regex::new(r"\d{4}-\d{2}-\d{2}").map(|r| r.is_match(content)).unwrap_or(false)
+        if content.contains("[LOG]")
+            || content.contains("DEBUG")
+            || content.contains("INFO")
+            || content.contains(" WARN")
+            || regex::Regex::new(r"\d{4}-\d{2}-\d{2}")
+                .map(|r| r.is_match(content))
+                .unwrap_or(false)
         {
             return ContentType::Log;
         }

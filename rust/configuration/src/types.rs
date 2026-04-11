@@ -515,7 +515,11 @@ impl Default for RetryConfig {
             max_attempts: default_max_attempts(),
             delay: default_retry_delay(),
             backoff: default_backoff(),
-            retryable_errors: vec!["rate_limit".to_string(), "timeout".to_string(), "connection_error".to_string()],
+            retryable_errors: vec![
+                "rate_limit".to_string(),
+                "timeout".to_string(),
+                "connection_error".to_string(),
+            ],
         }
     }
 }
@@ -652,7 +656,10 @@ impl Default for TaskManagerConfig {
 impl Default for WorkflowConfig {
     fn default() -> Self {
         Self {
-            directories: vec!["./workflows".to_string(), "~/.knight-agent/workflows".to_string()],
+            directories: vec![
+                "./workflows".to_string(),
+                "~/.knight-agent/workflows".to_string(),
+            ],
             execution: WorkflowExecutionConfig::default(),
             versioning: VersioningConfig::default(),
             cache: CacheConfig::default(),
@@ -757,9 +764,7 @@ fn default_strategy() -> String {
 
 impl Default for KnightConfig {
     fn default() -> Self {
-        Self {
-            llm: None,
-        }
+        Self { llm: None }
     }
 }
 

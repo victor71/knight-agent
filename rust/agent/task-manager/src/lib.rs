@@ -4,15 +4,14 @@
 //!
 //! Design Reference: docs/03-module-design/agent/task-manager.md
 
-pub mod types;
 pub mod manager;
+pub mod types;
 
 pub use types::{
-    TaskManagerError, TaskResult, TaskType, TaskStatus, WorkflowStatus,
-    DependencyCondition, TaskDefinition, Dependency, RetryConfig, RetryBackoff,
-    WorkflowDefinition, Task, TaskExecutionResult, ErrorInfo, Workflow,
-    TaskFilter, TaskUpdate, TaskHistoryEntry, WorkflowLogEntry,
-    TaskStatistics, DependencyInfo,
+    Dependency, DependencyCondition, DependencyInfo, ErrorInfo, RetryBackoff, RetryConfig, Task,
+    TaskDefinition, TaskExecutionResult, TaskFilter, TaskHistoryEntry, TaskManagerError,
+    TaskResult, TaskStatistics, TaskStatus, TaskType, TaskUpdate, Workflow, WorkflowDefinition,
+    WorkflowLogEntry, WorkflowStatus,
 };
 
-pub use manager::{TaskManagerImpl, TaskManagerConfig, TaskEventSender};
+pub use manager::{TaskEventSender, TaskManagerConfig, TaskManagerImpl};

@@ -29,6 +29,15 @@ pub(crate) struct SessionLogWriter {
     max_file_size: u64,
 }
 
+/// Helper to lock mutex with poisoning recovery
+fn lock_mutex<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<T> {
+    mutex.lock().unwrap_or_else(|e| {
+        // Recover from poisoned mutex - the data may be partially invalid
+        // but for logging purposes, this is acceptable
+        e.into_inner()
+    })
+}
+
 impl SessionLogWriter {
     pub(crate) fn new(log_dir: PathBuf, max_file_size: u64) -> Self {
         Self {
@@ -52,30 +61,30 @@ impl SessionLogWriter {
     }
 
     pub(crate) fn set_session(&self, session_id: String) -> Result<()> {
-        let mut current_session = self.current_session_id.lock().unwrap();
+        let mut current_session = lock_mutex(&self.current_session_id);
         if current_session.as_ref() == Some(&session_id) {
             return Ok(());
         }
         *current_session = Some(session_id.clone());
-        *self.file_index.lock().unwrap() = 0;
-        *self.current_size.lock().unwrap() = 0;
+        *lock_mutex(&self.file_index) = 0;
+        *lock_mutex(&self.current_size) = 0;
 
         let log_path = self.generate_log_path(&session_id, 0);
         std::fs::write(&log_path, "").context("Failed to create log file")?;
-        *self.current_file.lock().unwrap() = Some(log_path);
+        *lock_mutex(&self.current_file) = Some(log_path);
 
         info!("Created new log file for daemon session: {}", session_id);
         Ok(())
     }
 
     fn check_rotation(&self) -> Result<()> {
-        let current_session = self.current_session_id.lock().unwrap();
+        let current_session = lock_mutex(&self.current_session_id);
         let session_id = match current_session.as_ref() {
             Some(id) => id,
             None => return Ok(()),
         };
 
-        let current_file = self.current_file.lock().unwrap();
+        let current_file = lock_mutex(&self.current_file);
         let file_path = match current_file.as_ref() {
             Some(p) => p,
             None => return Ok(()),
@@ -83,17 +92,19 @@ impl SessionLogWriter {
 
         let metadata = std::fs::metadata(file_path)?;
         let size = metadata.len();
-        *self.current_size.lock().unwrap() = size;
+        *lock_mutex(&self.current_size) = size;
 
         if size >= self.max_file_size {
             drop(current_file);
-            let mut index = *self.file_index.lock().unwrap() + 1;
-            *self.file_index.lock().unwrap() = index;
+            let mut index = *lock_mutex(&self.file_index) + 1;
+            *lock_mutex(&self.file_index) = index;
 
             let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
             let mut new_path;
             loop {
-                new_path = self.log_dir.join(format!("daemon_{}_{}.log", timestamp, index));
+                new_path = self
+                    .log_dir
+                    .join(format!("daemon_{}_{}.log", timestamp, index));
                 if !new_path.exists() {
                     break;
                 }
@@ -101,8 +112,8 @@ impl SessionLogWriter {
             }
 
             std::fs::write(&new_path, "")?;
-            *self.current_file.lock().unwrap() = Some(new_path.clone());
-            *self.current_size.lock().unwrap() = 0;
+            *lock_mutex(&self.current_file) = Some(new_path.clone());
+            *lock_mutex(&self.current_size) = 0;
 
             info!("Rotated log file to: {}", new_path.display());
         }
@@ -115,7 +126,7 @@ impl SessionLogWriter {
             eprintln!("Error checking log rotation: {}", e);
         }
 
-        let current_file = self.current_file.lock().unwrap();
+        let current_file = lock_mutex(&self.current_file);
         let file_path = match current_file.as_ref() {
             Some(p) => p,
             None => return Ok(0),
@@ -129,7 +140,7 @@ impl SessionLogWriter {
         let result = IoWrite::write(&mut file, buf);
 
         if result.is_ok() {
-            let mut size = self.current_size.lock().unwrap();
+            let mut size = lock_mutex(&self.current_size);
             *size += buf.len() as u64;
         }
 
@@ -137,7 +148,7 @@ impl SessionLogWriter {
     }
 
     fn flush_data(&self) -> std::io::Result<()> {
-        let current_file = self.current_file.lock().unwrap();
+        let current_file = lock_mutex(&self.current_file);
         if let Some(file_path) = current_file.as_ref() {
             let mut file = std::fs::OpenOptions::new().append(true).open(file_path)?;
             IoWrite::flush(&mut file)
@@ -151,19 +162,25 @@ struct LogWriter(Arc<Mutex<SessionLogWriter>>);
 
 impl std::io::Write for LogWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.lock().unwrap().write_data(buf)
+        lock_mutex(&self.0).write_data(buf)
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        self.0.lock().unwrap().flush_data()
+        lock_mutex(&self.0).flush_data()
     }
 }
 
 /// Initialize logging for daemon
-fn init_logging(log_dir: &PathBuf, max_file_size_mb: u64) -> Result<(WorkerGuard, Arc<Mutex<SessionLogWriter>>)> {
+fn init_logging(
+    log_dir: &PathBuf,
+    max_file_size_mb: u64,
+) -> Result<(WorkerGuard, Arc<Mutex<SessionLogWriter>>)> {
     let max_file_size = max_file_size_mb * 1024 * 1024;
-    let log_writer = Arc::new(Mutex::new(SessionLogWriter::new(log_dir.clone(), max_file_size)));
-    log_writer.lock().unwrap().set_session("daemon".to_string())?;
+    let log_writer = Arc::new(Mutex::new(SessionLogWriter::new(
+        log_dir.clone(),
+        max_file_size,
+    )));
+    lock_mutex(&log_writer).set_session("daemon".to_string())?;
 
     let (file_writer, guard) = tracing_appender::non_blocking(LogWriter(log_writer.clone()));
 
@@ -195,7 +212,8 @@ pub struct SessionEntry {
 pub struct DaemonState {
     pub(crate) system: KnightAgentSystem,
     /// Session registry - maps session_id to session process info
-    pub(crate) session_registry: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, SessionEntry>>>,
+    pub(crate) session_registry:
+        std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, SessionEntry>>>,
 }
 
 impl DaemonState {
@@ -222,9 +240,8 @@ impl DaemonState {
         info!("System bootstrap complete");
 
         // Create session registry
-        let session_registry = std::sync::Arc::new(
-            std::sync::Mutex::new(std::collections::HashMap::new())
-        );
+        let session_registry =
+            std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
         info!("Session registry initialized");
 
         Ok(Self {
@@ -234,7 +251,12 @@ impl DaemonState {
     }
 
     /// Register IPC method handlers
-    pub async fn register_handlers(&self, server: &mut ipc_contract::IpcServer, shutdown_tx: broadcast::Sender<()>, daemon_addr: String) {
+    pub async fn register_handlers(
+        &self,
+        server: &mut ipc_contract::IpcServer,
+        shutdown_tx: broadcast::Sender<()>,
+        daemon_addr: String,
+    ) {
         let session_registry = self.session_registry.clone();
         let system = self.system.clone();
         let daemon_addr_clone = daemon_addr.clone();
@@ -341,27 +363,36 @@ impl DaemonState {
                     // Relay streaming request to session
                     match session_client.request_streaming("send_message".to_string(), relay_params).await {
                         Ok((mut chunk_rx, response_rx)) => {
+                            info!("[DAEMON] send_message: connected to session, waiting for chunks");
                             // Spawn task to forward chunks asynchronously
                             let chunk_task = tokio::spawn(async move {
+                                info!("[DAEMON] chunk_task: started, waiting for chunks from session");
                                 let mut sequence = 0u64;
                                 while let Some(chunk_msg) = chunk_rx.recv().await {
+                                    info!("[DAEMON] send_message: forwarding chunk {} to TUI ({} chars)", sequence, chunk_msg.chunk.len());
                                     if stream_ctx.send_chunk(chunk_msg.chunk, sequence, false).is_err() {
+                                        warn!("[DAEMON] send_message: failed to send chunk to TUI");
                                         break;
                                     }
                                     sequence += 1;
                                 }
+                                info!("[DAEMON] send_message: chunk forwarding complete, sent {} chunks", sequence);
                             });
 
                             // Wait for final response from session
+                            info!("[DAEMON] send_message: waiting for final response from session");
                             let response_result = response_rx.await;
+                            info!("[DAEMON] send_message: received response result: {:?}", response_result.is_ok());
 
                             // Wait for chunk forwarding to complete
                             let _ = chunk_task.await;
+                            info!("[DAEMON] send_message: chunk task completed");
 
                             session_client.disconnect().await;
 
                             match response_result {
                                 Ok(response) => {
+                                    info!("[DAEMON] send_message: returning success to TUI");
                                     // Extract result from ResponseMessage
                                     Ok(response.result.unwrap_or(serde_json::json!({
                                         "response": ""
@@ -394,142 +425,196 @@ impl DaemonState {
 
         // list_sessions handler - query all registered sessions
         let registry_for_list = session_registry.clone();
-        server.register("list_sessions", move |_params: serde_json::Value| {
-            let session_registry = registry_for_list.clone();
-            Box::pin(async move {
-                let sessions = {
-                    let registry = session_registry.lock().unwrap();
-                    registry.values().map(|e| serde_json::json!({
-                        "id": e.session_id,
-                        "name": e.session_id,
-                        "status": "Active",
-                        "created_at": "",
-                        "message_count": 0,
-                    })).collect::<Vec<_>>()
-                };
+        server
+            .register("list_sessions", move |_params: serde_json::Value| {
+                let session_registry = registry_for_list.clone();
+                Box::pin(async move {
+                    let sessions = {
+                        let registry = session_registry.lock().unwrap();
+                        registry
+                            .values()
+                            .map(|e| {
+                                serde_json::json!({
+                                    "id": e.session_id,
+                                    "name": e.session_id,
+                                    "status": "Active",
+                                    "created_at": "",
+                                    "message_count": 0,
+                                })
+                            })
+                            .collect::<Vec<_>>()
+                    };
 
-                Ok(serde_json::json!({ "sessions": sessions }))
+                    Ok(serde_json::json!({ "sessions": sessions }))
+                })
             })
-        }).await;
+            .await;
 
         // create_session handler - spawns a dedicated session process
         let registry_for_create = session_registry.clone();
-        server.register("create_session", move |params: serde_json::Value| {
-            let session_registry = registry_for_create.clone();
-            let daemon_addr = daemon_addr_clone.clone();
-            Box::pin(async move {
-                let name = params.get("name").and_then(|v| v.as_str()).map(|s| s.to_string());
-                let workspace = params.get("workspace").and_then(|v| v.as_str()).unwrap_or(".").to_string();
+        server
+            .register("create_session", move |params: serde_json::Value| {
+                let session_registry = registry_for_create.clone();
+                let daemon_addr = daemon_addr_clone.clone();
+                Box::pin(async move {
+                    let name = params
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                    let workspace = params
+                        .get("workspace")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(".")
+                        .to_string();
 
-                // Generate session ID
-                let session_id = format!("sess_{}", uuid::Uuid::new_v4());
+                    // Generate session ID
+                    let session_id = format!("sess_{}", uuid::Uuid::new_v4());
 
-                // Spawn dedicated session process
-                let exe_path = std::env::current_exe()
-                    .map_err(|e| ipc_contract::IPCError::InternalError(format!("failed to get exe path: {}", e)))?;
+                    // Spawn dedicated session process
+                    let exe_path = std::env::current_exe().map_err(|e| {
+                        ipc_contract::IPCError::InternalError(format!(
+                            "failed to get exe path: {}",
+                            e
+                        ))
+                    })?;
 
-                let child = Command::new(&exe_path)
-                    .arg("session")
-                    .arg("--session-id")
-                    .arg(session_id.clone())
-                    .arg("--daemon-addr")
-                    .arg(&daemon_addr)
-                    .spawn()
-                    .map_err(|e| ipc_contract::IPCError::InternalError(format!("failed to spawn session process: {}", e)))?;
+                    let child = Command::new(&exe_path)
+                        .arg("session")
+                        .arg("--session-id")
+                        .arg(session_id.clone())
+                        .arg("--daemon-addr")
+                        .arg(&daemon_addr)
+                        .spawn()
+                        .map_err(|e| {
+                            ipc_contract::IPCError::InternalError(format!(
+                                "failed to spawn session process: {}",
+                                e
+                            ))
+                        })?;
 
-                info!("Spawned session process for {} with PID: {}", session_id, child.id());
+                    info!(
+                        "Spawned session process for {} with PID: {}",
+                        session_id,
+                        child.id()
+                    );
 
-                // Add to session registry (will be updated when session registers with port)
-                {
-                    let mut registry = session_registry.lock().unwrap();
-                    registry.insert(session_id.clone(), SessionEntry {
-                        session_id: session_id.clone(),
-                        pid: child.id(),
-                        port: 0, // Will be updated when session registers
-                    });
-                }
+                    // Add to session registry (will be updated when session registers with port)
+                    {
+                        let mut registry = session_registry.lock().unwrap();
+                        registry.insert(
+                            session_id.clone(),
+                            SessionEntry {
+                                session_id: session_id.clone(),
+                                pid: child.id(),
+                                port: 0, // Will be updated when session registers
+                            },
+                        );
+                    }
 
-                Ok(serde_json::json!({
-                    "session_id": session_id,
-                    "process_id": child.id()
-                }))
+                    Ok(serde_json::json!({
+                        "session_id": session_id,
+                        "process_id": child.id()
+                    }))
+                })
             })
-        }).await;
+            .await;
 
         // switch_session handler - just acknowledge (session selection is client-side)
-        server.register("switch_session", move |params: serde_json::Value| {
-            Box::pin(async move {
-                let session_id = params.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
-                info!("Switch session request: {}", session_id);
-                Ok(serde_json::json!({ "success": true }))
+        server
+            .register("switch_session", move |params: serde_json::Value| {
+                Box::pin(async move {
+                    let session_id = params
+                        .get("session_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    info!("Switch session request: {}", session_id);
+                    Ok(serde_json::json!({ "success": true }))
+                })
             })
-        }).await;
+            .await;
 
         // get_system_status handler
         let system = system.clone();
-        server.register("get_system_status", move |_params: serde_json::Value| {
-            let system = system.clone();
-            Box::pin(async move {
-                let status = system.status().await;
+        server
+            .register("get_system_status", move |_params: serde_json::Value| {
+                let system = system.clone();
+                Box::pin(async move {
+                    let status = system.status().await;
 
-                Ok(serde_json::json!({
-                    "stage": status.stage,
-                    "initialized": status.initialized,
-                    "ready": status.ready,
-                    "module_count": status.module_count,
-                    "initialized_count": status.initialized_count,
-                }))
+                    Ok(serde_json::json!({
+                        "stage": status.stage,
+                        "initialized": status.initialized,
+                        "ready": status.ready,
+                        "module_count": status.module_count,
+                        "initialized_count": status.initialized_count,
+                    }))
+                })
             })
-        }).await;
+            .await;
 
         // register_session handler (for session processes) - update registry with port
         let registry_for_register = session_registry.clone();
-        server.register("register_session", move |params: serde_json::Value| {
-            let session_registry = registry_for_register.clone();
-            Box::pin(async move {
-                let session_id = params.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
-                let port = params.get("port").and_then(|v| v.as_u64()).unwrap_or(0) as u16;
-                let pid = params.get("pid").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+        server
+            .register("register_session", move |params: serde_json::Value| {
+                let session_registry = registry_for_register.clone();
+                Box::pin(async move {
+                    let session_id = params
+                        .get("session_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let port = params.get("port").and_then(|v| v.as_u64()).unwrap_or(0) as u16;
+                    let pid = params.get("pid").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
 
-                info!("Session process registered: {} on port {} (PID: {})", session_id, port, pid);
+                    info!(
+                        "Session process registered: {} on port {} (PID: {})",
+                        session_id, port, pid
+                    );
 
-                // Update registry with port
-                {
-                    let mut registry = session_registry.lock().unwrap();
-                    if let Some(entry) = registry.get_mut(session_id) {
-                        entry.port = port;
+                    // Update registry with port
+                    {
+                        let mut registry = session_registry.lock().unwrap();
+                        if let Some(entry) = registry.get_mut(session_id) {
+                            entry.port = port;
+                        }
                     }
-                }
 
-                Ok(serde_json::json!({
-                    "success": true,
-                    "message": format!("Session {} registered on port {}", session_id, port),
-                }))
+                    Ok(serde_json::json!({
+                        "success": true,
+                        "message": format!("Session {} registered on port {}", session_id, port),
+                    }))
+                })
             })
-        }).await;
+            .await;
 
         // heartbeat handler (for session processes)
-        server.register("heartbeat", move |params: serde_json::Value| {
-            Box::pin(async move {
-                let session_id = params.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
-                let _timestamp = params.get("timestamp").and_then(|v| v.as_str());
+        server
+            .register("heartbeat", move |params: serde_json::Value| {
+                Box::pin(async move {
+                    let session_id = params
+                        .get("session_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let _timestamp = params.get("timestamp").and_then(|v| v.as_str());
 
-                info!("Heartbeat from session: {}", session_id);
+                    info!("Heartbeat from session: {}", session_id);
 
-                Ok(serde_json::json!({ "success": true }))
+                    Ok(serde_json::json!({ "success": true }))
+                })
             })
-        }).await;
+            .await;
 
         // shutdown handler - signal shutdown
         let shutdown_tx = shutdown_tx.clone();
-        server.register("shutdown", move |_params: serde_json::Value| {
-            let shutdown_tx = shutdown_tx.clone();
-            Box::pin(async move {
-                info!("Shutdown request received");
-                let _ = shutdown_tx.send(());
-                Ok(serde_json::json!({ "success": true }))
+        server
+            .register("shutdown", move |_params: serde_json::Value| {
+                let shutdown_tx = shutdown_tx.clone();
+                Box::pin(async move {
+                    info!("Shutdown request received");
+                    let _ = shutdown_tx.send(());
+                    Ok(serde_json::json!({ "success": true }))
+                })
             })
-        }).await;
+            .await;
 
         info!("IPC method handlers registered (IPC broker mode)");
     }
@@ -541,8 +626,7 @@ pub(crate) async fn run_daemon(port: u16) -> Result<()> {
     let home_dir = get_home_dir()?;
     let config_dir = home_dir.join(CONFIG_DIR);
     if !config_dir.exists() {
-        std::fs::create_dir_all(&config_dir)
-            .context("Failed to create .knight-agent directory")?;
+        std::fs::create_dir_all(&config_dir).context("Failed to create .knight-agent directory")?;
     }
 
     // Create subdirectories
@@ -554,7 +638,7 @@ pub(crate) async fn run_daemon(port: u16) -> Result<()> {
     // Initialize logging before anything else
     let log_dir = config_dir.join("logs");
     std::fs::create_dir_all(&log_dir).context("Failed to create logs directory")?;
-    let (_guard, _log_writer) = init_logging(&log_dir, 10)?;  // 10MB max file size
+    let (_guard, _log_writer) = init_logging(&log_dir, 10)?; // 10MB max file size
 
     info!("Starting Knight Agent daemon on port {}...", port);
 
@@ -563,8 +647,7 @@ pub(crate) async fn run_daemon(port: u16) -> Result<()> {
 
     // Create IPC server config
     let addr = format!("127.0.0.1:{}", port);
-    let server_addr: std::net::SocketAddr = addr.parse()
-        .context("Invalid server address")?;
+    let server_addr: std::net::SocketAddr = addr.parse().context("Invalid server address")?;
 
     let server_config = ipc_contract::IpcServerConfig {
         bind_addr: server_addr,
@@ -579,13 +662,14 @@ pub(crate) async fn run_daemon(port: u16) -> Result<()> {
 
     // Start the server first to get the bound address
     info!("Starting IPC server on {}...", addr);
-    let bound_addr = server.start().await
-        .context("IPC server failed")?;
+    let bound_addr = server.start().await.context("IPC server failed")?;
 
     info!("IPC server listening on {}", bound_addr);
 
     // Register method handlers (now we have the actual bound address)
-    state.register_handlers(&mut server, shutdown_tx, addr).await;
+    state
+        .register_handlers(&mut server, shutdown_tx, addr)
+        .await;
 
     info!("IPC server listening on {}", bound_addr);
 

@@ -5,12 +5,15 @@
 //!
 //! Design Reference: docs/03-module-design/core/session-manager.md
 
-pub mod types;
 pub mod manager;
+pub mod types;
 
 // Re-export AgentRuntimeProxy from agent-proxy for convenience
 pub use agent_proxy::{AgentRuntimeProxy, StreamCallback};
 
 // Re-export commonly used types
 pub use manager::SessionManagerImpl;
-pub use types::{CreateSessionRequest, Session, SessionStatus, Message, CompressionMethod, PathAction, ProjectType};
+pub use types::{
+    CompressionMethod, CreateSessionRequest, Message, PathAction, ProjectType, Session,
+    SessionStatus,
+};

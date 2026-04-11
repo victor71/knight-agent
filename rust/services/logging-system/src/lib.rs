@@ -37,9 +37,7 @@ pub mod types;
 pub use init::LoggerGuard;
 pub use output::LogOutput;
 pub use system::{LoggingSystem, LoggingSystemImpl};
-pub use types::{
-    ErrorInfo, ExportFormat, LogContext, LogEntry, LogFilter, LogLevel, LogStats,
-};
+pub use types::{ErrorInfo, ExportFormat, LogContext, LogEntry, LogFilter, LogLevel, LogStats};
 
 #[derive(thiserror::Error, Debug)]
 pub enum LoggingError {

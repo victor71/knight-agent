@@ -152,7 +152,10 @@ pub enum TimerConfig {
 
 impl Default for TimerConfig {
     fn default() -> Self {
-        Self::Oneshot(OneshotConfig { delay_ms: 0, execute_at: None })
+        Self::Oneshot(OneshotConfig {
+            delay_ms: 0,
+            execute_at: None,
+        })
     }
 }
 

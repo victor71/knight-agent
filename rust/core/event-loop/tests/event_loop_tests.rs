@@ -1,8 +1,8 @@
 //! Event Loop Tests
 
 use event_loop::{
-    EventLoopImpl, EventLoopTrait, EventSource, EventSourceType, EventListener,
-    EventHandler, HandlerType, SkillHandler, Event,
+    Event, EventHandler, EventListener, EventLoopImpl, EventLoopTrait, EventSource,
+    EventSourceType, HandlerType, SkillHandler,
 };
 use std::collections::HashMap;
 

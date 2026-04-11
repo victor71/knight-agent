@@ -4,10 +4,10 @@
 //!
 //! Design Reference: docs/03-module-design/core/hook-engine.md
 
-pub mod types;
-pub mod registry;
 pub mod executor;
+pub mod registry;
+pub mod types;
 
-pub use registry::HookRegistry;
 pub use executor::HookExecutor;
+pub use registry::HookRegistry;
 pub use types::*;

@@ -72,7 +72,9 @@ impl BootstrapStage {
             BootstrapStage::Stage1Infrastructure => vec!["logging-system"],
             BootstrapStage::Stage2SecurityAndStorage => vec!["security-manager", "storage-service"],
             BootstrapStage::Stage3BasicServicesAndEvent => vec!["event-loop"],
-            BootstrapStage::Stage4CoreEngineLayer => vec!["hook-engine", "session-manager", "router", "command"],
+            BootstrapStage::Stage4CoreEngineLayer => {
+                vec!["hook-engine", "session-manager", "router", "command"]
+            }
             BootstrapStage::Stage5AgentLayer => vec![],
             BootstrapStage::Stage6Report => vec![],
             BootstrapStage::Stage7ContextCompression => vec![],
@@ -86,8 +88,16 @@ impl BootstrapStage {
         match self {
             BootstrapStage::Stage1Infrastructure => vec!["logging-system"],
             BootstrapStage::Stage2SecurityAndStorage => vec!["security-manager", "storage-service"],
-            BootstrapStage::Stage3BasicServicesAndEvent => vec!["llm-provider", "tool-system", "event-loop", "timer-system"],
-            BootstrapStage::Stage4CoreEngineLayer => vec!["hook-engine", "session-manager", "router", "monitor", "command"],
+            BootstrapStage::Stage3BasicServicesAndEvent => {
+                vec!["llm-provider", "tool-system", "event-loop", "timer-system"]
+            }
+            BootstrapStage::Stage4CoreEngineLayer => vec![
+                "hook-engine",
+                "session-manager",
+                "router",
+                "monitor",
+                "command",
+            ],
             BootstrapStage::Stage5AgentLayer => vec![
                 "agent-variants",
                 "agent-runtime",

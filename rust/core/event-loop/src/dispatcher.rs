@@ -109,15 +109,13 @@ impl EventDispatcher {
     fn matches_event_type(&self, filter: &serde_json::Value, value: &str) -> bool {
         match filter {
             serde_json::Value::String(s) => s == value || s == "*",
-            serde_json::Value::Array(arr) => {
-                arr.iter().any(|v| {
-                    if let Some(s) = v.as_str() {
-                        s == value || s == "*"
-                    } else {
-                        false
-                    }
-                })
-            }
+            serde_json::Value::Array(arr) => arr.iter().any(|v| {
+                if let Some(s) = v.as_str() {
+                    s == value || s == "*"
+                } else {
+                    false
+                }
+            }),
             _ => false,
         }
     }

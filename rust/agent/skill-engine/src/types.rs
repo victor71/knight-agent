@@ -132,7 +132,6 @@ pub enum ParameterType {
     Array,
 }
 
-
 /// Skill step
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillStep {
@@ -189,7 +188,6 @@ pub enum StepType {
     Condition,
 }
 
-
 /// Trigger definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Trigger {
@@ -233,7 +231,6 @@ pub enum TriggerType {
     Timer,
     FileChange,
 }
-
 
 /// Skill execution context
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -412,4 +409,3 @@ pub struct PlannedStep {
     pub skill_id: String,
     pub parameters: serde_json::Map<String, serde_json::Value>,
 }
-

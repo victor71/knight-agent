@@ -1,8 +1,8 @@
 //! Context compressor tests
 
 use context_compressor::{
-   CompressionConfig, CompressionOptions, CompressionStrategy, ContextCompressor, ContextCompressorImpl,
-ContentType, Message,
+    CompressionConfig, CompressionOptions, CompressionStrategy, ContentType, ContextCompressor,
+    ContextCompressorImpl, Message,
 };
 use std::collections::HashMap;
 
@@ -141,7 +141,10 @@ async fn test_get_compression_points() {
         .await
         .unwrap();
 
-    let points = compressor.get_compression_points("session-1").await.unwrap();
+    let points = compressor
+        .get_compression_points("session-1")
+        .await
+        .unwrap();
     assert_eq!(points.len(), 1);
 }
 
@@ -191,7 +194,10 @@ async fn test_restore_compression_point() {
         .await
         .unwrap();
 
-    let restored = compressor.restore_compression_point(&point.id).await.unwrap();
+    let restored = compressor
+        .restore_compression_point(&point.id)
+        .await
+        .unwrap();
     // Should contain preserved messages + summary message
     assert!(!restored.is_empty());
 }
@@ -217,7 +223,10 @@ async fn test_delete_compression_point() {
         .await
         .unwrap();
 
-    compressor.delete_compression_point(&point.id).await.unwrap();
+    compressor
+        .delete_compression_point(&point.id)
+        .await
+        .unwrap();
 
     let result = compressor.get_compression_point(&point.id).await;
     assert!(result.is_err());
@@ -296,7 +305,10 @@ async fn test_compression_config() {
         ..Default::default()
     };
 
-    compressor.update_compression_config(new_config.clone()).await.unwrap();
+    compressor
+        .update_compression_config(new_config.clone())
+        .await
+        .unwrap();
 
     let updated = compressor.get_compression_config(None).await.unwrap();
     assert_eq!(updated.default_strategy, CompressionStrategy::Semantic);

@@ -50,9 +50,10 @@ impl CommandManagerImpl {
 
         // Check if command already exists
         if commands.contains_key(&name) {
-            return Err(CommandError::InvalidDefinition(
-                format!("Command '{}' already registered", name),
-            ));
+            return Err(CommandError::InvalidDefinition(format!(
+                "Command '{}' already registered",
+                name
+            )));
         }
 
         // Validate command definition
@@ -157,12 +158,8 @@ impl CommandManagerImpl {
 
         // Execute based on command type
         let result = match definition.metadata.command_type {
-            CommandType::Simple => {
-                self.execute_simple_command(&definition, &context).await
-            }
-            CommandType::Workflow => {
-                self.execute_workflow_command(&definition, &context).await
-            }
+            CommandType::Simple => self.execute_simple_command(&definition, &context).await,
+            CommandType::Workflow => self.execute_workflow_command(&definition, &context).await,
         };
 
         let execution_time = start_time.elapsed().as_millis() as u64;
@@ -213,9 +210,7 @@ impl CommandManagerImpl {
             "Workflow command: {}\nWorkflow name: {}\n\n\
             Note: Workflow execution requires Task Manager integration.\n\
             Workflow would be executed with the following arguments: {:?}",
-            definition.metadata.name,
-            workflow_name,
-            context.parsed_args
+            definition.metadata.name, workflow_name, context.parsed_args
         );
 
         Ok(CommandExecutionResult::success(&output))
@@ -284,9 +279,9 @@ impl CommandManagerImpl {
             return Ok(0);
         }
 
-        let mut entries = tokio::fs::read_dir(path).await.map_err(|e| {
-            CommandError::ParseError(format!("Failed to read directory: {}", e))
-        })?;
+        let mut entries = tokio::fs::read_dir(path)
+            .await
+            .map_err(|e| CommandError::ParseError(format!("Failed to read directory: {}", e)))?;
 
         loop {
             match entries.next_entry().await {
@@ -323,7 +318,9 @@ impl CommandManagerImpl {
     fn validate_definition(&self, definition: &CommandDefinition) -> CommandResult<()> {
         // Check name is valid
         if definition.metadata.name.is_empty() {
-            return Err(CommandError::InvalidDefinition("Command name cannot be empty".to_string()));
+            return Err(CommandError::InvalidDefinition(
+                "Command name cannot be empty".to_string(),
+            ));
         }
 
         if definition.metadata.name.contains(' ') {
@@ -334,7 +331,9 @@ impl CommandManagerImpl {
 
         // Check syntax is valid
         if definition.usage.syntax.is_empty() {
-            return Err(CommandError::InvalidDefinition("Command syntax cannot be empty".to_string()));
+            return Err(CommandError::InvalidDefinition(
+                "Command syntax cannot be empty".to_string(),
+            ));
         }
 
         // Check for required args without defaults
@@ -346,9 +345,10 @@ impl CommandManagerImpl {
 
         // Check workflow commands have workflow config
         if definition.metadata.command_type == CommandType::Workflow
-            && definition.workflow_config.is_none() {
-                // Not necessarily an error - could be set dynamically
-            }
+            && definition.workflow_config.is_none()
+        {
+            // Not necessarily an error - could be set dynamically
+        }
 
         Ok(())
     }
@@ -401,7 +401,9 @@ mod tests {
         let cm = CommandManagerImpl::new();
 
         let cmd = CommandDefinition::new("test", "Test command", "/test <arg>", "test.md")
-            .with_args(vec![CommandArg::new("arg", "An argument").with_required(true)]);
+            .with_args(vec![
+                CommandArg::new("arg", "An argument").with_required(true)
+            ]);
 
         let result = cm.register_command(cmd).await;
         assert!(result.is_ok());
@@ -455,7 +457,10 @@ mod tests {
 
         cm.register_command(cmd).await.unwrap();
 
-        let result = cm.execute_command("hello", "/hello Alice", None).await.unwrap();
+        let result = cm
+            .execute_command("hello", "/hello Alice", None)
+            .await
+            .unwrap();
         assert!(result.success);
         assert!(result.output.contains("Alice"));
     }

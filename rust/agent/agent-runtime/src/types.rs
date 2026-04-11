@@ -50,7 +50,6 @@ pub enum AgentStatus {
     Stopped,
 }
 
-
 /// Agent state
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentState {

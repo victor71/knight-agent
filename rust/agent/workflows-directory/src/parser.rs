@@ -12,15 +12,18 @@ pub struct WorkflowParser;
 impl WorkflowParser {
     /// Parse a workflow from a file
     pub async fn parse_file(path: &Path) -> WorkflowDirectoryResult<WorkflowDefinition> {
-        let content = tokio::fs::read_to_string(path)
-            .await
-            .map_err(|e| WorkflowDirectoryError::ParseError(format!("Failed to read file: {}", e)))?;
+        let content = tokio::fs::read_to_string(path).await.map_err(|e| {
+            WorkflowDirectoryError::ParseError(format!("Failed to read file: {}", e))
+        })?;
 
         Self::parse_content(&content, path)
     }
 
     /// Parse a workflow from content
-    pub fn parse_content(content: &str, path: &Path) -> WorkflowDirectoryResult<WorkflowDefinition> {
+    pub fn parse_content(
+        content: &str,
+        path: &Path,
+    ) -> WorkflowDirectoryResult<WorkflowDefinition> {
         // Split content into lines for easier processing
         let lines: Vec<&str> = content.lines().collect();
 
@@ -55,7 +58,9 @@ impl WorkflowParser {
     }
 
     /// Extract front matter lines from content
-    fn extract_frontmatter<'a>(lines: &'a [&str]) -> WorkflowDirectoryResult<(Vec<&'a str>, Vec<&'a str>)> {
+    fn extract_frontmatter<'a>(
+        lines: &'a [&str],
+    ) -> WorkflowDirectoryResult<(Vec<&'a str>, Vec<&'a str>)> {
         if lines.is_empty() {
             return Err(WorkflowDirectoryError::ParseError(
                 "Missing front matter (---)".to_string(),
@@ -66,9 +71,9 @@ impl WorkflowParser {
         let start_idx = lines
             .iter()
             .position(|l| !l.trim().is_empty())
-            .ok_or_else(|| WorkflowDirectoryError::ParseError(
-                "Missing front matter (---)".to_string(),
-            ))?;
+            .ok_or_else(|| {
+                WorkflowDirectoryError::ParseError("Missing front matter (---)".to_string())
+            })?;
 
         if lines[start_idx].trim() != "---" {
             return Err(WorkflowDirectoryError::ParseError(
@@ -81,7 +86,9 @@ impl WorkflowParser {
             .iter()
             .position(|l| l.trim() == "---")
             .map(|p| p + start_idx + 1)
-            .ok_or_else(|| WorkflowDirectoryError::ParseError("Front matter not closed".to_string()))?;
+            .ok_or_else(|| {
+                WorkflowDirectoryError::ParseError("Front matter not closed".to_string())
+            })?;
 
         let front_matter: Vec<&'a str> = lines[start_idx + 1..closing_idx].to_vec();
         let body: Vec<&'a str> = lines[closing_idx + 1..].to_vec();
@@ -90,7 +97,10 @@ impl WorkflowParser {
     }
 
     /// Parse front matter into metadata
-    fn parse_frontmatter(front_matter: &[&str], path: &Path) -> WorkflowDirectoryResult<WorkflowMetadata> {
+    fn parse_frontmatter(
+        front_matter: &[&str],
+        path: &Path,
+    ) -> WorkflowDirectoryResult<WorkflowMetadata> {
         let mut name = None;
         let mut category = None;
         let mut tags: Vec<String> = Vec::new();
@@ -127,9 +137,13 @@ impl WorkflowParser {
             }
         }
 
-        let name = name.ok_or_else(|| WorkflowDirectoryError::ParseError("Missing 'name' in front matter".to_string()))?;
+        let name = name.ok_or_else(|| {
+            WorkflowDirectoryError::ParseError("Missing 'name' in front matter".to_string())
+        })?;
         let category = category.unwrap_or_else(|| "uncategorized".to_string());
-        let description = description.ok_or_else(|| WorkflowDirectoryError::ParseError("Missing 'description' in front matter".to_string()))?;
+        let description = description.ok_or_else(|| {
+            WorkflowDirectoryError::ParseError("Missing 'description' in front matter".to_string())
+        })?;
 
         let file_path = path.to_string_lossy().to_string();
 
@@ -161,7 +175,10 @@ impl WorkflowParser {
             for line in section.lines() {
                 let trimmed = line.trim();
                 if trimmed.starts_with('-') || trimmed.starts_with('*') {
-                    let item = trimmed.trim_start_matches('-').trim_start_matches('*').trim();
+                    let item = trimmed
+                        .trim_start_matches('-')
+                        .trim_start_matches('*')
+                        .trim();
                     if !item.is_empty() && !item.starts_with('#') {
                         prerequisites.items.push(item.to_string());
                     }
@@ -179,7 +196,10 @@ impl WorkflowParser {
         if let Some(section) = Self::extract_section(content, "## 输入参数") {
             for line in section.lines() {
                 let trimmed = line.trim();
-                if trimmed.starts_with('|') && !trimmed.starts_with("| ---") && trimmed.contains("|") {
+                if trimmed.starts_with('|')
+                    && !trimmed.starts_with("| ---")
+                    && trimmed.contains("|")
+                {
                     let parts: Vec<&str> = trimmed.split('|').collect();
                     if parts.len() >= 4 {
                         let name = parts[1].trim();
@@ -187,7 +207,10 @@ impl WorkflowParser {
                         let required = parts[3].trim().contains("是") || parts[3].trim() == "true";
                         let description = parts.get(4).map(|s| s.trim()).unwrap_or("").to_string();
 
-                        if !name.is_empty() && name != "参数" && !name.chars().all(|c| c == '-' || c == '|') {
+                        if !name.is_empty()
+                            && name != "参数"
+                            && !name.chars().all(|c| c == '-' || c == '|')
+                        {
                             parameters.push(WorkflowParameter {
                                 name: name.to_string(),
                                 param_type: param_type.to_string(),
@@ -236,7 +259,10 @@ impl WorkflowParser {
                 // Parse step header
                 let parts: Vec<&str> = trimmed.split(':').collect();
                 step_id = format!("step{}", steps.len() + 1);
-                step_name = parts.get(1).map(|s| s.trim().to_string()).unwrap_or_default();
+                step_name = parts
+                    .get(1)
+                    .map(|s| s.trim().to_string())
+                    .unwrap_or_default();
 
                 if step_name.is_empty() {
                     step_name = format!("Step {}", steps.len() + 1);
@@ -246,7 +272,8 @@ impl WorkflowParser {
                 if !agent.is_empty() {
                     current_step = Some(WorkflowStep::new(&step_id, &step_name, &agent, ""));
                 }
-            } else if trimmed.starts_with("使用 **Agent") || trimmed.starts_with("使用 **agent") {
+            } else if trimmed.starts_with("使用 **Agent") || trimmed.starts_with("使用 **agent")
+            {
                 // Parse agent
                 let agent_part = trimmed
                     .replace("使用 **Agent", "")
@@ -325,12 +352,7 @@ impl WorkflowParser {
             {
                 // Start a new step with this as the prompt
                 if !agent.is_empty() || !step_name.is_empty() {
-                    current_step = Some(WorkflowStep::new(
-                        &step_id,
-                        &step_name,
-                        &agent,
-                        trimmed,
-                    ));
+                    current_step = Some(WorkflowStep::new(&step_id, &step_name, &agent, trimmed));
                 }
             }
         }
@@ -354,7 +376,10 @@ impl WorkflowParser {
             for line in section.lines() {
                 let trimmed = line.trim();
                 if trimmed.starts_with('-') || trimmed.starts_with('*') {
-                    let item = trimmed.trim_start_matches('-').trim_start_matches('*').trim();
+                    let item = trimmed
+                        .trim_start_matches('-')
+                        .trim_start_matches('*')
+                        .trim();
                     if !item.is_empty() && !item.starts_with('#') && !item.starts_with("##") {
                         items.push(item.to_string());
                     }
@@ -407,13 +432,7 @@ mod tests {
 
     #[test]
     fn test_extract_frontmatter() {
-        let lines = vec![
-            "---",
-            "name: test",
-            "category: testing",
-            "---",
-            "# Body",
-        ];
+        let lines = vec!["---", "name: test", "category: testing", "---", "# Body"];
 
         let (fm, body) = WorkflowParser::extract_frontmatter(&lines).unwrap();
         assert_eq!(fm, vec!["name: test", "category: testing"]);

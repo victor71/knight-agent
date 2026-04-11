@@ -10,9 +10,9 @@ use crate::api::ContextCompressor;
 use crate::content::ContentType;
 use crate::error::{ContextCompressorError, ContextCompressorResult};
 use crate::types::{
-    CompressionConfig, CompressionJob, CompressionJobStatus, CompressionOptions,
-    CompressionPoint, CompressionStats, CompressionStrategy, Message,
-    MessageRange, ShouldCompressResponse, TokenEstimation,
+    CompressionConfig, CompressionJob, CompressionJobStatus, CompressionOptions, CompressionPoint,
+    CompressionStats, CompressionStrategy, Message, MessageRange, ShouldCompressResponse,
+    TokenEstimation,
 };
 
 /// Context compressor implementation
@@ -82,7 +82,10 @@ impl ContextCompressorImpl {
     }
 
     /// Preserve important messages based on content type
-    fn select_preserved_messages(messages: &[Message], options: &CompressionOptions) -> Vec<Message> {
+    fn select_preserved_messages(
+        messages: &[Message],
+        options: &CompressionOptions,
+    ) -> Vec<Message> {
         let mut preserved = Vec::new();
 
         for msg in messages {
@@ -129,7 +132,8 @@ impl ContextCompressorImpl {
         // If nothing to compress (all messages are "recent"), skip compression
         if to_compress_count == 0 {
             return Err(ContextCompressorError::CompressionFailed(
-                "No messages to compress: all messages are within keep_recent_messages threshold".to_string()
+                "No messages to compress: all messages are within keep_recent_messages threshold"
+                    .to_string(),
             ));
         }
 
@@ -151,7 +155,8 @@ impl ContextCompressorImpl {
         let preserved_tokens: usize = preserved.iter().map(|m| (m.content.len() + 2) / 4).sum();
 
         // Token count for messages actually being compressed (not preserved)
-        let to_compress_tokens: usize = to_compress.iter()
+        let to_compress_tokens: usize = to_compress
+            .iter()
             .filter(|m| !preserved.iter().any(|p| p.id == m.id))
             .map(|m| (m.content.len() + 2) / 4)
             .sum();
@@ -168,12 +173,14 @@ impl ContextCompressorImpl {
 
         // Check minimum compression ratio
         if compression_ratio < options.min_compression_ratio {
-            return Err(ContextCompressorError::CompressionFailed(
-                format!("Compression ratio {} below minimum {}", compression_ratio, options.min_compression_ratio)
-            ));
+            return Err(ContextCompressorError::CompressionFailed(format!(
+                "Compression ratio {} below minimum {}",
+                compression_ratio, options.min_compression_ratio
+            )));
         }
 
-        let replaced_ids: Vec<String> = to_compress.iter().map(|m| m.id.clone()).collect::<Vec<_>>();
+        let replaced_ids: Vec<String> =
+            to_compress.iter().map(|m| m.id.clone()).collect::<Vec<_>>();
 
         let point = CompressionPoint {
             id: format!("cp-{}", uuid::Uuid::new_v4()),
@@ -194,7 +201,10 @@ impl ContextCompressorImpl {
 
         // Store the compression point
         let point_id = point.id.clone();
-        self.points.write().await.insert(point_id.clone(), point.clone());
+        self.points
+            .write()
+            .await
+            .insert(point_id.clone(), point.clone());
 
         // Add to session's points
         self.session_points
@@ -207,25 +217,30 @@ impl ContextCompressorImpl {
         // Update statistics
         {
             let mut stats = self.stats.write().await;
-            let stats_entry = stats.entry(session_id.to_string())
+            let stats_entry = stats
+                .entry(session_id.to_string())
                 .or_insert_with(CompressionStats::default);
 
             stats_entry.total_compressions += 1;
             stats_entry.total_tokens_saved += token_saved;
-            stats_entry.avg_compression_ratio = stats_entry.total_tokens_saved as f64
-                / stats_entry.total_compressions as f64;
+            stats_entry.avg_compression_ratio =
+                stats_entry.total_tokens_saved as f64 / stats_entry.total_compressions as f64;
             stats_entry.last_compression = Some(Utc::now());
             stats_entry.tokens_used += original_size;
-            stats_entry.budget_remaining = stats_entry.budget_limit.saturating_sub(stats_entry.tokens_used);
+            stats_entry.budget_remaining = stats_entry
+                .budget_limit
+                .saturating_sub(stats_entry.tokens_used);
 
             use crate::types::CompressionHistoryEntry;
-            stats_entry.compression_history.push(CompressionHistoryEntry {
-                point_id: point_id.clone(),
-                timestamp: Utc::now(),
-                strategy,
-                token_saved,
-                compression_ratio,
-            });
+            stats_entry
+                .compression_history
+                .push(CompressionHistoryEntry {
+                    point_id: point_id.clone(),
+                    timestamp: Utc::now(),
+                    strategy,
+                    token_saved,
+                    compression_ratio,
+                });
 
             // Limit history size
             if stats_entry.compression_history.len() > 100 {
@@ -264,7 +279,8 @@ impl ContextCompressor for ContextCompressorImpl {
     fn is_initialized(&self) -> bool {
         // This is a sync method but we have async internals
         // Use try_read to avoid blocking, returns false if locked
-        self.initialized.try_read()
+        self.initialized
+            .try_read()
             .map(|guard| *guard)
             .unwrap_or(false)
     }
@@ -283,8 +299,12 @@ impl ContextCompressor for ContextCompressorImpl {
         Ok(())
     }
 
-    async fn should_compress(&self, session_id: &str) -> ContextCompressorResult<ShouldCompressResponse> {
-        let stats = self.stats
+    async fn should_compress(
+        &self,
+        session_id: &str,
+    ) -> ContextCompressorResult<ShouldCompressResponse> {
+        let stats = self
+            .stats
             .read()
             .await
             .get(session_id)
@@ -329,7 +349,8 @@ impl ContextCompressor for ContextCompressorImpl {
             return Err(ContextCompressorError::NotInitialized);
         }
 
-        self.perform_compression(session_id, messages, strategy, options).await
+        self.perform_compression(session_id, messages, strategy, options)
+            .await
     }
 
     async fn compress_async(
@@ -380,7 +401,9 @@ impl ContextCompressor for ContextCompressorImpl {
                 strategy: strategy_owned,
                 message_range: MessageRange {
                     start: 0,
-                    end: messages_owned.len().saturating_sub(options.keep_recent_messages),
+                    end: messages_owned
+                        .len()
+                        .saturating_sub(options.keep_recent_messages),
                 },
                 message_count: messages_owned.len(),
                 token_count: original_size,
@@ -407,23 +430,30 @@ impl ContextCompressor for ContextCompressorImpl {
 
             // Update job status
             // Note: In real implementation, we'd update the job status
-            tracing::info!("Async compression completed for session {}", session_id_owned);
+            tracing::info!(
+                "Async compression completed for session {}",
+                session_id_owned
+            );
         });
 
         Ok(job_id)
     }
 
-    async fn get_compression_job_status(&self, job_id: &str) -> ContextCompressorResult<CompressionJob> {
-        self.jobs
-            .read()
-            .await
-            .get(job_id)
-            .cloned()
-            .ok_or_else(|| ContextCompressorError::CompressionFailed(format!("Job not found: {}", job_id)))
+    async fn get_compression_job_status(
+        &self,
+        job_id: &str,
+    ) -> ContextCompressorResult<CompressionJob> {
+        self.jobs.read().await.get(job_id).cloned().ok_or_else(|| {
+            ContextCompressorError::CompressionFailed(format!("Job not found: {}", job_id))
+        })
     }
 
-    async fn get_compression_points(&self, session_id: &str) -> ContextCompressorResult<Vec<CompressionPoint>> {
-        let point_ids = self.session_points
+    async fn get_compression_points(
+        &self,
+        session_id: &str,
+    ) -> ContextCompressorResult<Vec<CompressionPoint>> {
+        let point_ids = self
+            .session_points
             .read()
             .await
             .get(session_id)
@@ -442,7 +472,10 @@ impl ContextCompressor for ContextCompressorImpl {
         Ok(points)
     }
 
-    async fn get_compression_point(&self, point_id: &str) -> ContextCompressorResult<CompressionPoint> {
+    async fn get_compression_point(
+        &self,
+        point_id: &str,
+    ) -> ContextCompressorResult<CompressionPoint> {
         self.points
             .read()
             .await
@@ -451,7 +484,10 @@ impl ContextCompressor for ContextCompressorImpl {
             .ok_or_else(|| ContextCompressorError::PointNotFound(point_id.to_string()))
     }
 
-    async fn restore_compression_point(&self, point_id: &str) -> ContextCompressorResult<Vec<Message>> {
+    async fn restore_compression_point(
+        &self,
+        point_id: &str,
+    ) -> ContextCompressorResult<Vec<Message>> {
         let point = self.get_compression_point(point_id).await?;
 
         let mut messages = point.preserved_messages.clone();
@@ -481,12 +517,19 @@ impl ContextCompressor for ContextCompressorImpl {
         Ok(())
     }
 
-    async fn estimate_tokens(&self, messages: &[Message]) -> ContextCompressorResult<TokenEstimation> {
+    async fn estimate_tokens(
+        &self,
+        messages: &[Message],
+    ) -> ContextCompressorResult<TokenEstimation> {
         Ok(Self::estimate_token_count(messages))
     }
 
-    async fn get_compression_stats(&self, session_id: &str) -> ContextCompressorResult<CompressionStats> {
-        Ok(self.stats
+    async fn get_compression_stats(
+        &self,
+        session_id: &str,
+    ) -> ContextCompressorResult<CompressionStats> {
+        Ok(self
+            .stats
             .read()
             .await
             .get(session_id)
@@ -494,11 +537,17 @@ impl ContextCompressor for ContextCompressorImpl {
             .unwrap_or_default())
     }
 
-    async fn get_compression_config(&self, _session_id: Option<&str>) -> ContextCompressorResult<CompressionConfig> {
+    async fn get_compression_config(
+        &self,
+        _session_id: Option<&str>,
+    ) -> ContextCompressorResult<CompressionConfig> {
         Ok(self.config.read().await.clone())
     }
 
-    async fn update_compression_config(&self, config: CompressionConfig) -> ContextCompressorResult<()> {
+    async fn update_compression_config(
+        &self,
+        config: CompressionConfig,
+    ) -> ContextCompressorResult<()> {
         *self.config.write().await = config;
         Ok(())
     }

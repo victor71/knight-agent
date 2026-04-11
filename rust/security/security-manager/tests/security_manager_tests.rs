@@ -3,10 +3,9 @@
 //! Unit tests for the security_manager module.
 
 use security_manager::{
-    AuditLogger, DefaultPolicy, EventResult, LogQuery, PolicyEffect, PolicyEngine,
-    PolicyType, Principal, SecretManager, SecretPolicyConfig, SecurityConfig,
-    SecurityContext, SecurityEvent, SecurityEventType, SecurityManager,
-    SecurityManagerImpl, SecurityPolicy,
+    AuditLogger, DefaultPolicy, EventResult, LogQuery, PolicyEffect, PolicyEngine, PolicyType,
+    Principal, SecretManager, SecretPolicyConfig, SecurityConfig, SecurityContext, SecurityEvent,
+    SecurityEventType, SecurityManager, SecurityManagerImpl, SecurityPolicy,
 };
 
 use security_manager::PermissionGrant;
@@ -257,7 +256,11 @@ async fn test_store_and_retrieve_secret() {
     let manager = SecretManager::new(SecretPolicyConfig::default());
 
     let result = manager
-        .store_secret("api-key".to_string(), "supersecretkey123!".to_string(), None)
+        .store_secret(
+            "api-key".to_string(),
+            "supersecretkey123!".to_string(),
+            None,
+        )
         .await;
     assert!(result.is_ok());
 

@@ -116,7 +116,9 @@ impl AuditLogger {
         let mut threat_count = 0;
 
         for event in filtered {
-            *by_event_type.entry(format!("{:?}", event.event_type)).or_insert(0) += 1;
+            *by_event_type
+                .entry(format!("{:?}", event.event_type))
+                .or_insert(0) += 1;
             *by_principal.entry(event.principal.to_string()).or_insert(0) += 1;
 
             if matches!(event.result, EventResult::Denied) {

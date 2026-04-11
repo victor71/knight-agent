@@ -37,10 +37,10 @@ pub mod secrets;
 pub mod system;
 pub mod types;
 
-pub use system::{SecurityManager, SecurityManagerImpl};
 pub use audit::AuditLogger;
 pub use policy::PolicyEngine;
 pub use secrets::SecretManager;
+pub use system::{SecurityManager, SecurityManagerImpl};
 pub use types::*;
 
 #[derive(thiserror::Error, Debug)]
@@ -72,4 +72,3 @@ pub enum SecurityError {
     #[error("Configuration error: {0}")]
     ConfigError(String),
 }
-

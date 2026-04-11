@@ -31,7 +31,10 @@ impl PermissionServiceImpl {
 
     /// Generate permission key
     fn permission_key(permission: &Permission) -> String {
-        format!("{}:{}:{}", permission.user_id, permission.resource, permission.action)
+        format!(
+            "{}:{}:{}",
+            permission.user_id, permission.resource, permission.action
+        )
     }
 }
 

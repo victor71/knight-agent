@@ -5,20 +5,19 @@
 //! Design Reference: docs/03-module-design/security/sandbox.md
 
 // Re-export all public types and functions from modules
-pub mod error;
-pub mod types;
 pub mod checker;
-pub mod r#trait;
+pub mod error;
 pub mod sandbox;
+pub mod r#trait;
+pub mod types;
 
 // Re-export commonly used types at crate root
+pub use checker::{glob_match, PermissionChecker};
 pub use error::{SandboxError, SandboxResult};
-pub use types::{
-    SandboxLevel, FileAction, SandboxStatus, ViolationType, ViolationSeverity,
-    Violation, FilesystemSandbox, CommandSandbox, NetworkSandbox, PortRange,
-    ResourceLimits, SandboxConfig, ViolationAction, ResourceUsage,
-    SandboxInfo, AccessCheckResult,
-};
-pub use checker::{PermissionChecker, glob_match};
 pub use r#trait::Sandbox;
 pub use sandbox::SandboxImpl;
+pub use types::{
+    AccessCheckResult, CommandSandbox, FileAction, FilesystemSandbox, NetworkSandbox, PortRange,
+    ResourceLimits, ResourceUsage, SandboxConfig, SandboxInfo, SandboxLevel, SandboxStatus,
+    Violation, ViolationAction, ViolationSeverity, ViolationType,
+};

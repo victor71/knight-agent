@@ -10,9 +10,9 @@ pub use compressor::ContextCompressorImpl;
 pub use content::ContentType;
 pub use error::{ContextCompressorError, ContextCompressorResult};
 pub use types::{
-    CompressionConfig, CompressionHistoryEntry, CompressionJob, CompressionJobStatus,
-    CompressionOptions, CompressionPoint, CompressionStats, CompressionStrategy,
-    CompressionTrigger, CompressedContext, Message, MessageRange, ShouldCompressResponse,
+    CompressedContext, CompressionConfig, CompressionHistoryEntry, CompressionJob,
+    CompressionJobStatus, CompressionOptions, CompressionPoint, CompressionStats,
+    CompressionStrategy, CompressionTrigger, Message, MessageRange, ShouldCompressResponse,
     TokenEstimation,
 };
 

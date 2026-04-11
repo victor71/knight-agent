@@ -86,7 +86,10 @@ pub trait EventLoopTrait: Send + Sync {
     async fn remove_listener(&self, listener_id: &str) -> EventLoopResult<()>;
 
     /// List all listeners (optionally filtered by event type)
-    async fn list_listeners(&self, event_type: Option<&str>) -> EventLoopResult<Vec<EventListenerInfo>>;
+    async fn list_listeners(
+        &self,
+        event_type: Option<&str>,
+    ) -> EventLoopResult<Vec<EventListenerInfo>>;
 
     // ========== Event Operations ==========
 
@@ -153,10 +156,16 @@ impl EventLoopImpl {
             guard.total_events += 1;
 
             // Update events by type
-            *guard.events_by_type.entry(event.event_type.clone()).or_insert(0) += 1;
+            *guard
+                .events_by_type
+                .entry(event.event_type.clone())
+                .or_insert(0) += 1;
 
             // Update events by source
-            *guard.events_by_source.entry(event.source.clone()).or_insert(0) += 1;
+            *guard
+                .events_by_source
+                .entry(event.source.clone())
+                .or_insert(0) += 1;
 
             // Update average processing time
             let n = guard.total_events as f64;
@@ -228,11 +237,7 @@ impl EventLoopTrait for EventLoopImpl {
     }
 
     fn get_status(&self) -> EventLoopResult<EventLoopStatus> {
-        let running = self
-            .running
-            .try_read()
-            .map(|g| *g)
-            .unwrap_or(false);
+        let running = self.running.try_read().map(|g| *g).unwrap_or(false);
         let uptime_seconds = self
             .started_at
             .try_read()
@@ -244,15 +249,17 @@ impl EventLoopTrait for EventLoopImpl {
         let sources_len = self.sources.try_read().map(|g| g.len()).unwrap_or(0);
         let listeners_len = self.dispatcher.try_read().map(|g| g.len()).unwrap_or(0);
 
-        let stats = self.stats.try_read().map(|g| g.clone()).unwrap_or_else(|_| {
-            EventStats {
+        let stats = self
+            .stats
+            .try_read()
+            .map(|g| g.clone())
+            .unwrap_or_else(|_| EventStats {
                 total_events: 0,
                 events_by_type: HashMap::new(),
                 events_by_source: HashMap::new(),
                 processing_time_avg_ms: 0.0,
                 error_count: 0,
-            }
-        });
+            });
 
         Ok(EventLoopStatus {
             running,
@@ -310,10 +317,7 @@ impl EventLoopTrait for EventLoopImpl {
 
     async fn list_sources(&self) -> EventLoopResult<Vec<EventSourceInfo>> {
         let sources = self.sources.read().await;
-        Ok(sources
-            .values()
-            .map(EventSourceInfo::from)
-            .collect())
+        Ok(sources.values().map(EventSourceInfo::from).collect())
     }
 
     async fn add_listener(&self, listener: EventListener) -> EventLoopResult<String> {
@@ -334,7 +338,10 @@ impl EventLoopTrait for EventLoopImpl {
         }
     }
 
-    async fn list_listeners(&self, event_type: Option<&str>) -> EventLoopResult<Vec<EventListenerInfo>> {
+    async fn list_listeners(
+        &self,
+        event_type: Option<&str>,
+    ) -> EventLoopResult<Vec<EventListenerInfo>> {
         let dispatcher = self.dispatcher.read().await;
         let listeners = dispatcher.list_listeners();
 
@@ -345,9 +352,7 @@ impl EventLoopTrait for EventLoopImpl {
                     l.filter
                         .event_type
                         .as_ref()
-                        .map(|f| {
-                            matches!(f, serde_json::Value::String(s) if s == et || s == "*")
-                        })
+                        .map(|f| matches!(f, serde_json::Value::String(s) if s == et || s == "*"))
                         .unwrap_or(true)
                 })
                 .map(EventListenerInfo::from)
@@ -407,4 +412,3 @@ impl EventLoopTrait for EventLoopImpl {
             .ok_or_else(|| EventLoopError::ProcessingFailed("Failed to get queue info".to_string()))
     }
 }
-

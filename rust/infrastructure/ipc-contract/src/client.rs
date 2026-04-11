@@ -8,7 +8,10 @@ use tokio::sync::{mpsc, oneshot, RwLock};
 
 use crate::error::{IPCError, IPCResult};
 use crate::transport::{Connection, TcpTransport, Transport};
-use crate::types::{BaseMessage, MessageType, NotificationMessage, RequestMessage, ResponseMessage, StreamChunkMessage};
+use crate::types::{
+    BaseMessage, MessageType, NotificationMessage, RequestMessage, ResponseMessage,
+    StreamChunkMessage,
+};
 
 /// IPC client configuration
 #[derive(Debug, Clone)]
@@ -22,7 +25,6 @@ pub struct IpcClientConfig {
     /// Event channel size
     pub event_channel_size: usize,
 }
-
 
 impl Default for IpcClientConfig {
     fn default() -> Self {
@@ -38,7 +40,7 @@ impl Default for IpcClientConfig {
 /// Pending request
 struct PendingRequest {
     response_tx: oneshot::Sender<ResponseMessage>,
-    chunk_tx: Option<mpsc::UnboundedSender<StreamChunkMessage>>,
+    chunk_tx: Option<mpsc::Sender<StreamChunkMessage>>,
 }
 
 /// IPC client
@@ -65,7 +67,10 @@ pub enum ClientEvent {
     /// Stream chunk received
     StreamChunk { request_id: String, chunk: String },
     /// Notification received
-    Notification { event: String, data: serde_json::Value },
+    Notification {
+        event: String,
+        data: serde_json::Value,
+    },
     /// Error occurred
     Error { error: String },
 }
@@ -129,9 +134,14 @@ impl IpcClient {
         &self,
         method: String,
         params: serde_json::Value,
-    ) -> IPCResult<(mpsc::UnboundedReceiver<StreamChunkMessage>, oneshot::Receiver<ResponseMessage>)> {
-        let (chunk_tx, chunk_rx) = mpsc::unbounded_channel();
-        let response_rx = self.request_internal(method, params, Some(chunk_tx)).await?;
+    ) -> IPCResult<(
+        mpsc::Receiver<StreamChunkMessage>,
+        oneshot::Receiver<ResponseMessage>,
+    )> {
+        let (chunk_tx, chunk_rx) = mpsc::channel(256);
+        let response_rx = self
+            .request_internal(method, params, Some(chunk_tx))
+            .await?;
         Ok((chunk_rx, response_rx))
     }
 
@@ -140,7 +150,7 @@ impl IpcClient {
         &self,
         method: String,
         params: serde_json::Value,
-        chunk_tx: Option<mpsc::UnboundedSender<StreamChunkMessage>>,
+        chunk_tx: Option<mpsc::Sender<StreamChunkMessage>>,
     ) -> IPCResult<oneshot::Receiver<ResponseMessage>> {
         // Create request message first to get its ID
         let mut request = RequestMessage {
@@ -168,7 +178,10 @@ impl IpcClient {
             let mut pending = self.pending_requests.write().await;
             pending.insert(
                 request_id.clone(),
-                PendingRequest { response_tx, chunk_tx },
+                PendingRequest {
+                    response_tx,
+                    chunk_tx,
+                },
             );
         }
 
@@ -178,7 +191,8 @@ impl IpcClient {
         {
             let mut conn = self.connection.write().await;
             if let Some(conn) = conn.as_mut() {
-                conn.send(request_str).await
+                conn.send(request_str)
+                    .await
                     .map_err(|e| IPCError::SendFailed(e.to_string()))?;
             } else {
                 drop(conn);
@@ -225,11 +239,7 @@ impl IpcClient {
     }
 
     /// Send a notification (no response expected)
-    pub async fn notify(
-        &self,
-        event: String,
-        data: serde_json::Value,
-    ) -> IPCResult<()> {
+    pub async fn notify(&self, event: String, data: serde_json::Value) -> IPCResult<()> {
         let notification = NotificationMessage::new(event, data);
 
         let notification_str = serde_json::to_string(&notification)
@@ -283,58 +293,103 @@ impl IpcClient {
                 // Try to acquire write lock, but don't wait forever
                 tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
 
-                if let Ok(mut conn_guard) = tokio::time::timeout(
-                    tokio::time::Duration::from_millis(5),
-                    connection.write()
-                ).await {
+                if let Ok(mut conn_guard) =
+                    tokio::time::timeout(tokio::time::Duration::from_millis(5), connection.write())
+                        .await
+                {
                     if conn_guard.is_some() {
                         // Try to receive with short timeout
                         let recv_result = tokio::time::timeout(
                             tokio::time::Duration::from_millis(5),
-                            conn_guard.as_mut().unwrap().recv()
-                        ).await;
+                            conn_guard.as_mut().unwrap().recv(),
+                        )
+                        .await;
 
                         match recv_result {
                             Ok(Ok(Some(msg_str))) => {
                                 drop(conn_guard); // Release lock before processing
 
-                                // Try to parse as ResponseMessage first
-                                if let Ok(response) = serde_json::from_str::<ResponseMessage>(&msg_str) {
-                                    let request_id = response.request_id.clone();
+                                // Determine message type from the "type" field before deserializing
+                                // This is critical because ResponseMessage and StreamChunkMessage
+                                // can be deserialized from each other (shared fields, optional fields)
+                                let msg_type: Option<MessageType> =
+                                    serde_json::from_str::<serde_json::Value>(&msg_str)
+                                        .ok()
+                                        .and_then(|v| v.get("type").cloned())
+                                        .and_then(|v| serde_json::from_value(v).ok());
 
-                                    // Remove from pending and send response
-                                    let pending = pending_requests.write().await.remove(&request_id);
+                                match msg_type {
+                                    Some(MessageType::StreamChunk) => {
+                                        // Parse as StreamChunkMessage
+                                        if let Ok(chunk) =
+                                            serde_json::from_str::<StreamChunkMessage>(&msg_str)
+                                        {
+                                            let request_id = chunk.request_id.clone();
+                                            tracing::debug!("IPC client received chunk for request {}: {} chars", request_id, chunk.chunk.len());
 
-                                    if let Some(pending) = pending {
-                                        let _ = pending.response_tx.send(response);
-                                    } else {
-                                        tracing::warn!("Received response for unknown request: {}", request_id);
+                                            // Forward chunk to pending stream request
+                                            let chunk_tx_opt = {
+                                                let pending_requests =
+                                                    pending_requests.read().await;
+                                                pending_requests
+                                                    .get(&request_id)
+                                                    .and_then(|p| p.chunk_tx.as_ref().cloned())
+                                            };
+
+                                            if let Some(chunk_tx) = chunk_tx_opt {
+                                                let _ = chunk_tx.send(chunk.clone());
+                                                let _ = event_tx.send(ClientEvent::StreamChunk {
+                                                    request_id,
+                                                    chunk: chunk.chunk,
+                                                });
+                                                tracing::debug!(
+                                                    "IPC client forwarded chunk to chunk_rx"
+                                                );
+                                            } else {
+                                                tracing::warn!(
+                                                    "Received chunk for unknown request: {}",
+                                                    chunk.request_id
+                                                );
+                                            }
+                                        }
                                     }
-                                } else if let Ok(chunk) = serde_json::from_str::<StreamChunkMessage>(&msg_str) {
-                                    let request_id = chunk.request_id.clone();
+                                    Some(MessageType::Response) => {
+                                        // Parse as ResponseMessage
+                                        if let Ok(response) =
+                                            serde_json::from_str::<ResponseMessage>(&msg_str)
+                                        {
+                                            let request_id = response.request_id.clone();
 
-                                    // Forward chunk to pending stream request
-                                    let chunk_tx_opt = {
-                                        let pending_requests = pending_requests.read().await;
-                                        pending_requests.get(&request_id).and_then(|p| p.chunk_tx.as_ref().cloned())
-                                    };
+                                            // Remove from pending and send response
+                                            let pending =
+                                                pending_requests.write().await.remove(&request_id);
 
-                                    if let Some(chunk_tx) = chunk_tx_opt {
-                                        let _ = chunk_tx.send(chunk.clone());
-                                        let _ = event_tx.send(ClientEvent::StreamChunk {
-                                            request_id,
-                                            chunk: chunk.chunk,
-                                        });
-                                    } else {
-                                        tracing::warn!("Received chunk for unknown request: {}", request_id);
+                                            if let Some(pending) = pending {
+                                                let _ = pending.response_tx.send(response);
+                                            } else {
+                                                tracing::warn!(
+                                                    "Received response for unknown request: {}",
+                                                    request_id
+                                                );
+                                            }
+                                        }
                                     }
-                                } else if let Ok(_notification) = serde_json::from_str::<NotificationMessage>(&msg_str) {
-                                    // Handle notification
-                                    let _ = event_tx.send(ClientEvent::Error {
-                                        error: "Notification handling not implemented".to_string(),
-                                    });
-                                } else {
-                                    tracing::warn!("Received unknown message type: {}", &msg_str[..msg_str.len().min(100)]);
+                                    Some(MessageType::Notification) => {
+                                        if let Ok(_notification) =
+                                            serde_json::from_str::<NotificationMessage>(&msg_str)
+                                        {
+                                            let _ = event_tx.send(ClientEvent::Error {
+                                                error: "Notification handling not implemented"
+                                                    .to_string(),
+                                            });
+                                        }
+                                    }
+                                    _ => {
+                                        tracing::warn!(
+                                            "Received unknown message type: {}",
+                                            &msg_str[..msg_str.len().min(100)]
+                                        );
+                                    }
                                 }
                             }
                             Ok(Ok(None)) => {
@@ -455,7 +510,9 @@ mod tests {
         client.connect().await.unwrap();
 
         // Send request to non-existent method
-        let result = client.request("unknown".to_string(), serde_json::json!(null)).await;
+        let result = client
+            .request("unknown".to_string(), serde_json::json!(null))
+            .await;
 
         assert!(matches!(result, Err(IPCError::InternalError(_))));
 
@@ -506,7 +563,9 @@ mod tests {
         let mut client = IpcClient::new(client_config);
         client.connect().await.unwrap();
 
-        let result = client.request("slow".to_string(), serde_json::json!(null)).await;
+        let result = client
+            .request("slow".to_string(), serde_json::json!(null))
+            .await;
 
         assert!(matches!(result, Err(IPCError::Timeout(_))));
 

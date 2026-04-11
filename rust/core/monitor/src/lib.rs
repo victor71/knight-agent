@@ -4,8 +4,8 @@
 //!
 //! Design Reference: docs/03-module-design/core/monitor.md
 
-pub mod types;
 pub mod monitor;
+pub mod types;
 
-pub use types::*;
 pub use monitor::MonitorImpl;
+pub use types::*;

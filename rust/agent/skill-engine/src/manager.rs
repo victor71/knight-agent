@@ -183,7 +183,10 @@ impl SkillEngineImpl {
 
         // Validate required parameters
         for param in &skill.parameters {
-            if param.required && !parameters.contains_key(&param.name) && param.default_value.is_none() {
+            if param.required
+                && !parameters.contains_key(&param.name)
+                && param.default_value.is_none()
+            {
                 return Err(SkillEngineError::InvalidDefinition(format!(
                     "Missing required parameter: {}",
                     param.name

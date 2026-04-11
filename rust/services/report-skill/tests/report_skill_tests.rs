@@ -90,8 +90,14 @@ async fn test_list_reports() {
     skill.initialize().await.unwrap();
 
     let date = NaiveDate::from_ymd_opt(2026, 4, 2).unwrap();
-    skill.generate_report(GenerateReportRequest::daily(date, OutputFormat::Markdown)).await.unwrap();
-    skill.generate_report(GenerateReportRequest::daily(date, OutputFormat::Json)).await.unwrap();
+    skill
+        .generate_report(GenerateReportRequest::daily(date, OutputFormat::Markdown))
+        .await
+        .unwrap();
+    skill
+        .generate_report(GenerateReportRequest::daily(date, OutputFormat::Json))
+        .await
+        .unwrap();
 
     let reports = skill.list_reports().await.unwrap();
     assert_eq!(reports.len(), 2);
@@ -116,7 +122,10 @@ async fn test_cancel_scheduled_report() {
 
     let date = NaiveDate::from_ymd_opt(2026, 4, 2).unwrap();
     let request = GenerateReportRequest::daily(date, OutputFormat::Markdown);
-    let task_id = skill.schedule_report(request.clone(), "0 9 * * *").await.unwrap();
+    let task_id = skill
+        .schedule_report(request.clone(), "0 9 * * *")
+        .await
+        .unwrap();
 
     skill.cancel_scheduled_report(&task_id).await.unwrap();
     let result = skill.cancel_scheduled_report(&task_id).await;

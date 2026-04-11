@@ -54,7 +54,8 @@ impl ToolRegistry {
 
     /// Get all categories
     pub fn categories(&self) -> Vec<String> {
-        let mut categories: Vec<String> = self.tools
+        let mut categories: Vec<String> = self
+            .tools
             .values()
             .filter_map(|t| {
                 if t.category.is_empty() {
@@ -99,8 +100,16 @@ impl ToolRegistry {
     }
 
     /// Register MCP tools for a server
-    pub fn register_mcp_tools(&mut self, server_name: &str, tools: Vec<McpToolDefinition>) -> usize {
-        debug!("Registering {} MCP tools from server: {}", tools.len(), server_name);
+    pub fn register_mcp_tools(
+        &mut self,
+        server_name: &str,
+        tools: Vec<McpToolDefinition>,
+    ) -> usize {
+        debug!(
+            "Registering {} MCP tools from server: {}",
+            tools.len(),
+            server_name
+        );
         let count = tools.len();
         self.mcp_tools.insert(server_name.to_string(), tools);
         count

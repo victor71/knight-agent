@@ -6,13 +6,12 @@ use std::collections::HashMap;
 #[serde(rename_all = "lowercase")]
 #[derive(Default)]
 pub enum SandboxLevel {
-    None,   // No isolation - local development
+    None, // No isolation - local development
     #[default]
-    Basic,   // Basic isolation - general use
-    Strict,  // Strict isolation - sensitive operations
-    Full,    // Full isolation - untrusted code
+    Basic, // Basic isolation - general use
+    Strict, // Strict isolation - sensitive operations
+    Full, // Full isolation - untrusted code
 }
-
 
 /// File system access action
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -82,12 +81,9 @@ impl Default for FilesystemSandbox {
     fn default() -> Self {
         Self {
             allowed_paths: vec!["**/*".to_string()],
-            denied_patterns: vec![
-                "**/.git/**".to_string(),
-                "**/.env".to_string(),
-            ],
+            denied_patterns: vec!["**/.git/**".to_string(), "**/.env".to_string()],
             read_only: vec![],
-            max_file_size: 10 * 1024 * 1024, // 10MB
+            max_file_size: 10 * 1024 * 1024,   // 10MB
             max_total_size: 100 * 1024 * 1024, // 100MB
         }
     }
@@ -109,11 +105,7 @@ impl Default for CommandSandbox {
     fn default() -> Self {
         Self {
             allowed_commands: vec![],
-            denied_commands: vec![
-                "rm -rf /".to_string(),
-                "mkfs".to_string(),
-                "dd".to_string(),
-            ],
+            denied_commands: vec!["rm -rf /".to_string(), "mkfs".to_string(), "dd".to_string()],
             max_execution_time: 300,
             max_concurrent: 5,
         }

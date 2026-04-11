@@ -3,9 +3,9 @@
 //! Unit tests for the skill-engine module.
 
 use skill_engine::{
-    SkillEngineImpl, SkillEngineError, SkillDefinition, SkillParameter, ParameterType,
-    SkillStep, StepType, Trigger, TriggerType, SkillContext, SkillExecutionResult,
-    SkillInfo, Pipeline, PipelineStep, ExecutionPlan, PlannedStep,
+    ExecutionPlan, ParameterType, Pipeline, PipelineStep, PlannedStep, SkillContext,
+    SkillDefinition, SkillEngineError, SkillEngineImpl, SkillExecutionResult, SkillInfo,
+    SkillParameter, SkillStep, StepType, Trigger, TriggerType,
 };
 
 // Manager tests
@@ -13,8 +13,8 @@ use skill_engine::{
 #[tokio::test]
 async fn test_register_skill() {
     let engine = SkillEngineImpl::new();
-    let skill = SkillDefinition::new("test-skill", "Test Skill", "A test skill")
-        .with_category("testing");
+    let skill =
+        SkillDefinition::new("test-skill", "Test Skill", "A test skill").with_category("testing");
 
     let result = engine.register_skill(skill).await;
     assert!(result.is_ok());
@@ -28,7 +28,10 @@ async fn test_register_duplicate_skill() {
 
     engine.register_skill(skill.clone()).await.unwrap();
     let result = engine.register_skill(skill).await;
-    assert!(matches!(result, Err(SkillEngineError::AlreadyRegistered(_))));
+    assert!(matches!(
+        result,
+        Err(SkillEngineError::AlreadyRegistered(_))
+    ));
 }
 
 #[tokio::test]
@@ -63,10 +66,8 @@ async fn test_list_skills() {
 #[tokio::test]
 async fn test_list_skills_by_category() {
     let engine = SkillEngineImpl::new();
-    let skill1 = SkillDefinition::new("skill-1", "Skill 1", "First skill")
-        .with_category("testing");
-    let skill2 = SkillDefinition::new("skill-2", "Skill 2", "Second skill")
-        .with_category("other");
+    let skill1 = SkillDefinition::new("skill-1", "Skill 1", "First skill").with_category("testing");
+    let skill2 = SkillDefinition::new("skill-2", "Skill 2", "Second skill").with_category("other");
     engine.register_skill(skill1).await.unwrap();
     engine.register_skill(skill2).await.unwrap();
 
@@ -78,10 +79,9 @@ async fn test_list_skills_by_category() {
 #[tokio::test]
 async fn test_list_categories() {
     let engine = SkillEngineImpl::new();
-    let skill1 = SkillDefinition::new("skill-1", "Skill 1", "First skill")
-        .with_category("testing");
-    let skill2 = SkillDefinition::new("skill-2", "Skill 2", "Second skill")
-        .with_category("production");
+    let skill1 = SkillDefinition::new("skill-1", "Skill 1", "First skill").with_category("testing");
+    let skill2 =
+        SkillDefinition::new("skill-2", "Skill 2", "Second skill").with_category("production");
     engine.register_skill(skill1).await.unwrap();
     engine.register_skill(skill2).await.unwrap();
 
@@ -112,8 +112,8 @@ async fn test_unregister_nonexistent_skill() {
 #[tokio::test]
 async fn test_update_skill() {
     let engine = SkillEngineImpl::new();
-    let skill = SkillDefinition::new("test-skill", "Test Skill", "A test skill")
-        .with_category("testing");
+    let skill =
+        SkillDefinition::new("test-skill", "Test Skill", "A test skill").with_category("testing");
     engine.register_skill(skill).await.unwrap();
 
     let updated_skill = SkillDefinition::new("test-skill", "Updated Skill", "Updated description")
@@ -153,7 +153,11 @@ async fn test_execute_nonexistent_skill() {
 async fn test_execute_skill_with_parameters() {
     let engine = SkillEngineImpl::new();
     let mut skill = SkillDefinition::new("test-skill", "Test Skill", "A test skill");
-    skill.parameters.push(SkillParameter::new("name", ParameterType::String, "Name param"));
+    skill.parameters.push(SkillParameter::new(
+        "name",
+        ParameterType::String,
+        "Name param",
+    ));
     engine.register_skill(skill).await.unwrap();
 
     let context = SkillContext::new("session-1");
@@ -171,7 +175,10 @@ async fn test_create_execution_plan() {
         .with_trigger(Trigger::new("t1", TriggerType::Keyword).with_pattern("test"));
     engine.register_skill(skill).await.unwrap();
 
-    let plan = engine.create_execution_plan("This is a test task").await.unwrap();
+    let plan = engine
+        .create_execution_plan("This is a test task")
+        .await
+        .unwrap();
     assert!(!plan.steps.is_empty());
 }
 
@@ -214,8 +221,7 @@ fn test_skill_definition_new() {
 
 #[test]
 fn test_skill_definition_with_category() {
-    let skill = SkillDefinition::new("test", "Test", "Test")
-        .with_category("testing");
+    let skill = SkillDefinition::new("test", "Test", "Test").with_category("testing");
     assert_eq!(skill.category, Some("testing".to_string()));
 }
 
@@ -228,15 +234,21 @@ fn test_skill_definition_with_trigger() {
 
 #[test]
 fn test_skill_definition_with_parameter() {
-    let skill = SkillDefinition::new("test", "Test", "Test")
-        .with_parameter(SkillParameter::new("param1", ParameterType::String, "A parameter"));
+    let skill = SkillDefinition::new("test", "Test", "Test").with_parameter(SkillParameter::new(
+        "param1",
+        ParameterType::String,
+        "A parameter",
+    ));
     assert_eq!(skill.parameters.len(), 1);
 }
 
 #[test]
 fn test_skill_definition_with_step() {
-    let skill = SkillDefinition::new("test", "Test", "Test")
-        .with_step(SkillStep::new("step1", "Step 1", "First step"));
+    let skill = SkillDefinition::new("test", "Test", "Test").with_step(SkillStep::new(
+        "step1",
+        "Step 1",
+        "First step",
+    ));
     assert_eq!(skill.steps.len(), 1);
 }
 
@@ -251,8 +263,7 @@ fn test_skill_parameter_new() {
 
 #[test]
 fn test_skill_parameter_optional() {
-    let param = SkillParameter::new("opt", ParameterType::Integer, "Optional")
-        .optional();
+    let param = SkillParameter::new("opt", ParameterType::Integer, "Optional").optional();
     assert!(!param.required);
 }
 
@@ -282,15 +293,13 @@ fn test_skill_step_new() {
 
 #[test]
 fn test_skill_step_with_tool() {
-    let step = SkillStep::new("step1", "Test Step", "A test step")
-        .with_tool("read_file");
+    let step = SkillStep::new("step1", "Test Step", "A test step").with_tool("read_file");
     assert_eq!(step.tool, Some("read_file".to_string()));
 }
 
 #[test]
 fn test_skill_step_with_skill() {
-    let step = SkillStep::new("step1", "Test Step", "A test step")
-        .with_skill("other-skill");
+    let step = SkillStep::new("step1", "Test Step", "A test step").with_skill("other-skill");
     assert_eq!(step.skill_id, Some("other-skill".to_string()));
     assert_eq!(step.step_type, StepType::Skill);
 }
@@ -312,15 +321,13 @@ fn test_trigger_new() {
 
 #[test]
 fn test_trigger_with_pattern() {
-    let trigger = Trigger::new("t1", TriggerType::Keyword)
-        .with_pattern("test");
+    let trigger = Trigger::new("t1", TriggerType::Keyword).with_pattern("test");
     assert_eq!(trigger.pattern, Some("test".to_string()));
 }
 
 #[test]
 fn test_trigger_with_event_type() {
-    let trigger = Trigger::new("t1", TriggerType::Event)
-        .with_event_type("file_changed");
+    let trigger = Trigger::new("t1", TriggerType::Event).with_event_type("file_changed");
     assert_eq!(trigger.event_type, Some("file_changed".to_string()));
 }
 
@@ -340,25 +347,19 @@ fn test_skill_context_new() {
 
 #[test]
 fn test_skill_context_with_variable() {
-    let ctx = SkillContext::new("session-1")
-        .with_variable("name", serde_json::json!("value"));
+    let ctx = SkillContext::new("session-1").with_variable("name", serde_json::json!("value"));
     assert!(ctx.variables.contains_key("name"));
 }
 
 #[test]
 fn test_skill_context_with_file() {
-    let ctx = SkillContext::new("session-1")
-        .with_file("/path/to/file.txt");
+    let ctx = SkillContext::new("session-1").with_file("/path/to/file.txt");
     assert_eq!(ctx.files.len(), 1);
 }
 
 #[test]
 fn test_execution_result_success() {
-    let result = SkillExecutionResult::success(
-        "skill-1",
-        serde_json::json!({"result": "ok"}),
-        100,
-    );
+    let result = SkillExecutionResult::success("skill-1", serde_json::json!({"result": "ok"}), 100);
     assert!(result.success);
     assert!(result.output.is_some());
     assert!(result.error.is_none());
@@ -383,8 +384,8 @@ fn test_execution_result_with_steps() {
 
 #[test]
 fn test_skill_info_from_definition() {
-    let skill = SkillDefinition::new("test-skill", "Test Skill", "A test skill")
-        .with_category("testing");
+    let skill =
+        SkillDefinition::new("test-skill", "Test Skill", "A test skill").with_category("testing");
     let info = SkillInfo::from(&skill);
     assert_eq!(info.id, "test-skill");
     assert_eq!(info.name, "Test Skill");
@@ -402,8 +403,8 @@ fn test_pipeline_new() {
 
 #[test]
 fn test_pipeline_with_step() {
-    let pipeline = Pipeline::new("pipeline-1", "Test Pipeline")
-        .with_step(PipelineStep::new("skill-1"));
+    let pipeline =
+        Pipeline::new("pipeline-1", "Test Pipeline").with_step(PipelineStep::new("skill-1"));
     assert_eq!(pipeline.steps.len(), 1);
 }
 

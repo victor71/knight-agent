@@ -144,10 +144,10 @@ pub enum OutputStyle {
     AgentMessage,
     SystemInfo,
     Error,
-    Code(String),  // language
+    Code(String),   // language
     Status(String), // emoji/status text
-    Processing,      // animated processing indicator
-    Thinking,        // AI thinking/reasoning content
+    Processing,     // animated processing indicator
+    Thinking,       // AI thinking/reasoning content
 }
 
 /// Processing state for input queue

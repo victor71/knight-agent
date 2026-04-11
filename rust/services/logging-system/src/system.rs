@@ -17,9 +17,7 @@ use tracing_subscriber::{
 };
 
 use crate::output::LogOutput;
-use crate::types::{
-    ErrorInfo, ExportFormat, LogContext, LogEntry, LogFilter, LogLevel, LogStats,
-};
+use crate::types::{ErrorInfo, ExportFormat, LogContext, LogEntry, LogFilter, LogLevel, LogStats};
 use crate::LoggingError;
 
 /// Logging system trait
@@ -89,8 +87,8 @@ impl LoggingSystemImpl {
         static TRACING_INIT: OnceLock<()> = OnceLock::new();
 
         let _ = TRACING_INIT.get_or_init(|| {
-            let env_filter = EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info"));
+            let env_filter =
+                EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
             let fmt_layer = fmt::layer()
                 .with_target(true)
@@ -125,7 +123,11 @@ impl LoggingSystemImpl {
     }
 
     /// Set log level for a specific module
-    pub async fn set_module_level(&self, module: String, level: LogLevel) -> Result<(), LoggingError> {
+    pub async fn set_module_level(
+        &self,
+        module: String,
+        level: LogLevel,
+    ) -> Result<(), LoggingError> {
         let mut levels = self.module_levels.write().await;
         levels.insert(module, level);
         Ok(())
@@ -177,27 +179,32 @@ impl LoggingSystemImpl {
 
     /// Log at debug level
     pub async fn debug(&self, message: String) -> Result<(), LoggingError> {
-        self.log_message(LogLevel::Debug, message, None, None, None, None).await
+        self.log_message(LogLevel::Debug, message, None, None, None, None)
+            .await
     }
 
     /// Log at info level
     pub async fn info(&self, message: String) -> Result<(), LoggingError> {
-        self.log_message(LogLevel::Info, message, None, None, None, None).await
+        self.log_message(LogLevel::Info, message, None, None, None, None)
+            .await
     }
 
     /// Log at warn level
     pub async fn warn(&self, message: String) -> Result<(), LoggingError> {
-        self.log_message(LogLevel::Warn, message, None, None, None, None).await
+        self.log_message(LogLevel::Warn, message, None, None, None, None)
+            .await
     }
 
     /// Log at error level
     pub async fn error(&self, message: String, err: Option<ErrorInfo>) -> Result<(), LoggingError> {
-        self.log_message(LogLevel::Error, message, None, None, None, err).await
+        self.log_message(LogLevel::Error, message, None, None, None, err)
+            .await
     }
 
     /// Log at fatal level
     pub async fn fatal(&self, message: String, err: Option<ErrorInfo>) -> Result<(), LoggingError> {
-        self.log_message(LogLevel::Fatal, message, None, None, None, err).await
+        self.log_message(LogLevel::Fatal, message, None, None, None, err)
+            .await
     }
 
     /// Search logs by query string
@@ -237,10 +244,8 @@ impl LoggingSystemImpl {
         let logs = self.get_logs(filter).await?;
 
         match format {
-            ExportFormat::Json => {
-                serde_json::to_string_pretty(&logs)
-                    .map_err(|e| LoggingError::ExportFailed(e.to_string()))
-            }
+            ExportFormat::Json => serde_json::to_string_pretty(&logs)
+                .map_err(|e| LoggingError::ExportFailed(e.to_string())),
             ExportFormat::Csv => {
                 let mut csv = String::from("id,timestamp,level,module,message\n");
                 for entry in logs {
@@ -280,7 +285,12 @@ impl LoggingSystemImpl {
         let outputs = self.outputs.read().await;
 
         for output in outputs.iter() {
-            if let LogOutput::File { path, rotation_max_files, .. } = output {
+            if let LogOutput::File {
+                path,
+                rotation_max_files,
+                ..
+            } = output
+            {
                 // Check if file exists and needs rotation
                 if let Ok(metadata) = tokio::fs::metadata(path).await {
                     let _file_size = metadata.len() as usize;
@@ -363,29 +373,21 @@ impl LoggingSystemImpl {
 
         if colored {
             let color = match entry.level {
-                LogLevel::Trace | LogLevel::Debug => "\x1b[36m",     // cyan
-                LogLevel::Info => "\x1b[32m",                        // green
-                LogLevel::Warn => "\x1b[33m",                       // yellow
-                LogLevel::Error | LogLevel::Fatal => "\x1b[31m",    // red
+                LogLevel::Trace | LogLevel::Debug => "\x1b[36m", // cyan
+                LogLevel::Info => "\x1b[32m",                    // green
+                LogLevel::Warn => "\x1b[33m",                    // yellow
+                LogLevel::Error | LogLevel::Fatal => "\x1b[31m", // red
             };
             let reset = "\x1b[0m";
 
             eprintln!(
                 "{}{} [{}] [{}]{} {}",
-                color,
-                timestamp,
-                level_str,
-                entry.module,
-                reset,
-                entry.message
+                color, timestamp, level_str, entry.module, reset, entry.message
             );
         } else {
             eprintln!(
                 "{} [{}] [{}] {}",
-                timestamp,
-                level_str,
-                entry.module,
-                entry.message
+                timestamp, level_str, entry.module, entry.message
             );
         }
     }
@@ -394,8 +396,8 @@ impl LoggingSystemImpl {
     async fn write_to_file(&self, entry: &LogEntry, path: &PathBuf) -> Result<(), LoggingError> {
         use tokio::io::AsyncWriteExt;
 
-        let json = serde_json::to_string(entry)
-            .map_err(|e| LoggingError::WriteFailed(e.to_string()))?;
+        let json =
+            serde_json::to_string(entry).map_err(|e| LoggingError::WriteFailed(e.to_string()))?;
 
         let mut file = tokio::fs::OpenOptions::new()
             .create(true)

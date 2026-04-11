@@ -1,4 +1,6 @@
-use crate::types::{FileAction, AccessCheckResult, SandboxConfig, FilesystemSandbox, CommandSandbox, NetworkSandbox};
+use crate::types::{
+    AccessCheckResult, CommandSandbox, FileAction, FilesystemSandbox, NetworkSandbox, SandboxConfig,
+};
 
 /// Permission checker helper
 pub struct PermissionChecker {
@@ -30,14 +32,18 @@ impl PermissionChecker {
         // Check denied patterns first
         for pattern in &self.filesystem.denied_patterns {
             if glob_match(pattern, &abs_path) {
-                return AccessCheckResult::denied(format!("Path matches denied pattern: {}", pattern));
+                return AccessCheckResult::denied(format!(
+                    "Path matches denied pattern: {}",
+                    pattern
+                ));
             }
         }
 
         // Check if path is in allowed paths
-        let allowed = self.filesystem.allowed_paths.iter().any(|p| {
-            glob_match(p, &abs_path) || abs_path.starts_with(p.trim_end_matches("**"))
-        });
+        let allowed =
+            self.filesystem.allowed_paths.iter().any(|p| {
+                glob_match(p, &abs_path) || abs_path.starts_with(p.trim_end_matches("**"))
+            });
 
         if !allowed {
             return AccessCheckResult::denied("Path not in allowed paths");
@@ -66,7 +72,11 @@ impl PermissionChecker {
 
         // If whitelist is non-empty, command must be in it
         if !self.command.allowed_commands.is_empty() {
-            let allowed = self.command.allowed_commands.iter().any(|c| command.starts_with(c));
+            let allowed = self
+                .command
+                .allowed_commands
+                .iter()
+                .any(|c| command.starts_with(c));
             if !allowed {
                 return AccessCheckResult::denied("Command not in allowed list");
             }
@@ -90,7 +100,11 @@ impl PermissionChecker {
 
         // If whitelist is non-empty, host must be in it
         if !self.network.allowed_hosts.is_empty() {
-            let allowed = self.network.allowed_hosts.iter().any(|h| host.contains(h) || h == host);
+            let allowed = self
+                .network
+                .allowed_hosts
+                .iter()
+                .any(|h| host.contains(h) || h == host);
             if !allowed {
                 return AccessCheckResult::denied("Host not in allowed list");
             }
@@ -98,7 +112,11 @@ impl PermissionChecker {
 
         // Check port ranges
         if !self.network.allowed_ports.is_empty() {
-            let port_allowed = self.network.allowed_ports.iter().any(|r| port >= r.start && port <= r.end);
+            let port_allowed = self
+                .network
+                .allowed_ports
+                .iter()
+                .any(|r| port >= r.start && port <= r.end);
             if !port_allowed {
                 return AccessCheckResult::denied(format!("Port {} not in allowed ranges", port));
             }
@@ -125,12 +143,12 @@ pub fn glob_match(pattern: &str, path: &str) -> bool {
 
     // Match .git directory anywhere
     if pattern == "**/.git/**" {
-        return path.starts_with(".git/") ||
-               path.contains("/.git/") ||
-               path == ".git" ||
-               path.starts_with(".git") ||
-               path.ends_with("/.git") ||
-               path.contains("/.git/");
+        return path.starts_with(".git/")
+            || path.contains("/.git/")
+            || path == ".git"
+            || path.starts_with(".git")
+            || path.ends_with("/.git")
+            || path.contains("/.git/");
     }
 
     // Match **/*.rs - any .rs file anywhere
@@ -140,10 +158,10 @@ pub fn glob_match(pattern: &str, path: &str) -> bool {
 
     // Match /foo/** pattern - /foo and anything under it
     if let Some(base) = pattern.strip_suffix("/**") {
-        return path == base ||
-               path.starts_with(&format!("{}/", base)) ||
-               path.starts_with(base) ||
-               path.contains(&format!("{}/", base));
+        return path == base
+            || path.starts_with(&format!("{}/", base))
+            || path.starts_with(base)
+            || path.contains(&format!("{}/", base));
     }
 
     // Handle * glob (matches any filename, not across /)

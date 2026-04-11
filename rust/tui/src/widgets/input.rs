@@ -44,11 +44,12 @@ pub fn render_input(f: &mut Frame, area: ratatui::layout::Rect, app: &AppState) 
         ])
     };
 
-    let paragraph = Paragraph::new(vec![line])
-        .block(Block::default()
+    let paragraph = Paragraph::new(vec![line]).block(
+        Block::default()
             .title("Input")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::DarkGray)));
+            .border_style(Style::default().fg(Color::DarkGray)),
+    );
 
     f.render_widget(paragraph, area);
 }

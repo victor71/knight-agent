@@ -69,7 +69,9 @@ impl<'de> Deserialize<'de> for MessageRole {
                         return self.visit_str(&value);
                     }
                 }
-                Err(serde::de::Error::custom("expected object with 'type' field"))
+                Err(serde::de::Error::custom(
+                    "expected object with 'type' field",
+                ))
             }
         }
 
@@ -228,7 +230,10 @@ pub enum Delta {
     #[serde(rename = "content_block_stop")]
     ContentBlockStop { index: u32 },
     #[serde(rename = "message_delta")]
-    MessageDelta { delta: MessageDeltaContent, index: u32 },
+    MessageDelta {
+        delta: MessageDeltaContent,
+        index: u32,
+    },
     #[serde(rename = "message_stop")]
     MessageStop,
 }

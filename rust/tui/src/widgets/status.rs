@@ -38,17 +38,15 @@ pub fn render_status(f: &mut Frame, area: ratatui::layout::Rect, app: &AppState)
             ),
             Span::raw(" | "),
             Span::styled("Stage: ", Style::default().fg(Color::Gray)),
-            Span::styled(
-                &app.system_status.stage,
-                Style::default().fg(Color::Cyan),
-            ),
+            Span::styled(&app.system_status.stage, Style::default().fg(Color::Cyan)),
         ]),
-        Line::from(vec![
-            Span::styled(
-                format!("Modules: {}/{}", app.system_status.initialized_count, app.system_status.module_count),
-                Style::default().fg(Color::DarkGray),
+        Line::from(vec![Span::styled(
+            format!(
+                "Modules: {}/{}",
+                app.system_status.initialized_count, app.system_status.module_count
             ),
-        ]),
+            Style::default().fg(Color::DarkGray),
+        )]),
     ];
 
     // Left section: System status (no right border - shares with center)
@@ -57,7 +55,10 @@ pub fn render_status(f: &mut Frame, area: ratatui::layout::Rect, app: &AppState)
     f.render_widget(system_paragraph, chunks.left);
 
     // Center section: Current task (no borders - shares with left and right)
-    let current_task = app.tasks.iter().find(|t| matches!(t.status, crate::state::TaskStatus::Running));
+    let current_task = app
+        .tasks
+        .iter()
+        .find(|t| matches!(t.status, crate::state::TaskStatus::Running));
 
     let task_info = if let Some(task) = current_task {
         vec![
@@ -65,7 +66,9 @@ pub fn render_status(f: &mut Frame, area: ratatui::layout::Rect, app: &AppState)
                 Span::styled("🔄 ", Style::default().fg(Color::Yellow)),
                 Span::styled(
                     truncate_string(&task.name, 25),
-                    Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
                 ),
                 Span::raw(" "),
                 Span::styled(
@@ -73,28 +76,33 @@ pub fn render_status(f: &mut Frame, area: ratatui::layout::Rect, app: &AppState)
                     Style::default().fg(Color::Cyan),
                 ),
             ]),
-            Line::from(vec![
-                Span::styled(
-                    format!("Running tasks: {}", app.tasks.iter().filter(|t| matches!(t.status, crate::state::TaskStatus::Running)).count()),
-                    Style::default().fg(Color::DarkGray),
+            Line::from(vec![Span::styled(
+                format!(
+                    "Running tasks: {}",
+                    app.tasks
+                        .iter()
+                        .filter(|t| matches!(t.status, crate::state::TaskStatus::Running))
+                        .count()
                 ),
-            ]),
+                Style::default().fg(Color::DarkGray),
+            )]),
         ]
     } else {
         vec![
             Line::from(vec![
                 Span::styled("⏸️  ", Style::default().fg(Color::Gray)),
-                Span::styled(
-                    "No active task",
-                    Style::default().fg(Color::DarkGray),
-                ),
+                Span::styled("No active task", Style::default().fg(Color::DarkGray)),
             ]),
-            Line::from(vec![
-                Span::styled(
-                    format!("Pending tasks: {}", app.tasks.iter().filter(|t| matches!(t.status, crate::state::TaskStatus::Pending)).count()),
-                    Style::default().fg(Color::DarkGray),
+            Line::from(vec![Span::styled(
+                format!(
+                    "Pending tasks: {}",
+                    app.tasks
+                        .iter()
+                        .filter(|t| matches!(t.status, crate::state::TaskStatus::Pending))
+                        .count()
                 ),
-            ]),
+                Style::default().fg(Color::DarkGray),
+            )]),
         ]
     };
 

@@ -72,24 +72,30 @@ impl OrchestratorImpl {
 
         // Check if agent already exists
         if agents.contains_key(&agent_id) {
-            return Err(OrchestratorError::RegistrationFailed(
-                format!("Agent {} already registered", agent_id),
-            ));
+            return Err(OrchestratorError::RegistrationFailed(format!(
+                "Agent {} already registered",
+                agent_id
+            )));
         }
 
         // Check agent limit
         if agents.len() >= max_agents {
-            return Err(OrchestratorError::ResourceLimitExceeded(
-                format!("Max agents {} reached", max_agents),
-            ));
+            return Err(OrchestratorError::ResourceLimitExceeded(format!(
+                "Max agents {} reached",
+                max_agents
+            )));
         }
 
         // Check per-session limit
-        let session_agents = agents.values().filter(|a| a.session_id == agent_info.session_id).count();
+        let session_agents = agents
+            .values()
+            .filter(|a| a.session_id == agent_info.session_id)
+            .count();
         if session_agents >= max_agents_per_session {
-            return Err(OrchestratorError::ResourceLimitExceeded(
-                format!("Max agents per session {} reached", max_agents_per_session),
-            ));
+            return Err(OrchestratorError::ResourceLimitExceeded(format!(
+                "Max agents per session {} reached",
+                max_agents_per_session
+            )));
         }
 
         agents.insert(agent_id.clone(), agent_info);
@@ -175,7 +181,11 @@ impl OrchestratorImpl {
     }
 
     /// Update agent status
-    pub async fn update_agent_status(&self, agent_id: &str, status: AgentStatus) -> OrchestratorResult<()> {
+    pub async fn update_agent_status(
+        &self,
+        agent_id: &str,
+        status: AgentStatus,
+    ) -> OrchestratorResult<()> {
         let mut agents = self.agents.write().await;
         if let Some(agent) = agents.get_mut(agent_id) {
             agent.status = status;
@@ -187,7 +197,11 @@ impl OrchestratorImpl {
     }
 
     /// Update agent's current task
-    pub async fn update_agent_task(&self, agent_id: &str, task_id: Option<String>) -> OrchestratorResult<()> {
+    pub async fn update_agent_task(
+        &self,
+        agent_id: &str,
+        task_id: Option<String>,
+    ) -> OrchestratorResult<()> {
         let mut agents = self.agents.write().await;
         if let Some(agent) = agents.get_mut(agent_id) {
             agent.current_task = task_id;
@@ -207,7 +221,10 @@ impl OrchestratorImpl {
     }
 
     /// Allocate an available agent for a task
-    pub async fn allocate_agent(&self, requirements: &TaskRequirements) -> OrchestratorResult<String> {
+    pub async fn allocate_agent(
+        &self,
+        requirements: &TaskRequirements,
+    ) -> OrchestratorResult<String> {
         let available = self.get_available_agents(None).await;
 
         // Filter by requirements
@@ -220,9 +237,13 @@ impl OrchestratorImpl {
                     }
                 }
                 if !requirements.capabilities.is_empty()
-                    && !requirements.capabilities.iter().all(|c| a.capabilities.contains(c)) {
-                        return false;
-                    }
+                    && !requirements
+                        .capabilities
+                        .iter()
+                        .all(|c| a.capabilities.contains(c))
+                {
+                    return false;
+                }
                 true
             })
             .collect();
@@ -258,7 +279,8 @@ impl OrchestratorImpl {
         };
 
         // Update agent status
-        self.update_agent_status(&agent_id, AgentStatus::Busy).await?;
+        self.update_agent_status(&agent_id, AgentStatus::Busy)
+            .await?;
 
         debug!("Allocated agent: {} for task", agent_id);
         Ok(agent_id)
@@ -276,7 +298,10 @@ impl OrchestratorImpl {
 
         // Queue the message
         let mut queue = self.message_queue.write().await;
-        queue.entry(to.to_string()).or_insert_with(Vec::new).push(message);
+        queue
+            .entry(to.to_string())
+            .or_insert_with(Vec::new)
+            .push(message);
 
         Ok(true)
     }
@@ -290,7 +315,10 @@ impl OrchestratorImpl {
         for agent_id in recipients {
             if self.agents.read().await.contains_key(agent_id) {
                 let mut queue = self.message_queue.write().await;
-                queue.entry(agent_id.clone()).or_insert_with(Vec::new).push(message.clone());
+                queue
+                    .entry(agent_id.clone())
+                    .or_insert_with(Vec::new)
+                    .push(message.clone());
                 results.push(SendResult::success(agent_id));
             } else {
                 results.push(SendResult::failure(agent_id, "Agent not found"));
@@ -303,9 +331,9 @@ impl OrchestratorImpl {
     pub async fn publish(&self, topic: &str, message: TopicMessage) -> OrchestratorResult<usize> {
         let subs = self.subscriptions.read().await;
 
-        let agents = subs.get(topic).ok_or_else(|| {
-            OrchestratorError::TopicNotFound(topic.to_string())
-        })?;
+        let agents = subs
+            .get(topic)
+            .ok_or_else(|| OrchestratorError::TopicNotFound(topic.to_string()))?;
 
         let count = agents.len();
 
@@ -319,7 +347,10 @@ impl OrchestratorImpl {
                 message_type: "topic".to_string(),
                 timestamp: message.timestamp.clone(),
             };
-            queue.entry(agent_id.clone()).or_insert_with(Vec::new).push(agent_msg);
+            queue
+                .entry(agent_id.clone())
+                .or_insert_with(Vec::new)
+                .push(agent_msg);
         }
 
         debug!("Published message to topic {}: {} recipients", topic, count);
@@ -336,7 +367,9 @@ impl OrchestratorImpl {
         drop(agents);
 
         let mut subs = self.subscriptions.write().await;
-        subs.entry(topic.to_string()).or_insert_with(Vec::new).push(agent_id.to_string());
+        subs.entry(topic.to_string())
+            .or_insert_with(Vec::new)
+            .push(agent_id.to_string());
 
         debug!("Agent {} subscribed to topic {}", agent_id, topic);
         Ok(())
@@ -364,7 +397,10 @@ impl OrchestratorImpl {
         let agents = self.agents.read().await;
 
         let total = agents.len();
-        let active = agents.values().filter(|a| a.status == AgentStatus::Busy).count();
+        let active = agents
+            .values()
+            .filter(|a| a.status == AgentStatus::Busy)
+            .count();
         let running = agents.values().filter(|a| a.current_task.is_some()).count();
 
         ResourceUsage {
@@ -373,12 +409,20 @@ impl OrchestratorImpl {
             pending_tasks: 0,
             running_tasks: running,
             memory_mb: agents.values().map(|a| a.statistics.memory_mb).sum::<f64>() as u64,
-            cpu_percent: agents.values().map(|a| a.statistics.cpu_percent).sum::<f64>() / total.max(1) as f64,
+            cpu_percent: agents
+                .values()
+                .map(|a| a.statistics.cpu_percent)
+                .sum::<f64>()
+                / total.max(1) as f64,
         }
     }
 
     /// Set resource limit
-    pub async fn set_resource_limit(&self, resource_type: &str, limit: usize) -> OrchestratorResult<()> {
+    pub async fn set_resource_limit(
+        &self,
+        resource_type: &str,
+        limit: usize,
+    ) -> OrchestratorResult<()> {
         let mut config = self.config.lock().unwrap();
         match resource_type {
             "max_agents" => {
@@ -426,7 +470,11 @@ impl OrchestratorImpl {
         let mut collaborations = self.collaborations.write().await;
         collaborations.insert(collab_id.clone(), collab);
 
-        info!("Created collaboration: {} with {} agents", collab_id, agents.len());
+        info!(
+            "Created collaboration: {} with {} agents",
+            collab_id,
+            agents.len()
+        );
         Ok(collab_id)
     }
 
@@ -435,7 +483,9 @@ impl OrchestratorImpl {
         let mut collaborations = self.collaborations.write().await;
 
         if collaborations.remove(collaboration_id).is_none() {
-            return Err(OrchestratorError::CollaborationNotFound(collaboration_id.to_string()));
+            return Err(OrchestratorError::CollaborationNotFound(
+                collaboration_id.to_string(),
+            ));
         }
 
         info!("Dissolved collaboration: {}", collaboration_id);
@@ -443,7 +493,10 @@ impl OrchestratorImpl {
     }
 
     /// Get collaboration info
-    pub async fn get_collaboration(&self, collaboration_id: &str) -> OrchestratorResult<Collaboration> {
+    pub async fn get_collaboration(
+        &self,
+        collaboration_id: &str,
+    ) -> OrchestratorResult<Collaboration> {
         let collaborations = self.collaborations.read().await;
         collaborations
             .get(collaboration_id)
@@ -462,7 +515,11 @@ impl OrchestratorImpl {
     // ========== Statistics ==========
 
     /// Record task completion for an agent
-    pub async fn record_task_completion(&self, agent_id: &str, execution_time_ms: u64) -> OrchestratorResult<()> {
+    pub async fn record_task_completion(
+        &self,
+        agent_id: &str,
+        execution_time_ms: u64,
+    ) -> OrchestratorResult<()> {
         let mut agents = self.agents.write().await;
 
         if let Some(agent) = agents.get_mut(agent_id) {

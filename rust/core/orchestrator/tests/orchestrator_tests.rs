@@ -3,8 +3,8 @@
 //! Unit tests for the orchestrator module.
 
 use orchestrator::{
-    OrchestratorImpl, OrchestratorError, AgentInfo, AgentStatus, AgentFilter,
-    AgentMessage, TopicMessage, CollaborationMode, TaskRequirements,
+    AgentFilter, AgentInfo, AgentMessage, AgentStatus, CollaborationMode, OrchestratorError,
+    OrchestratorImpl, TaskRequirements, TopicMessage,
 };
 
 #[tokio::test]
@@ -138,7 +138,9 @@ async fn test_update_agent_status() {
     );
 
     orch.register_agent(agent).await.unwrap();
-    orch.update_agent_status("agent-1", AgentStatus::Busy).await.unwrap();
+    orch.update_agent_status("agent-1", AgentStatus::Busy)
+        .await
+        .unwrap();
 
     let info = orch.get_agent_info("agent-1").await.unwrap();
     assert_eq!(info.status, AgentStatus::Busy);
@@ -155,7 +157,9 @@ async fn test_update_agent_task() {
     );
 
     orch.register_agent(agent).await.unwrap();
-    orch.update_agent_task("agent-1", Some("task-1".to_string())).await.unwrap();
+    orch.update_agent_task("agent-1", Some("task-1".to_string()))
+        .await
+        .unwrap();
 
     let info = orch.get_agent_info("agent-1").await.unwrap();
     assert_eq!(info.current_task, Some("task-1".to_string()));
@@ -188,7 +192,10 @@ async fn test_allocate_no_available_agent() {
 
     let requirements = TaskRequirements::default();
     let result = orch.allocate_agent(&requirements).await;
-    assert!(matches!(result, Err(OrchestratorError::AgentNotAvailable(_))));
+    assert!(matches!(
+        result,
+        Err(OrchestratorError::AgentNotAvailable(_))
+    ));
 }
 
 #[tokio::test]
@@ -231,7 +238,9 @@ async fn test_broadcast() {
     orch.register_agent(agent2).await.unwrap();
 
     let msg = AgentMessage::new("system", "broadcast", serde_json::json!("hello all"));
-    let results = orch.broadcast(&["agent-1".to_string(), "agent-2".to_string()], msg).await;
+    let results = orch
+        .broadcast(&["agent-1".to_string(), "agent-2".to_string()], msg)
+        .await;
 
     assert_eq!(results.len(), 2);
     assert!(results[0].success);
@@ -300,7 +309,11 @@ async fn test_create_pipeline_collaboration() {
     let collab_id = orch
         .create_collaboration(
             "pipeline-collab",
-            vec!["agent-1".to_string(), "agent-2".to_string(), "agent-3".to_string()],
+            vec![
+                "agent-1".to_string(),
+                "agent-2".to_string(),
+                "agent-3".to_string(),
+            ],
             CollaborationMode::Pipeline,
         )
         .await
@@ -326,7 +339,10 @@ async fn test_dissolve_collaboration() {
     orch.dissolve_collaboration(&collab_id).await.unwrap();
 
     let result = orch.get_collaboration(&collab_id).await;
-    assert!(matches!(result, Err(OrchestratorError::CollaborationNotFound(_))));
+    assert!(matches!(
+        result,
+        Err(OrchestratorError::CollaborationNotFound(_))
+    ));
 }
 
 #[tokio::test]
@@ -357,8 +373,12 @@ async fn test_record_task_completion() {
     );
 
     orch.register_agent(agent).await.unwrap();
-    orch.update_agent_status("agent-1", AgentStatus::Busy).await.unwrap();
-    orch.update_agent_task("agent-1", Some("task-1".to_string())).await.unwrap();
+    orch.update_agent_status("agent-1", AgentStatus::Busy)
+        .await
+        .unwrap();
+    orch.update_agent_task("agent-1", Some("task-1".to_string()))
+        .await
+        .unwrap();
 
     orch.record_task_completion("agent-1", 1000).await.unwrap();
 
@@ -379,7 +399,9 @@ async fn test_record_task_failure() {
     );
 
     orch.register_agent(agent).await.unwrap();
-    orch.update_agent_status("agent-1", AgentStatus::Busy).await.unwrap();
+    orch.update_agent_status("agent-1", AgentStatus::Busy)
+        .await
+        .unwrap();
 
     orch.record_task_failure("agent-1").await.unwrap();
 
@@ -544,11 +566,7 @@ fn test_topic_subscription_new() {
 
 #[test]
 fn test_agent_message_new() {
-    let msg = AgentMessage::new(
-        "agent-1",
-        "agent-2",
-        serde_json::json!({"text": "hello"}),
-    );
+    let msg = AgentMessage::new("agent-1", "agent-2", serde_json::json!({"text": "hello"}));
     assert_eq!(msg.from, "agent-1");
     assert_eq!(msg.to, "agent-2");
 }

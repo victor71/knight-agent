@@ -19,10 +19,10 @@ pub fn calculate_main_layout(area: Rect) -> LayoutChunks {
         .direction(Direction::Vertical)
         .constraints(
             [
-                Constraint::Length(3),  // Header
-                Constraint::Min(0),     // Main output
-                Constraint::Length(3),  // Input (needs 3 lines: border + title + content)
-                Constraint::Length(4),  // Status bar (borders + 2 content lines)
+                Constraint::Length(3), // Header
+                Constraint::Min(0),    // Main output
+                Constraint::Length(3), // Input (needs 3 lines: border + title + content)
+                Constraint::Length(4), // Status bar (borders + 2 content lines)
             ]
             .as_ref(),
         )

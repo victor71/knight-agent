@@ -110,8 +110,11 @@ Windows:
         match path {
             Some(path) => {
                 let version = self.get_version(&path, &def.version_flags).await;
-                DiscoveredAgent::new(&def.agent_type, &def.name)
-                    .with_installed(true, Some(path), version)
+                DiscoveredAgent::new(&def.agent_type, &def.name).with_installed(
+                    true,
+                    Some(path),
+                    version,
+                )
             }
             None => DiscoveredAgent::new(&def.agent_type, &def.name)
                 .with_unavailable("Not found in PATH", Some(def.install_url.clone())),
@@ -130,9 +133,7 @@ Windows:
         // Check common installation paths
         #[cfg(windows)]
         {
-            let windows_paths = vec![
-                format!("C:\\Program Files\\Claude\\bin\\{}.exe", command),
-            ];
+            let windows_paths = vec![format!("C:\\Program Files\\Claude\\bin\\{}.exe", command)];
             for path in windows_paths {
                 if std::path::Path::new(&path).exists() {
                     return Some(path);
@@ -357,7 +358,10 @@ Windows:
         process.state = ProcessState::Killed;
         processes.remove(agent_id);
 
-        info!("Terminated external agent: {} (exit code: {})", agent_id, exit_code);
+        info!(
+            "Terminated external agent: {} (exit code: {})",
+            agent_id, exit_code
+        );
 
         Ok(exit_code)
     }
@@ -456,13 +460,7 @@ Windows:
         }
 
         // Dangerous patterns
-        let dangerous = [
-            "rm -rf /",
-            "rm -rf /*",
-            "format c:",
-            "mkfs",
-            ":(){:|:&};:",
-        ];
+        let dangerous = ["rm -rf /", "rm -rf /*", "format c:", "mkfs", ":(){:|:&};:"];
 
         for pattern in dangerous {
             if input.contains(pattern) {

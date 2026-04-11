@@ -70,7 +70,9 @@ impl HookRegistry {
         // Remove from hooks map
         let hook = {
             let mut hooks = self.hooks.write().await;
-            hooks.remove(hook_id).ok_or_else(|| HookError::NotFound(hook_id.to_string()))?
+            hooks
+                .remove(hook_id)
+                .ok_or_else(|| HookError::NotFound(hook_id.to_string()))?
         };
 
         // Remove from event index

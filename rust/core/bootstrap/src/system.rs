@@ -63,7 +63,11 @@ impl KnightAgentSystem {
     }
 
     /// Initialize a specific stage
-    async fn initialize_stage(&self, stage: BootstrapStage, mode: BootstrapMode) -> BootstrapResult<()> {
+    async fn initialize_stage(
+        &self,
+        stage: BootstrapStage,
+        mode: BootstrapMode,
+    ) -> BootstrapResult<()> {
         tracing::info!("Initializing: {} (mode: {:?})", stage, mode);
         *self.stage.write().await = stage;
 
@@ -79,11 +83,7 @@ impl KnightAgentSystem {
     /// Initialize a single module
     /// Note: This tracks module status. Actual module initialization is done by the caller
     /// (entrance) based on the stage information provided by bootstrap.
-    async fn initialize_module(
-        &self,
-        name: &str,
-        stage: BootstrapStage,
-    ) -> BootstrapResult<()> {
+    async fn initialize_module(&self, name: &str, stage: BootstrapStage) -> BootstrapResult<()> {
         tracing::debug!("Initializing module: {} (Stage {})", name, stage.as_u8());
 
         // Record module status

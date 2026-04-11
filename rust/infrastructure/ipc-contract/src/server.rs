@@ -12,13 +12,10 @@ use crate::error::{IPCError, IPCResult};
 use crate::transport::{Connection, TcpTransport, Transport};
 use crate::types::{ErrorResponse, RequestMessage, ResponseMessage, StreamChunkMessage};
 
-/// Pending response callback
-type ResponseSender = oneshot::Sender<ResponseMessage>;
-
 /// Streaming context for handlers to send chunks
 pub struct StreamingContext {
     request_id: String,
-    conn_tx: mpsc::UnboundedSender<String>,
+    conn_tx: mpsc::Sender<String>,
 }
 
 impl StreamingContext {
@@ -27,8 +24,16 @@ impl StreamingContext {
         let stream_chunk = StreamChunkMessage::new(self.request_id.clone(), sequence, chunk, done);
         let chunk_str = serde_json::to_string(&stream_chunk)
             .map_err(|e| IPCError::ParseError(format!("JSON error: {}", e)))?;
-        self.conn_tx.send(chunk_str)
+        tracing::debug!(
+            "StreamingContext::send_chunk: sending chunk to conn_tx, request_id={}",
+            self.request_id
+        );
+
+        // Try to send without blocking - if channel is full, return error for backpressure
+        self.conn_tx
+            .try_send(chunk_str)
             .map_err(|e| IPCError::SendFailed(e.to_string()))?;
+        tracing::debug!("StreamingContext::send_chunk: sent successfully");
         Ok(())
     }
 
@@ -62,7 +67,6 @@ impl Default for IpcServerConfig {
 /// IPC server state
 struct IpcServerState {
     dispatcher: MethodDispatcher,
-    active_connections: usize,
 }
 
 /// IPC server
@@ -105,7 +109,6 @@ impl IpcServer {
             config,
             state: Arc::new(RwLock::new(IpcServerState {
                 dispatcher: MethodDispatcher::new(),
-                active_connections: 0,
             })),
             transport: TcpTransport::new(),
             event_tx,
@@ -150,10 +153,7 @@ impl IpcServer {
 
     /// Start the server
     pub async fn start(&mut self) -> IPCResult<SocketAddr> {
-        let mut incoming = self
-            .transport
-            .bind(self.config.bind_addr)
-            .await?;
+        let mut incoming = self.transport.bind(self.config.bind_addr).await?;
 
         // Get actual bound address
         let bound_addr = incoming
@@ -250,110 +250,120 @@ async fn handle_connection(
                 let req: RequestMessage = serde_json::from_str(&msg_str)
                     .map_err(|e| IPCError::ParseError(format!("Invalid request: {}", e)))?;
 
-            let request_id = req.base.id.clone();
-            let method = req.method.clone();
-            let is_streaming = req.options.as_ref()
-                .and_then(|o| o.stream)
-                .unwrap_or(false);
+                let request_id = req.base.id.clone();
+                let method = req.method.clone();
+                let is_streaming = req.options.as_ref().and_then(|o| o.stream).unwrap_or(false);
 
-            let _ = event_tx.send(ServerEvent::RequestReceived {
-                addr: peer_addr,
-                method: method.clone(),
-                request_id: request_id.clone(),
-            });
-
-            // Check if this is a streaming request with a streaming handler
-            let has_streaming = {
-                let state = state.read().await;
-                state.dispatcher.has_streaming_handler(&method)
-            };
-
-            if is_streaming && has_streaming {
-                // Handle streaming request
-                let (chunk_tx, mut chunk_rx) = mpsc::unbounded_channel();
-                let stream_ctx = StreamingContext {
+                let _ = event_tx.send(ServerEvent::RequestReceived {
+                    addr: peer_addr,
+                    method: method.clone(),
                     request_id: request_id.clone(),
-                    conn_tx: chunk_tx,
+                });
+
+                // Check if this is a streaming request with a streaming handler
+                let has_streaming = {
+                    let state = state.read().await;
+                    state.dispatcher.has_streaming_handler(&method)
                 };
 
-                // Clone connection for the chunk sender task
-                let conn_for_chunks = conn.clone();
-                let peer_addr_for_log = peer_addr;
+                if is_streaming && has_streaming {
+                    // Handle streaming request with bounded channel for backpressure
+                    let (chunk_tx, mut chunk_rx) = mpsc::channel::<String>(256);
+                    let stream_ctx = StreamingContext {
+                        request_id: request_id.clone(),
+                        conn_tx: chunk_tx,
+                    };
 
-                // Spawn a task to forward chunks to the connection
-                tokio::spawn(async move {
-                    // Send chunks to connection
-                    while let Some(msg_str) = chunk_rx.recv().await {
-                        let mut conn_guard = conn_for_chunks.lock().await;
-                        if let Err(e) = conn_guard.send(msg_str).await {
-                            tracing::error!("Failed to send stream chunk to {}: {}", peer_addr_for_log, e);
-                            break;
+                    // Clone connection for the chunk sender task
+                    let conn_for_chunks = conn.clone();
+                    let peer_addr_for_log = peer_addr;
+
+                    // Spawn a task to forward chunks to the connection and keep the handle
+                    let chunk_forwarder = tokio::spawn(async move {
+                        // Send chunks to connection
+                        while let Some(msg_str) = chunk_rx.recv().await {
+                            let mut conn_guard = conn_for_chunks.lock().await;
+                            if let Err(e) = conn_guard.send(msg_str).await {
+                                tracing::error!(
+                                    "Failed to send stream chunk to {}: {}",
+                                    peer_addr_for_log,
+                                    e
+                                );
+                                break;
+                            }
                         }
+                    });
+
+                    // Dispatch to streaming handler (this blocks until complete)
+                    let result = {
+                        let state = state.read().await;
+                        state
+                            .dispatcher
+                            .dispatch_streaming(&method, req.params, stream_ctx)
+                            .await
+                    };
+
+                    // Wait for all chunks to be forwarded to the TCP connection
+                    // This ensures chunks are sent before the response
+                    let _ = chunk_forwarder.await;
+
+                    // Send final response
+                    let response = match result {
+                        Ok(result_value) => {
+                            ResponseMessage::success(request_id.clone(), result_value)
+                        }
+                        Err(e) => ResponseMessage::error(
+                            request_id.clone(),
+                            ErrorResponse::from_error_code(e.error_code())
+                                .with_details(e.to_string().into()),
+                        ),
+                    };
+
+                    let response_str = serde_json::to_string(&response)
+                        .map_err(|e| IPCError::ParseError(format!("JSON error: {}", e)))?;
+
+                    {
+                        let mut conn_guard = conn.lock().await;
+                        conn_guard.send(response_str).await?;
                     }
-                });
 
-                // Dispatch to streaming handler (this blocks until complete)
-                let result = {
-                    let state = state.read().await;
-                    state.dispatcher.dispatch_streaming(&method, req.params, stream_ctx).await
-                };
+                    let _ = event_tx.send(ServerEvent::ResponseSent {
+                        addr: peer_addr,
+                        request_id,
+                    });
+                } else {
+                    // Regular non-streaming request
+                    let result = {
+                        let state = state.read().await;
+                        state.dispatcher.dispatch(&method, req.params).await
+                    };
 
-                // Small delay to let chunks be sent
-                tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+                    // Create response
+                    let response = match result {
+                        Ok(result_value) => {
+                            ResponseMessage::success(request_id.clone(), result_value)
+                        }
+                        Err(e) => ResponseMessage::error(
+                            request_id.clone(),
+                            ErrorResponse::from_error_code(e.error_code())
+                                .with_details(e.to_string().into()),
+                        ),
+                    };
 
-                // Send final response
-                let response = match result {
-                    Ok(result_value) => ResponseMessage::success(request_id.clone(), result_value),
-                    Err(e) => ResponseMessage::error(
-                        request_id.clone(),
-                        ErrorResponse::from_error_code(e.error_code())
-                            .with_details(e.to_string().into()),
-                    ),
-                };
+                    // Send response
+                    let response_str = serde_json::to_string(&response)
+                        .map_err(|e| IPCError::ParseError(format!("JSON error: {}", e)))?;
 
-                let response_str = serde_json::to_string(&response)
-                    .map_err(|e| IPCError::ParseError(format!("JSON error: {}", e)))?;
+                    {
+                        let mut conn_guard = conn.lock().await;
+                        conn_guard.send(response_str).await?;
+                    }
 
-                {
-                    let mut conn_guard = conn.lock().await;
-                    conn_guard.send(response_str).await?;
+                    let _ = event_tx.send(ServerEvent::ResponseSent {
+                        addr: peer_addr,
+                        request_id,
+                    });
                 }
-
-                let _ = event_tx.send(ServerEvent::ResponseSent {
-                    addr: peer_addr,
-                    request_id,
-                });
-            } else {
-                // Regular non-streaming request
-                let result = {
-                    let state = state.read().await;
-                    state.dispatcher.dispatch(&method, req.params).await
-                };
-
-                // Create response
-                let response = match result {
-                    Ok(result_value) => ResponseMessage::success(request_id.clone(), result_value),
-                    Err(e) => ResponseMessage::error(
-                        request_id.clone(),
-                        ErrorResponse::from_error_code(e.error_code())
-                            .with_details(e.to_string().into()),
-                    ),
-                };
-
-                // Send response
-                let response_str = serde_json::to_string(&response)
-                    .map_err(|e| IPCError::ParseError(format!("JSON error: {}", e)))?;
-
-                {
-                    let mut conn_guard = conn.lock().await;
-                    conn_guard.send(response_str).await?;
-                }
-
-                let _ = event_tx.send(ServerEvent::ResponseSent {
-                    addr: peer_addr,
-                    request_id,
-                });
-            }
             } // Close Ok(Some(msg_str)) => {
             Ok(None) => {
                 // Connection closed

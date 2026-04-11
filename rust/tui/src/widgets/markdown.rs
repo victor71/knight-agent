@@ -176,13 +176,13 @@ fn render_markdown_inner(content: &str) -> Vec<Line<'static>> {
                     ));
                 } else if let Some(level) = heading_level {
                     // Heading text with appropriate style
-                    current_line.push(Span::styled(
-                        text.clone(),
-                        heading_style(level),
-                    ));
+                    current_line.push(Span::styled(text.clone(), heading_style(level)));
                 } else {
                     // Regular text
-                    current_line.push(Span::styled(text.clone(), Style::default().fg(Color::White)));
+                    current_line.push(Span::styled(
+                        text.clone(),
+                        Style::default().fg(Color::White),
+                    ));
                 }
             }
             Event::Code(text) => {
@@ -231,9 +231,7 @@ fn heading_style(level: u32) -> Style {
         5 => Color::Blue,
         _ => Color::Magenta,
     };
-    Style::default()
-        .fg(color)
-        .add_modifier(Modifier::BOLD)
+    Style::default().fg(color).add_modifier(Modifier::BOLD)
 }
 
 /// Parse markdown and extract plain text (for simple display)
@@ -285,7 +283,10 @@ fn render_markdown_with_tables(content: &str) -> Vec<Line<'static>> {
                 .collect();
 
             // Check if this is a separator row
-            if cells.iter().any(|c| c.starts_with("---") || c.starts_with("===")) {
+            if cells
+                .iter()
+                .any(|c| c.starts_with("---") || c.starts_with("==="))
+            {
                 // Separator row - render as line
                 lines.push(Line::from(vec![Span::styled(
                     "─".repeat(40),
@@ -351,11 +352,12 @@ fn render_table(
                 &[]
             };
 
-            let cell_text: String = cell.iter().map(|s| {
-                match &s.content {
-                    cow => cow.to_string()
-                }
-            }).collect();
+            let cell_text: String = cell
+                .iter()
+                .map(|s| match &s.content {
+                    cow => cow.to_string(),
+                })
+                .collect();
             let width = column_widths[col];
 
             // Pad cell content to column width
@@ -363,7 +365,9 @@ fn render_table(
 
             // Add cell style (header vs body)
             let style = if row == 0 {
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::White)
             };
@@ -372,7 +376,10 @@ fn render_table(
 
             // Add separator after header or before each row
             let separator = format!("{:-<width$}", "", width = width);
-            separator_spans.push(Span::styled(separator, Style::default().fg(Color::DarkGray)));
+            separator_spans.push(Span::styled(
+                separator,
+                Style::default().fg(Color::DarkGray),
+            ));
 
             // Add column separator
             if col < num_columns - 1 {

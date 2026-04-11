@@ -6,8 +6,8 @@ use std::sync::Arc;
 use std::time::Instant;
 use tracing::{debug, info, warn};
 
-use crate::types::*;
 use crate::registry::HookRegistry;
+use crate::types::*;
 
 /// Hook executor for running hooks and aggregating results
 pub struct HookExecutor {
@@ -34,7 +34,12 @@ impl HookExecutor {
     }
 
     /// Trigger hooks for an event and phase
-    pub async fn trigger(&self, event: &str, phase: HookPhase, context: HookContext) -> TriggerResult {
+    pub async fn trigger(
+        &self,
+        event: &str,
+        phase: HookPhase,
+        context: HookContext,
+    ) -> TriggerResult {
         let start = Instant::now();
         let matching_hooks = self.registry.find_matching(event, phase).await;
 
@@ -43,7 +48,12 @@ impl HookExecutor {
             return TriggerResult::default();
         }
 
-        info!("Triggering {} hooks for event '{}' phase '{:?}'", matching_hooks.len(), event, phase);
+        info!(
+            "Triggering {} hooks for event '{}' phase '{:?}'",
+            matching_hooks.len(),
+            event,
+            phase
+        );
 
         let mut results = Vec::new();
         let mut blocked = false;
@@ -66,7 +76,9 @@ impl HookExecutor {
             let duration_ms = result.duration_ms;
 
             // Record execution in registry
-            self.registry.record_execution(&hook.id, duration_ms, result.success).await;
+            self.registry
+                .record_execution(&hook.id, duration_ms, result.success)
+                .await;
 
             if !result.success {
                 hooks_failed += 1;
@@ -102,28 +114,30 @@ impl HookExecutor {
     }
 
     /// Execute a single hook
-    async fn execute_hook(&self, hook: &HookDefinition, _context: &HookContext) -> HookExecutionResult {
+    async fn execute_hook(
+        &self,
+        hook: &HookDefinition,
+        _context: &HookContext,
+    ) -> HookExecutionResult {
         let start = Instant::now();
         let hook_id = hook.id.clone();
 
         debug!("Executing hook '{}' handler '{:?}'", hook_id, hook.handler);
 
         let result = match &hook.handler {
-            HookHandler::Command { executable, args, env } => {
-                self.execute_command(executable, args, env).await
-            }
-            HookHandler::Skill { skill_id, args } => {
-                self.execute_skill(skill_id, args).await
-            }
-            HookHandler::Rpc { endpoint, method, timeout_secs } => {
-                self.execute_rpc(endpoint, method, *timeout_secs).await
-            }
-            HookHandler::Wasm { module, function } => {
-                self.execute_wasm(module, function).await
-            }
-            HookHandler::Callback { handler } => {
-                self.execute_callback(handler).await
-            }
+            HookHandler::Command {
+                executable,
+                args,
+                env,
+            } => self.execute_command(executable, args, env).await,
+            HookHandler::Skill { skill_id, args } => self.execute_skill(skill_id, args).await,
+            HookHandler::Rpc {
+                endpoint,
+                method,
+                timeout_secs,
+            } => self.execute_rpc(endpoint, method, *timeout_secs).await,
+            HookHandler::Wasm { module, function } => self.execute_wasm(module, function).await,
+            HookHandler::Callback { handler } => self.execute_callback(handler).await,
         };
 
         HookExecutionResult {
@@ -171,7 +185,10 @@ impl HookExecutor {
         timeout_secs: u64,
     ) -> Result<(), HookError> {
         // In a real implementation, this would make an RPC call
-        debug!("Executing RPC: {} method {} timeout {}s", endpoint, method, timeout_secs);
+        debug!(
+            "Executing RPC: {} method {} timeout {}s",
+            endpoint, method, timeout_secs
+        );
         Ok(())
     }
 
@@ -213,7 +230,9 @@ mod tests {
         let executor = HookExecutor::new(registry);
         let context = HookContext::new("test_event".to_string(), HookPhase::Before);
 
-        let result = executor.trigger("nonexistent", HookPhase::Before, context).await;
+        let result = executor
+            .trigger("nonexistent", HookPhase::Before, context)
+            .await;
 
         assert!(!result.blocked);
         assert_eq!(result.hooks_executed, 0);
@@ -228,7 +247,9 @@ mod tests {
         let executor = HookExecutor::new(Arc::clone(&registry));
         let context = HookContext::new("test_event".to_string(), HookPhase::Before);
 
-        let result = executor.trigger("test_event", HookPhase::Before, context).await;
+        let result = executor
+            .trigger("test_event", HookPhase::Before, context)
+            .await;
 
         assert_eq!(result.hooks_executed, 1);
         assert!(result.hooks_failed == 0 || !result.results.is_empty());

@@ -4,8 +4,7 @@ use std::collections::HashMap;
 
 use llm_provider::{
     provider::{GenericLLMProvider, LLMProtocol, ModelPricing, ProviderConfig},
-    ChatCompletionRequest, Content, Message, MessageRole,
-    LLMProvider,
+    ChatCompletionRequest, Content, LLMProvider, Message, MessageRole,
 };
 
 fn create_openai_provider() -> GenericLLMProvider {
@@ -24,10 +23,7 @@ fn create_openai_provider() -> GenericLLMProvider {
         api_key: "test-api-key".to_string(),
         base_url: "https://api.openai.com/v1".to_string(),
         protocol: LLMProtocol::OpenAI,
-        models: vec![
-            "gpt-4o".to_string(),
-            "gpt-4o-mini".to_string(),
-        ],
+        models: vec!["gpt-4o".to_string(), "gpt-4o-mini".to_string()],
         default_model: Some("gpt-4o".to_string()),
         timeout_secs: 120,
         model_pricing,
@@ -51,10 +47,7 @@ fn create_anthropic_provider() -> GenericLLMProvider {
         api_key: "test-api-key".to_string(),
         base_url: "https://api.anthropic.com".to_string(),
         protocol: LLMProtocol::Anthropic,
-        models: vec![
-            "claude-sonnet-4-6".to_string(),
-            "claude-haiku".to_string(),
-        ],
+        models: vec!["claude-sonnet-4-6".to_string(), "claude-haiku".to_string()],
         default_model: Some("claude-sonnet-4-6".to_string()),
         timeout_secs: 120,
         model_pricing,
@@ -238,7 +231,10 @@ async fn test_calculate_cost_unknown_model() {
     };
 
     // Unknown model should use default (zero) pricing
-    let cost = provider.calculate_cost(&usage, "unknown-model").await.unwrap();
+    let cost = provider
+        .calculate_cost(&usage, "unknown-model")
+        .await
+        .unwrap();
     assert_eq!(cost.input_cost, 0.0);
     assert_eq!(cost.output_cost, 0.0);
     assert_eq!(cost.total_cost, 0.0);
@@ -321,11 +317,9 @@ fn test_content_text() {
 fn test_content_blocks() {
     use llm_provider::types::ContentBlock;
 
-    let content = Content::Blocks(vec![
-        ContentBlock::Text {
-            text: "Hello".to_string(),
-        },
-    ]);
+    let content = Content::Blocks(vec![ContentBlock::Text {
+        text: "Hello".to_string(),
+    }]);
     let json = serde_json::to_string(&content).unwrap();
     assert!(json.contains("text"));
     assert!(json.contains("Hello"));

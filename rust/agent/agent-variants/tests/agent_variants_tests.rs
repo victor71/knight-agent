@@ -3,9 +3,8 @@
 //! Unit tests for the agent-variants module.
 
 use agent_variants::{
-    AgentVariantError, AgentVariantRegistryImpl, ModelConfig, PermissionConfig,
-    AgentDefinition, AgentVariant, VariantOverrides,
-    ValidationResult, ResolvedAgentRef,
+    AgentDefinition, AgentVariant, AgentVariantError, AgentVariantRegistryImpl, ModelConfig,
+    PermissionConfig, ResolvedAgentRef, ValidationResult, VariantOverrides,
 };
 
 #[tokio::test]
@@ -62,10 +61,16 @@ async fn test_register_and_get_variant() {
         overrides: VariantOverrides::default(),
     };
 
-    registry.create_variant("code-reviewer", variant).await.unwrap();
+    registry
+        .create_variant("code-reviewer", variant)
+        .await
+        .unwrap();
     assert!(registry.has_variant("code-reviewer", "quick").await);
 
-    let loaded_variant = registry.get_variant("code-reviewer", "quick").await.unwrap();
+    let loaded_variant = registry
+        .get_variant("code-reviewer", "quick")
+        .await
+        .unwrap();
     assert_eq!(loaded_variant.name, "quick");
 }
 
@@ -82,19 +87,31 @@ async fn test_list_variants() {
     registry.register_agent(def).await.unwrap();
 
     // Register variants
-    registry.create_variant("test-agent", AgentVariant {
-        name: "quick".to_string(),
-        description: "Quick variant".to_string(),
-        extends: None,
-        overrides: VariantOverrides::default(),
-    }).await.unwrap();
+    registry
+        .create_variant(
+            "test-agent",
+            AgentVariant {
+                name: "quick".to_string(),
+                description: "Quick variant".to_string(),
+                extends: None,
+                overrides: VariantOverrides::default(),
+            },
+        )
+        .await
+        .unwrap();
 
-    registry.create_variant("test-agent", AgentVariant {
-        name: "full".to_string(),
-        description: "Full variant".to_string(),
-        extends: None,
-        overrides: VariantOverrides::default(),
-    }).await.unwrap();
+    registry
+        .create_variant(
+            "test-agent",
+            AgentVariant {
+                name: "full".to_string(),
+                description: "Full variant".to_string(),
+                extends: None,
+                overrides: VariantOverrides::default(),
+            },
+        )
+        .await
+        .unwrap();
 
     let variants = registry.list_variants("test-agent").await.unwrap();
     assert_eq!(variants.len(), 2);
@@ -107,17 +124,23 @@ async fn test_list_all_agents() {
     let registry = AgentVariantRegistryImpl::new();
 
     // Register multiple agents
-    registry.register_agent(AgentDefinition::new(
-        "agent1".to_string(),
-        "Agent 1".to_string(),
-        "role1".to_string(),
-    )).await.unwrap();
+    registry
+        .register_agent(AgentDefinition::new(
+            "agent1".to_string(),
+            "Agent 1".to_string(),
+            "role1".to_string(),
+        ))
+        .await
+        .unwrap();
 
-    registry.register_agent(AgentDefinition::new(
-        "agent2".to_string(),
-        "Agent 2".to_string(),
-        "role2".to_string(),
-    )).await.unwrap();
+    registry
+        .register_agent(AgentDefinition::new(
+            "agent2".to_string(),
+            "Agent 2".to_string(),
+            "role2".to_string(),
+        ))
+        .await
+        .unwrap();
 
     let agents = registry.list_all_agents().await.unwrap();
     assert_eq!(agents.len(), 2);
@@ -134,7 +157,10 @@ async fn test_load_agent_definition_without_variant() {
     );
     registry.register_agent(def.clone()).await.unwrap();
 
-    let loaded = registry.load_agent_definition("test-agent", None).await.unwrap();
+    let loaded = registry
+        .load_agent_definition("test-agent", None)
+        .await
+        .unwrap();
     assert_eq!(loaded.id, "test-agent");
     assert!(loaded.variant.is_none());
 }
@@ -179,9 +205,15 @@ async fn test_load_agent_definition_with_variant() {
         },
     };
 
-    registry.create_variant("code-reviewer", variant).await.unwrap();
+    registry
+        .create_variant("code-reviewer", variant)
+        .await
+        .unwrap();
 
-    let loaded = registry.load_agent_definition("code-reviewer", Some("quick")).await.unwrap();
+    let loaded = registry
+        .load_agent_definition("code-reviewer", Some("quick"))
+        .await
+        .unwrap();
     assert_eq!(loaded.variant, Some("quick".to_string()));
     assert_eq!(loaded.model.model, "claude-haiku");
     assert_eq!(loaded.instructions, "Quick review only");
@@ -215,22 +247,34 @@ async fn test_delete_variant() {
     let registry = AgentVariantRegistryImpl::new();
 
     // Register agent and variant
-    registry.register_agent(AgentDefinition::new(
-        "test-agent".to_string(),
-        "Test Agent".to_string(),
-        "testing".to_string(),
-    )).await.unwrap();
+    registry
+        .register_agent(AgentDefinition::new(
+            "test-agent".to_string(),
+            "Test Agent".to_string(),
+            "testing".to_string(),
+        ))
+        .await
+        .unwrap();
 
-    registry.create_variant("test-agent", AgentVariant {
-        name: "to-delete".to_string(),
-        description: "Will be deleted".to_string(),
-        extends: None,
-        overrides: VariantOverrides::default(),
-    }).await.unwrap();
+    registry
+        .create_variant(
+            "test-agent",
+            AgentVariant {
+                name: "to-delete".to_string(),
+                description: "Will be deleted".to_string(),
+                extends: None,
+                overrides: VariantOverrides::default(),
+            },
+        )
+        .await
+        .unwrap();
 
     assert!(registry.has_variant("test-agent", "to-delete").await);
 
-    registry.delete_variant("test-agent", "to-delete").await.unwrap();
+    registry
+        .delete_variant("test-agent", "to-delete")
+        .await
+        .unwrap();
     assert!(!registry.has_variant("test-agent", "to-delete").await);
 }
 

@@ -4,14 +4,13 @@
 //!
 //! Manages agent pool, task allocation, and message routing.
 
-pub mod types;
 pub mod manager;
+pub mod types;
 
 pub use types::{
-    OrchestratorError, OrchestratorResult, AgentStatus, AgentInfo, AgentStatistics,
-    TaskRequirements, ResourceUsage, Collaboration, CollaborationMode, AgentMessage,
-    SendResult, TopicSubscription, TopicMessage, OrchestratorConfig, SchedulingStrategy,
-    AgentFilter,
+    AgentFilter, AgentInfo, AgentMessage, AgentStatistics, AgentStatus, Collaboration,
+    CollaborationMode, OrchestratorConfig, OrchestratorError, OrchestratorResult, ResourceUsage,
+    SchedulingStrategy, SendResult, TaskRequirements, TopicMessage, TopicSubscription,
 };
 
 pub use manager::OrchestratorImpl;

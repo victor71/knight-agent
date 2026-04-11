@@ -3,9 +3,9 @@
 //! Unit tests for the storage_service module.
 
 use storage_service::{
-    CompressionPoint, Database, LLMCallRecord, Message, MessageRole, Session,
-    SessionEvent, SessionFilter, SessionStatus, StorageConfig, StorageService, StorageServiceImpl,
-    Task, TaskFilter, TaskStatus, TaskUpdate, TokenUsageRecord, WorkflowDefinition,
+    CompressionPoint, Database, LLMCallRecord, Message, MessageRole, Session, SessionEvent,
+    SessionFilter, SessionStatus, StorageConfig, StorageService, StorageServiceImpl, Task,
+    TaskFilter, TaskStatus, TaskUpdate, TokenUsageRecord, WorkflowDefinition,
 };
 
 use std::collections::HashMap;
@@ -186,11 +186,15 @@ fn test_database_list_sessions() {
     }
 
     // List all
-    let sessions = db.list_sessions(&SessionFilter::default(), None, None).expect("should list sessions");
+    let sessions = db
+        .list_sessions(&SessionFilter::default(), None, None)
+        .expect("should list sessions");
     assert_eq!(sessions.len(), 5);
 
     // List with limit
-    let sessions = db.list_sessions(&SessionFilter::default(), Some(2), None).expect("should list sessions");
+    let sessions = db
+        .list_sessions(&SessionFilter::default(), Some(2), None)
+        .expect("should list sessions");
     assert_eq!(sessions.len(), 2);
 }
 
@@ -208,7 +212,9 @@ fn test_database_message_crud() {
     db.append_message(&msg).expect("should append message");
 
     // Get messages
-    let messages = db.get_messages("s1", None, None, None).expect("should get messages");
+    let messages = db
+        .get_messages("s1", None, None, None)
+        .expect("should get messages");
     assert_eq!(messages.len(), 1);
     assert_eq!(messages[0].content, "Hello");
 }
@@ -228,7 +234,9 @@ fn test_database_task_crud() {
     assert_eq!(loaded.unwrap().name, "Test Task");
 
     // List tasks
-    let tasks = db.list_tasks(&TaskFilter::default(), None).expect("should list tasks");
+    let tasks = db
+        .list_tasks(&TaskFilter::default(), None)
+        .expect("should list tasks");
     assert_eq!(tasks.len(), 1);
 }
 
@@ -263,7 +271,8 @@ fn test_database_config_crud() {
     let db = &temp_db.db;
 
     // Save config
-    db.save_config("key1", "value1").expect("should save config");
+    db.save_config("key1", "value1")
+        .expect("should save config");
 
     // Load config
     let loaded = db.load_config("key1").expect("should load config");
@@ -295,10 +304,13 @@ fn test_database_compression_point_crud() {
         token_saved: 500,
         metadata: HashMap::new(),
     };
-    db.save_compression_point(&point).expect("should save compression point");
+    db.save_compression_point(&point)
+        .expect("should save compression point");
 
     // Get compression points
-    let points = db.get_compression_points("s1").expect("should get compression points");
+    let points = db
+        .get_compression_points("s1")
+        .expect("should get compression points");
     assert_eq!(points.len(), 1);
     assert_eq!(points[0].token_saved, 500);
 
@@ -331,7 +343,10 @@ async fn test_storage_service_session_operations() {
     let result = storage.save_session(session).await;
     assert!(result.is_ok());
 
-    let loaded = storage.load_session("s1").await.expect("should load session");
+    let loaded = storage
+        .load_session("s1")
+        .await
+        .expect("should load session");
     assert!(loaded.is_some());
     assert_eq!(loaded.unwrap().name, "Test Session");
 }
@@ -344,7 +359,10 @@ async fn test_storage_service_message_operations() {
 
     // Create session first
     let session = create_test_session("s1", "Test");
-    storage.save_session(session).await.expect("should save session");
+    storage
+        .save_session(session)
+        .await
+        .expect("should save session");
 
     // Append message
     let msg = create_test_message("m1", "s1", "Hello World");
@@ -352,7 +370,10 @@ async fn test_storage_service_message_operations() {
     assert!(result.is_ok());
 
     // Get messages
-    let messages = storage.get_messages("s1", None, None, None).await.expect("should get messages");
+    let messages = storage
+        .get_messages("s1", None, None, None)
+        .await
+        .expect("should get messages");
     assert_eq!(messages.len(), 1);
     assert_eq!(messages[0].content, "Hello World");
 }
@@ -375,18 +396,25 @@ async fn test_storage_service_task_operations() {
     let update = TaskUpdate {
         status: Some(TaskStatus::Completed),
         input: None,
-        output: Some(HashMap::from([
-            ("result".to_string(), serde_json::json!("success"))
-        ])),
+        output: Some(HashMap::from([(
+            "result".to_string(),
+            serde_json::json!("success"),
+        )])),
         error: None,
         started_at: Some(1000),
         completed_at: Some(2000),
     };
 
-    let updated = storage.update_task("t1", update).await.expect("should update task");
+    let updated = storage
+        .update_task("t1", update)
+        .await
+        .expect("should update task");
     assert!(updated);
 
-    let loaded = storage.load_task("t1").await.expect("should load updated task");
+    let loaded = storage
+        .load_task("t1")
+        .await
+        .expect("should load updated task");
     assert!(loaded.is_some());
     assert_eq!(loaded.unwrap().status, TaskStatus::Completed);
 }
@@ -408,11 +436,17 @@ async fn test_storage_service_workflow_operations() {
     let result = storage.save_workflow(workflow).await;
     assert!(result.is_ok());
 
-    let loaded = storage.load_workflow("w1").await.expect("should load workflow");
+    let loaded = storage
+        .load_workflow("w1")
+        .await
+        .expect("should load workflow");
     assert!(loaded.is_some());
     assert_eq!(loaded.unwrap().name, "Test Workflow");
 
-    let workflows = storage.list_workflows().await.expect("should list workflows");
+    let workflows = storage
+        .list_workflows()
+        .await
+        .expect("should list workflows");
     assert_eq!(workflows.len(), 1);
 }
 
@@ -423,16 +457,24 @@ async fn test_storage_service_config_operations() {
     storage.init().await.expect("should initialize");
 
     // Save config
-    let result = storage.save_config("test_key", serde_json::json!("test_value")).await;
+    let result = storage
+        .save_config("test_key", serde_json::json!("test_value"))
+        .await;
     assert!(result.is_ok());
 
     // Load config
-    let loaded = storage.load_config("test_key").await.expect("should load config");
+    let loaded = storage
+        .load_config("test_key")
+        .await
+        .expect("should load config");
     assert!(loaded.is_some());
     assert_eq!(loaded.unwrap(), serde_json::json!("test_value"));
 
     // Delete config
-    let deleted = storage.delete_config("test_key").await.expect("should delete config");
+    let deleted = storage
+        .delete_config("test_key")
+        .await
+        .expect("should delete config");
     assert!(deleted);
 }
 
@@ -444,7 +486,10 @@ async fn test_storage_service_compression_point_operations() {
 
     // Create session first
     let session = create_test_session("s1", "Test");
-    storage.save_session(session).await.expect("should save session");
+    storage
+        .save_session(session)
+        .await
+        .expect("should save session");
 
     // Save compression point
     let point = CompressionPoint {
@@ -462,12 +507,18 @@ async fn test_storage_service_compression_point_operations() {
     assert!(result.is_ok());
 
     // Get compression points
-    let points = storage.get_compression_points("s1").await.expect("should get points");
+    let points = storage
+        .get_compression_points("s1")
+        .await
+        .expect("should get points");
     assert_eq!(points.len(), 1);
     assert_eq!(points[0].token_saved, 500);
 
     // Delete compression point
-    let deleted = storage.delete_compression_point("cp1").await.expect("should delete");
+    let deleted = storage
+        .delete_compression_point("cp1")
+        .await
+        .expect("should delete");
     assert!(deleted);
 }
 
@@ -560,7 +611,10 @@ async fn test_storage_service_list_sessions_with_filter() {
     storage.save_session(archived).await.expect("should save");
 
     // List all
-    let all = storage.list_sessions(SessionFilter::default(), None, None).await.expect("should list");
+    let all = storage
+        .list_sessions(SessionFilter::default(), None, None)
+        .await
+        .expect("should list");
     assert_eq!(all.len(), 2);
 
     // Filter by status
@@ -568,7 +622,10 @@ async fn test_storage_service_list_sessions_with_filter() {
         status: Some(SessionStatus::Active),
         ..Default::default()
     };
-    let active_only = storage.list_sessions(filter, None, None).await.expect("should filter");
+    let active_only = storage
+        .list_sessions(filter, None, None)
+        .await
+        .expect("should filter");
     assert_eq!(active_only.len(), 1);
     assert_eq!(active_only[0].status, SessionStatus::Active);
 }
@@ -581,7 +638,10 @@ async fn test_storage_service_delete_messages() {
 
     // Create session and messages with different timestamps
     let session = create_test_session("s1", "Test");
-    storage.save_session(session).await.expect("should save session");
+    storage
+        .save_session(session)
+        .await
+        .expect("should save session");
 
     // Create messages with sequential timestamps
     let msg1 = Message {
@@ -614,11 +674,17 @@ async fn test_storage_service_delete_messages() {
     storage.append_message(msg3).await.expect("should append");
 
     // Delete messages before m3 (timestamp < 3000)
-    let deleted = storage.delete_messages("s1", "m3").await.expect("should delete");
+    let deleted = storage
+        .delete_messages("s1", "m3")
+        .await
+        .expect("should delete");
     assert_eq!(deleted, 2); // m1 and m2 should be deleted
 
     // Verify only m3 remains
-    let messages = storage.get_messages("s1", None, None, None).await.expect("should get messages");
+    let messages = storage
+        .get_messages("s1", None, None, None)
+        .await
+        .expect("should get messages");
     assert_eq!(messages.len(), 1);
     assert_eq!(messages[0].id, "m3");
 }

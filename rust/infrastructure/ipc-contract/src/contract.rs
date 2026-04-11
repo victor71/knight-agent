@@ -1,11 +1,11 @@
 //! IPC Contract trait definition
 
-use async_trait::async_trait;
 use crate::error::IPCResult;
 use crate::types::{
-    NotificationMessage, PendingQuery, RequestMessage, ResponseMessage,
-    UserQueryMessage, UserResponseData,
+    NotificationMessage, PendingQuery, RequestMessage, ResponseMessage, UserQueryMessage,
+    UserResponseData,
 };
+use async_trait::async_trait;
 
 /// IPC Contract trait for communication between Rust core and TypeScript UI
 #[async_trait]
@@ -46,13 +46,20 @@ pub trait IPCContract: Send + Sync {
     async fn send_user_query(&self, query: UserQueryMessage) -> IPCResult<String>;
 
     /// Send a user response (from UI to agent)
-    async fn send_user_response(&self, await_id: String, response: UserResponseData) -> IPCResult<()>;
+    async fn send_user_response(
+        &self,
+        await_id: String,
+        response: UserResponseData,
+    ) -> IPCResult<()>;
 
     /// Cancel a user query
     async fn cancel_user_query(&self, await_id: String) -> IPCResult<()>;
 
     /// List pending user queries
-    async fn list_pending_queries(&self, session_id: Option<String>) -> IPCResult<Vec<PendingQuery>>;
+    async fn list_pending_queries(
+        &self,
+        session_id: Option<String>,
+    ) -> IPCResult<Vec<PendingQuery>>;
 
     /// Handle incoming message (called by transport layer)
     async fn handle_message(&self, data: &[u8]) -> IPCResult<()>;

@@ -2,15 +2,15 @@
 //!
 //! Core implementation of the agent runtime.
 
+use futures::StreamExt;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock as AsyncRwLock;
 use tracing::{debug, info, warn};
-use futures::StreamExt;
 
 use crate::types::*;
-use llm_provider::{LLMProvider, LLMRouter, CompletionStream};
+use llm_provider::{CompletionStream, LLMProvider, LLMRouter};
 
 /// Agent runtime configuration
 #[derive(Debug, Clone)]
@@ -82,8 +82,12 @@ impl AgentRuntimeImpl {
     /// Initialize the LLM router from environment variables
     fn initialize_llm_router(&mut self) -> RuntimeResult<()> {
         let router = LLMRouter::new();
-        router.initialize()
-            .map_err(|e| AgentRuntimeError::InitializationFailed(format!("failed to initialize LLM router: {}", e)))?;
+        router.initialize().map_err(|e| {
+            AgentRuntimeError::InitializationFailed(format!(
+                "failed to initialize LLM router: {}",
+                e
+            ))
+        })?;
 
         if !router.is_empty() {
             let router_arc = Arc::new(router);
@@ -282,7 +286,8 @@ impl AgentRuntimeImpl {
         message: Message,
         stream: bool,
     ) -> RuntimeResult<Message> {
-        self.send_message_streaming_with_callback(agent_id, message, stream, None).await
+        self.send_message_streaming_with_callback(agent_id, message, stream, None)
+            .await
     }
 
     /// Send a message with optional streaming callback
@@ -310,28 +315,37 @@ impl AgentRuntimeImpl {
 
         debug!(
             "Message sent to agent {}, status: {:?}, has_callback={}",
-            agent_id, agent.state.status, stream_callback.is_some()
+            agent_id,
+            agent.state.status,
+            stream_callback.is_some()
         );
 
         // Call LLM router if available
         let response = if let Some(ref router) = self.llm_router {
-            info!("[AGENT-RUNTIME] LLM router available for agent {}, starting streaming", agent_id);
+            info!(
+                "[AGENT-RUNTIME] LLM router available for agent {}, starting streaming",
+                agent_id
+            );
             info!("Calling LLM router for agent {} with streaming", agent_id);
 
             // Convert agent-runtime Message to LLM provider format
             let llm_messages = self.convert_to_llm_messages(&agent.context.messages)?;
 
             let request = llm_provider::ChatCompletionRequest {
-                model: self.default_model.clone().unwrap_or_else(|| "gpt-4o".to_string()),
+                model: self
+                    .default_model
+                    .clone()
+                    .unwrap_or_else(|| "gpt-4o".to_string()),
                 messages: llm_messages,
                 temperature: 0.7,
                 max_tokens: 4096,
-                stream: true,  // Always use streaming now
+                stream: true, // Always use streaming now
                 ..Default::default()
             };
 
             // Use streaming with callback if provided
-            self.handle_streaming_with_callback(router, request, stream_callback).await?
+            self.handle_streaming_with_callback(router, request, stream_callback)
+                .await?
         } else {
             // No LLM router - return placeholder
             warn!("No LLM provider available for agent {}", agent_id);
@@ -350,7 +364,8 @@ impl AgentRuntimeImpl {
         router: &LLMRouter,
         request: llm_provider::ChatCompletionRequest,
     ) -> RuntimeResult<Message> {
-        self.handle_streaming_with_callback(router, request, None).await
+        self.handle_streaming_with_callback(router, request, None)
+            .await
     }
 
     /// Handle streaming LLM request with optional callback
@@ -360,7 +375,10 @@ impl AgentRuntimeImpl {
         request: llm_provider::ChatCompletionRequest,
         stream_callback: Option<Box<dyn Fn(String) -> bool + Send + Sync>>,
     ) -> RuntimeResult<Message> {
-        info!("[AGENT-RUNTIME] handle_streaming_with_callback: has_callback={}", stream_callback.is_some());
+        info!(
+            "[AGENT-RUNTIME] handle_streaming_with_callback: has_callback={}",
+            stream_callback.is_some()
+        );
 
         let stream_result = router.stream_completion(request.clone()).await;
 
@@ -398,7 +416,11 @@ impl AgentRuntimeImpl {
                                 if stream_callback.is_none() {
                                     chunk_count += 1;
                                 }
-                                debug!("Received stream chunk {}: {} chars", chunk_count, text.len());
+                                debug!(
+                                    "Received stream chunk {}: {} chars",
+                                    chunk_count,
+                                    text.len()
+                                );
                             } else {
                                 // Track why chunk was skipped
                                 if chunk.is_thinking == Some(true) {
@@ -406,7 +428,8 @@ impl AgentRuntimeImpl {
                                 } else {
                                     empty_chunks += 1;
                                 }
-                                if empty_chunks <= 5 {  // Only log first few empty chunks
+                                if empty_chunks <= 5 {
+                                    // Only log first few empty chunks
                                     debug!("[AGENT-RUNTIME] Skipped chunk: content={:?}, is_thinking={:?}",
                                            chunk.content, chunk.is_thinking);
                                 }
@@ -450,7 +473,8 @@ impl AgentRuntimeImpl {
         match router.chat_completion(request).await {
             Ok(response) => {
                 // Extract content from LLM response
-                let content = response.content
+                let content = response
+                    .content
                     .or_else(|| {
                         response.choices.first().and_then(|c| {
                             c.message.content.as_ref().map(|m| {
@@ -510,7 +534,7 @@ impl AgentRuntimeImpl {
         &self,
         messages: &[Message],
     ) -> RuntimeResult<Vec<llm_provider::Message>> {
-        use llm_provider::{Message as LlmMessage, MessageRole as LlmRole, Content, ContentBlock};
+        use llm_provider::{Content, ContentBlock, Message as LlmMessage, MessageRole as LlmRole};
 
         let mut llm_messages = Vec::new();
 
@@ -526,7 +550,9 @@ impl AgentRuntimeImpl {
                 serde_json::Value::String(s) => Some(Content::Text(s.clone())),
                 serde_json::Value::Object(_) => {
                     // Try to parse as content blocks
-                    if let Ok(blocks) = serde_json::from_value::<Vec<ContentBlock>>(msg.content.clone()) {
+                    if let Ok(blocks) =
+                        serde_json::from_value::<Vec<ContentBlock>>(msg.content.clone())
+                    {
                         Some(Content::Blocks(blocks))
                     } else {
                         Some(Content::Text(msg.content.to_string()))
@@ -742,7 +768,11 @@ impl AgentRuntimeImpl {
     }
 
     /// Update agent state directly
-    pub async fn update_agent_state(&self, agent_id: &str, status: AgentStatus) -> RuntimeResult<()> {
+    pub async fn update_agent_state(
+        &self,
+        agent_id: &str,
+        status: AgentStatus,
+    ) -> RuntimeResult<()> {
         let mut agents = self.agents.write().await;
         let agent = agents
             .get_mut(agent_id)

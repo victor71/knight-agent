@@ -46,7 +46,6 @@ pub enum AgentStatus {
     Stopped,
 }
 
-
 /// Agent information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentInfo {
@@ -172,7 +171,6 @@ pub enum CollaborationMode {
     Pipeline,
     Voting,
 }
-
 
 /// Collaboration group
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -351,7 +349,6 @@ pub enum SchedulingStrategy {
     LeastBusy,
     Priority,
 }
-
 
 /// Agent filter for querying agents
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

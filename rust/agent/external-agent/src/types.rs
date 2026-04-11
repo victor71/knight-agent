@@ -53,7 +53,6 @@ pub enum ProcessState {
     Killed,
 }
 
-
 /// Input mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -64,7 +63,6 @@ pub enum InputMode {
     #[default]
     Pipe,
 }
-
 
 /// External agent configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -139,7 +137,12 @@ impl DiscoveredAgent {
         }
     }
 
-    pub fn with_installed(mut self, installed: bool, path: Option<String>, version: Option<String>) -> Self {
+    pub fn with_installed(
+        mut self,
+        installed: bool,
+        path: Option<String>,
+        version: Option<String>,
+    ) -> Self {
         self.installed = installed;
         self.path = path;
         self.version = version;
@@ -248,8 +251,11 @@ mod tests {
 
     #[test]
     fn test_discovered_agent_with_installed() {
-        let agent = DiscoveredAgent::new("claude-code", "Claude Code")
-            .with_installed(true, Some("/usr/bin/claude".to_string()), Some("1.2.3".to_string()));
+        let agent = DiscoveredAgent::new("claude-code", "Claude Code").with_installed(
+            true,
+            Some("/usr/bin/claude".to_string()),
+            Some("1.2.3".to_string()),
+        );
         assert!(agent.installed);
         assert!(agent.available);
         assert_eq!(agent.path, Some("/usr/bin/claude".to_string()));

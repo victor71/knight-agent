@@ -69,7 +69,10 @@ impl TuiTestHarness {
 
     /// Check if output contains a substring
     pub fn output_contains(&self, text: &str) -> bool {
-        self.state.output_lines.iter().any(|line| line.content.contains(text))
+        self.state
+            .output_lines
+            .iter()
+            .any(|line| line.content.contains(text))
     }
 
     /// Get the last output line content
@@ -233,7 +236,9 @@ impl TuiTestHarness {
                 if let Some(popup) = self.state.active_popup {
                     match popup {
                         PopupType::SessionList => {
-                            if let Some(session) = self.state.sessions.get(self.state.popup_selected_index) {
+                            if let Some(session) =
+                                self.state.sessions.get(self.state.popup_selected_index)
+                            {
                                 let event = AppEvent::SessionSwitch(session.id.clone());
                                 self.record_event(event);
                             }
@@ -259,7 +264,7 @@ impl TuiTestHarness {
                             content: input.clone(),
                             style: crate::state::OutputStyle::UserMessage,
                             timestamp: chrono::Local::now(),
-                                    ..Default::default()
+                            ..Default::default()
                         });
                         self.record_event(event);
 
@@ -276,12 +281,14 @@ impl TuiTestHarness {
                                 }
                                 "/quit" | "/exit" => {}
                                 _ => {
-                                    self.record_event(AppEvent::OutputLine(crate::state::OutputLine {
-                                        content: format!("Unknown command: {}", input),
-                                        style: crate::state::OutputStyle::Error,
-                                        timestamp: chrono::Local::now(),
-                                    ..Default::default()
-                                    }));
+                                    self.record_event(AppEvent::OutputLine(
+                                        crate::state::OutputLine {
+                                            content: format!("Unknown command: {}", input),
+                                            style: crate::state::OutputStyle::Error,
+                                            timestamp: chrono::Local::now(),
+                                            ..Default::default()
+                                        },
+                                    ));
                                 }
                             }
                             // Commands complete immediately
@@ -329,7 +336,7 @@ impl TuiTestHarness {
             content: content.to_string(),
             style: crate::state::OutputStyle::AgentMessage,
             timestamp: chrono::Local::now(),
-                                    ..Default::default()
+            ..Default::default()
         });
         self.record_event(event);
     }
@@ -503,7 +510,10 @@ mod tests {
         assert!(h.output_contains("hello"), "Output should contain 'hello'");
         // Should not contain any extra duplicates
         assert_eq!(
-            h.output_lines().iter().filter(|l| l.content == "hello".to_string()).count(),
+            h.output_lines()
+                .iter()
+                .filter(|l| l.content == "hello".to_string())
+                .count(),
             1,
             "Should have exactly one 'hello' line"
         );
@@ -516,10 +526,16 @@ mod tests {
         h.press_enter();
 
         // Output should contain the exact Chinese input
-        assert!(h.output_contains("你好世界"), "Output should contain '你好世界'");
+        assert!(
+            h.output_contains("你好世界"),
+            "Output should contain '你好世界'"
+        );
         // Should not contain duplicated characters like "你好好世界世界"
         assert_eq!(
-            h.output_lines().iter().filter(|l| l.content == "你好世界".to_string()).count(),
+            h.output_lines()
+                .iter()
+                .filter(|l| l.content == "你好世界".to_string())
+                .count(),
             1,
             "Should have exactly one '你好世界' line"
         );
@@ -532,10 +548,16 @@ mod tests {
         h.press_enter();
 
         // Output should contain exact input
-        assert!(h.output_contains("hello你好world"), "Output should contain mixed text");
+        assert!(
+            h.output_contains("hello你好world"),
+            "Output should contain mixed text"
+        );
         // Check no duplication - count occurrences of "hello你好world"
         assert_eq!(
-            h.output_lines().iter().filter(|l| l.content == "hello你好world".to_string()).count(),
+            h.output_lines()
+                .iter()
+                .filter(|l| l.content == "hello你好world".to_string())
+                .count(),
             1,
             "Should have exactly one 'hello你好world' line"
         );
@@ -575,7 +597,7 @@ mod tests {
             content: "Direct channel test".to_string(),
             style: OutputStyle::UserMessage,
             timestamp: chrono::Local::now(),
-                                    ..Default::default()
+            ..Default::default()
         });
 
         // Send via event_tx (simulating what the TUI does)
@@ -651,7 +673,11 @@ mod tests {
         // Finish processing - removes first, "second" is still queued
         h.finish_processing();
         assert!(h.is_processing());
-        assert_eq!(h.queued_input_count(), 1, "Second input should remain queued");
+        assert_eq!(
+            h.queued_input_count(),
+            1,
+            "Second input should remain queued"
+        );
 
         // Finish again - removes second, queue empty
         h.finish_processing();

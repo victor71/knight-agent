@@ -16,4 +16,3 @@ pub use event_loop::{EventLoopError, EventLoopImpl, EventLoopResult, EventLoopTr
 pub use queue::{EventQueue, QueueError};
 pub use scheduler::EventScheduler;
 pub use types::{EventLoopStatus, *};
-

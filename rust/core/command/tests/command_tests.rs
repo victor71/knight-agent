@@ -3,9 +3,8 @@
 //! Unit tests for the command module.
 
 use command::{
-    CommandManagerImpl, CommandDefinition, CommandMetadata, CommandArg, CommandUsage,
-    CommandType, CommandParser, ArgBinder, VariableResolver,
-    CommandExecutionContext, WorkflowConfig,
+    ArgBinder, CommandArg, CommandDefinition, CommandExecutionContext, CommandManagerImpl,
+    CommandMetadata, CommandParser, CommandType, CommandUsage, VariableResolver, WorkflowConfig,
 };
 
 // Parser tests
@@ -70,8 +69,10 @@ command_type: workflow
 async fn test_register_command() {
     let cm = CommandManagerImpl::new();
 
-    let cmd = CommandDefinition::new("test", "Test command", "/test <arg>", "test.md")
-        .with_args(vec![CommandArg::new("arg", "An argument").with_required(true)]);
+    let cmd =
+        CommandDefinition::new("test", "Test command", "/test <arg>", "test.md").with_args(vec![
+            CommandArg::new("arg", "An argument").with_required(true),
+        ]);
 
     let result = cm.register_command(cmd).await;
     assert!(result.is_ok());
@@ -125,7 +126,10 @@ async fn test_execute_command() {
 
     cm.register_command(cmd).await.unwrap();
 
-    let result = cm.execute_command("hello", "/hello Alice", None).await.unwrap();
+    let result = cm
+        .execute_command("hello", "/hello Alice", None)
+        .await
+        .unwrap();
     assert!(result.success);
     assert!(result.output.contains("Alice"));
 }
@@ -159,8 +163,9 @@ async fn test_command_count() {
 
 #[test]
 fn test_arg_binder_positional() {
-    let cmd = CommandDefinition::new("test", "Test", "/test <arg>", "test.md")
-        .with_args(vec![CommandArg::new("arg", "An argument").with_required(true)]);
+    let cmd = CommandDefinition::new("test", "Test", "/test <arg>", "test.md").with_args(vec![
+        CommandArg::new("arg", "An argument").with_required(true),
+    ]);
 
     let bound = ArgBinder::bind_args(&cmd, &["value".to_string()]).unwrap();
     assert_eq!(bound.get("arg").unwrap().as_str().unwrap(), "value");
@@ -181,10 +186,12 @@ fn test_arg_binder_named() {
 fn test_variable_resolver() {
     let cmd = CommandDefinition::new("test", "Test", "/test", "test.md");
     let mut parsed_args = serde_json::Map::new();
-    parsed_args.insert("name".to_string(), serde_json::Value::String("Alice".to_string()));
+    parsed_args.insert(
+        "name".to_string(),
+        serde_json::Value::String("Alice".to_string()),
+    );
 
-    let context = CommandExecutionContext::new(cmd, parsed_args)
-        .with_user_input("test input");
+    let context = CommandExecutionContext::new(cmd, parsed_args).with_user_input("test input");
 
     let resolved = VariableResolver::resolve_string("Hello {{ name }}!", &context);
     assert_eq!(resolved, "Hello Alice!");
@@ -194,7 +201,10 @@ fn test_variable_resolver() {
 fn test_variable_resolver_with_filter() {
     let cmd = CommandDefinition::new("test", "Test", "/test", "test.md");
     let mut parsed_args = serde_json::Map::new();
-    parsed_args.insert("name".to_string(), serde_json::Value::String("alice".to_string()));
+    parsed_args.insert(
+        "name".to_string(),
+        serde_json::Value::String("alice".to_string()),
+    );
 
     let context = CommandExecutionContext::new(cmd, parsed_args);
 

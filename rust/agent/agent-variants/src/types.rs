@@ -235,7 +235,11 @@ mod tests {
 
     #[test]
     fn test_agent_definition_new() {
-        let def = AgentDefinition::new("test".to_string(), "Test Agent".to_string(), "testing".to_string());
+        let def = AgentDefinition::new(
+            "test".to_string(),
+            "Test Agent".to_string(),
+            "testing".to_string(),
+        );
         assert_eq!(def.id, "test");
         assert_eq!(def.name, "Test Agent");
     }

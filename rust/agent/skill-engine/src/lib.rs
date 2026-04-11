@@ -4,13 +4,13 @@
 //!
 //! Manages skill registration, discovery, and execution.
 
-pub mod types;
 pub mod manager;
+pub mod types;
 
 pub use types::{
-    SkillEngineError, SkillResult, SkillDefinition, SkillParameter, ParameterType,
-    SkillStep, StepType, Trigger, TriggerType, SkillContext, SkillExecutionResult,
-    SkillInfo, Pipeline, PipelineStep, ExecutionPlan, PlannedStep,
+    ExecutionPlan, ParameterType, Pipeline, PipelineStep, PlannedStep, SkillContext,
+    SkillDefinition, SkillEngineError, SkillExecutionResult, SkillInfo, SkillParameter,
+    SkillResult, SkillStep, StepType, Trigger, TriggerType,
 };
 
 pub use manager::SkillEngineImpl;

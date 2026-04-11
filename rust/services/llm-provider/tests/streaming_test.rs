@@ -12,10 +12,7 @@ use llm_provider::{
 
 fn create_test_provider() -> GenericLLMProvider {
     let mut model_pricing = HashMap::new();
-    model_pricing.insert(
-        "test-model".to_string(),
-        ModelPricing::new(1.0, 2.0),
-    );
+    model_pricing.insert("test-model".to_string(), ModelPricing::new(1.0, 2.0));
 
     let config = ProviderConfig {
         name: "test".to_string(),
@@ -764,9 +761,7 @@ fn test_stream_with_delays_between_chunks() {
 #[test]
 fn test_stream_error_recovery() {
     // Test that stream can recover from a bad chunk
-    let mut chunks = vec![
-        create_content_chunk("Start", 0),
-    ];
+    let mut chunks = vec![create_content_chunk("Start", 0)];
 
     // Add a malformed chunk (simulated by empty choices with error)
     chunks.push(ChatCompletionChunk {
@@ -802,7 +797,9 @@ fn test_stream_error_recovery() {
 #[test]
 fn test_long_content_aggregation() {
     // Test aggregation of many small chunks into a long response
-    let words = vec!["The", "quick", "brown", "fox", "jumps", "over", "the", "lazy", "dog"];
+    let words = vec![
+        "The", "quick", "brown", "fox", "jumps", "over", "the", "lazy", "dog",
+    ];
     let mut chunks = Vec::new();
 
     for word in words {
@@ -884,9 +881,18 @@ fn test_concurrent_stream_indices() {
         }
     }
 
-    assert_eq!(streams.get(&0).unwrap(), "Stream 0, part 1. Stream 0, part 2. end");
-    assert_eq!(streams.get(&1).unwrap(), "Stream 1, part 1. Stream 1, part 2. end");
-    assert_eq!(streams.get(&2).unwrap(), "Stream 2, part 1. Stream 2, part 2. end");
+    assert_eq!(
+        streams.get(&0).unwrap(),
+        "Stream 0, part 1. Stream 0, part 2. end"
+    );
+    assert_eq!(
+        streams.get(&1).unwrap(),
+        "Stream 1, part 1. Stream 1, part 2. end"
+    );
+    assert_eq!(
+        streams.get(&2).unwrap(),
+        "Stream 2, part 1. Stream 2, part 2. end"
+    );
 }
 
 #[test]

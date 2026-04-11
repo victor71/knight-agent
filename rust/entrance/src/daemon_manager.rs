@@ -24,8 +24,7 @@ pub async fn is_daemon_running(addr: &str) -> bool {
 pub fn spawn_daemon() -> Result<()> {
     info!("Spawning daemon process...");
 
-    let exe_path = std::env::current_exe()
-        .context("Failed to get current executable path")?;
+    let exe_path = std::env::current_exe().context("Failed to get current executable path")?;
 
     let mut child = Command::new(&exe_path)
         .arg("daemon")
@@ -70,5 +69,8 @@ pub async fn connect_to_daemon() -> Result<String> {
         info!("Waiting for daemon to start... ({}/{})", i + 1, max_retries);
     }
 
-    Err(anyhow::anyhow!("Failed to connect to daemon after {} attempts", max_retries))
+    Err(anyhow::anyhow!(
+        "Failed to connect to daemon after {} attempts",
+        max_retries
+    ))
 }

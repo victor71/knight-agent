@@ -58,10 +58,7 @@ impl ArgumentValidator {
             // Check if it's actually an integer
             if let Some(n) = value.as_f64() {
                 if n.fract() != 0.0 {
-                    result.add_error(
-                        field_name,
-                        &format!("expected integer but got float {}", n),
-                    );
+                    result.add_error(field_name, &format!("expected integer but got float {}", n));
                 }
             }
             return;

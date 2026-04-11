@@ -55,21 +55,47 @@ pub mod types;
 
 pub use error::{ConfigError, ConfigResult};
 pub use loader::{
+    get_global_config, get_llm_config, init_global_config, subscribe_config_changes,
     ConfigChangeEvent, ConfigLoader, SystemConfig,
-    init_global_config, get_global_config, get_llm_config, subscribe_config_changes
 };
 pub use types::{
-    AgentConfig, CompressorConfig, CoreConfig, InfrastructureConfig, KnightConfig,
-    LlmConfig, LlmModelConfig, LlmPricing, LlmProviderConfig, LoggingConfig, MonitoringConfig,
-    SecurityConfig, ServicesConfig, StorageConfig, ToolsConfig,
+    AgentConfig,
     // Config sub-types
-    AgentRuntimeConfig, SkillEngineConfig, TaskManagerConfig, WorkflowConfig,
-    CommandConfig, CliConfig, EventLoopConfig, HooksConfig, OrchestratorConfig,
-    RouterConfig, SessionConfig, BootstrapConfig,
-    McpConfig, ReportConfig, TimerConfig,
-    ToolsBuiltinConfig, ToolsCustomConfig, ToolsMcpConfig,
+    AgentRuntimeConfig,
+    BootstrapConfig,
+    CliConfig,
+    CliConnectionConfig,
+    CliOutputConfig,
+    CommandConfig,
+    CompressorConfig,
+    CoreConfig,
+    EventLoopConfig,
+    HooksConfig,
+    InfrastructureConfig,
     IpcConfig,
-    CliConnectionConfig, CliOutputConfig,
+    KnightConfig,
+    LlmConfig,
+    LlmModelConfig,
+    LlmPricing,
+    LlmProviderConfig,
+    LoggingConfig,
+    McpConfig,
+    MonitoringConfig,
+    OrchestratorConfig,
+    ReportConfig,
+    RouterConfig,
+    SecurityConfig,
+    ServicesConfig,
+    SessionConfig,
+    SkillEngineConfig,
+    StorageConfig,
+    TaskManagerConfig,
+    TimerConfig,
+    ToolsBuiltinConfig,
+    ToolsConfig,
+    ToolsCustomConfig,
+    ToolsMcpConfig,
+    WorkflowConfig,
 };
 
 /// Get the default Knight Agent configuration directory

@@ -6,8 +6,8 @@ use crate::checker::PermissionChecker;
 use crate::error::{SandboxError, SandboxResult};
 use crate::r#trait::Sandbox;
 use crate::types::{
-    SandboxConfig, SandboxInfo, SandboxStatus, FileAction, AccessCheckResult,
-    ResourceUsage, ResourceLimits, Violation, ViolationType, ViolationSeverity
+    AccessCheckResult, FileAction, ResourceLimits, ResourceUsage, SandboxConfig, SandboxInfo,
+    SandboxStatus, Violation, ViolationSeverity, ViolationType,
 };
 
 pub struct SandboxImpl {
@@ -89,7 +89,10 @@ impl Sandbox for SandboxImpl {
         Ok(sandboxes.get(sandbox_id).cloned())
     }
 
-    async fn list_sandboxes(&self, status: Option<SandboxStatus>) -> SandboxResult<Vec<SandboxInfo>> {
+    async fn list_sandboxes(
+        &self,
+        status: Option<SandboxStatus>,
+    ) -> SandboxResult<Vec<SandboxInfo>> {
         let sandboxes = self.sandboxes.read().await;
         let mut result: Vec<_> = sandboxes.values().cloned().collect();
 
@@ -107,7 +110,8 @@ impl Sandbox for SandboxImpl {
         action: FileAction,
     ) -> SandboxResult<AccessCheckResult> {
         let sandboxes = self.sandboxes.read().await;
-        let info = sandboxes.get(sandbox_id)
+        let info = sandboxes
+            .get(sandbox_id)
             .ok_or_else(|| SandboxError::SandboxNotFound(sandbox_id.to_string()))?;
 
         let checker = PermissionChecker::new(&info.config);
@@ -137,7 +141,8 @@ impl Sandbox for SandboxImpl {
         args: &[String],
     ) -> SandboxResult<AccessCheckResult> {
         let sandboxes = self.sandboxes.read().await;
-        let info = sandboxes.get(sandbox_id)
+        let info = sandboxes
+            .get(sandbox_id)
             .ok_or_else(|| SandboxError::SandboxNotFound(sandbox_id.to_string()))?;
 
         let checker = PermissionChecker::new(&info.config);
@@ -167,7 +172,8 @@ impl Sandbox for SandboxImpl {
         port: u16,
     ) -> SandboxResult<AccessCheckResult> {
         let sandboxes = self.sandboxes.read().await;
-        let info = sandboxes.get(sandbox_id)
+        let info = sandboxes
+            .get(sandbox_id)
             .ok_or_else(|| SandboxError::SandboxNotFound(sandbox_id.to_string()))?;
 
         let checker = PermissionChecker::new(&info.config);
@@ -192,7 +198,8 @@ impl Sandbox for SandboxImpl {
 
     async fn get_resource_usage(&self, sandbox_id: &str) -> SandboxResult<ResourceUsage> {
         let sandboxes = self.sandboxes.read().await;
-        let info = sandboxes.get(sandbox_id)
+        let info = sandboxes
+            .get(sandbox_id)
             .ok_or_else(|| SandboxError::SandboxNotFound(sandbox_id.to_string()))?;
 
         Ok(info.usage.clone())
@@ -200,7 +207,8 @@ impl Sandbox for SandboxImpl {
 
     async fn get_resource_limits(&self, sandbox_id: &str) -> SandboxResult<ResourceLimits> {
         let sandboxes = self.sandboxes.read().await;
-        let info = sandboxes.get(sandbox_id)
+        let info = sandboxes
+            .get(sandbox_id)
             .ok_or_else(|| SandboxError::SandboxNotFound(sandbox_id.to_string()))?;
 
         Ok(ResourceLimits {
@@ -211,7 +219,11 @@ impl Sandbox for SandboxImpl {
         })
     }
 
-    async fn set_resource_limits(&self, sandbox_id: &str, _limits: ResourceLimits) -> SandboxResult<()> {
+    async fn set_resource_limits(
+        &self,
+        sandbox_id: &str,
+        _limits: ResourceLimits,
+    ) -> SandboxResult<()> {
         // In a real implementation, this would update the resource limits
         // For now, we just acknowledge the request
         let _ = sandbox_id;
@@ -227,7 +239,11 @@ impl Sandbox for SandboxImpl {
         Ok(violations.get(sandbox_id).cloned().unwrap_or_default())
     }
 
-    async fn report_violation(&self, sandbox_id: &str, violation: Violation) -> SandboxResult<String> {
+    async fn report_violation(
+        &self,
+        sandbox_id: &str,
+        violation: Violation,
+    ) -> SandboxResult<String> {
         let vid = violation.id.clone();
 
         // Record the violation
@@ -246,10 +262,18 @@ impl Sandbox for SandboxImpl {
         // Log based on violation action
         match violation.severity {
             ViolationSeverity::Low | ViolationSeverity::Medium => {
-                tracing::warn!("Sandbox violation [{}]: {}", sandbox_id, violation.description);
+                tracing::warn!(
+                    "Sandbox violation [{}]: {}",
+                    sandbox_id,
+                    violation.description
+                );
             }
             ViolationSeverity::High | ViolationSeverity::Critical => {
-                tracing::error!("Sandbox violation [{}]: {}", sandbox_id, violation.description);
+                tracing::error!(
+                    "Sandbox violation [{}]: {}",
+                    sandbox_id,
+                    violation.description
+                );
             }
         }
 
@@ -258,13 +282,18 @@ impl Sandbox for SandboxImpl {
 
     async fn get_sandbox_config(&self, sandbox_id: &str) -> SandboxResult<SandboxConfig> {
         let sandboxes = self.sandboxes.read().await;
-        let info = sandboxes.get(sandbox_id)
+        let info = sandboxes
+            .get(sandbox_id)
             .ok_or_else(|| SandboxError::SandboxNotFound(sandbox_id.to_string()))?;
 
         Ok(info.config.clone())
     }
 
-    async fn update_sandbox_config(&self, sandbox_id: &str, config: SandboxConfig) -> SandboxResult<()> {
+    async fn update_sandbox_config(
+        &self,
+        sandbox_id: &str,
+        config: SandboxConfig,
+    ) -> SandboxResult<()> {
         let mut sandboxes = self.sandboxes.write().await;
         if let Some(info) = sandboxes.get_mut(sandbox_id) {
             info.config = config;

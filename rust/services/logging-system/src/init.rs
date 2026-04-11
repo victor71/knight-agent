@@ -15,8 +15,8 @@ pub struct LoggerGuard;
 impl LoggerGuard {
     /// Initialize the global logger with default settings
     pub fn init() -> Result<(), crate::LoggingError> {
-        let env_filter = EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| EnvFilter::new("info"));
+        let env_filter =
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
         let fmt_layer = fmt::layer()
             .with_target(true)

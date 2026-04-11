@@ -10,11 +10,10 @@ use std::collections::HashMap;
 #[derive(Default)]
 pub enum CompressionStrategy {
     #[default]
-    Summary,  // LLM-based summarization
+    Summary, // LLM-based summarization
     Semantic, // Semantic clustering and extraction
     Hybrid,   // Combination of summary and semantic
 }
-
 
 /// Message structure for compression
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -89,10 +88,18 @@ pub struct CompressionOptions {
     pub min_compression_ratio: f64,
 }
 
-fn default_keep_recent_messages() -> usize { 20 }
-fn default_keep_recent_tokens() -> usize { 10000 }
-fn default_keep_system() -> bool { true }
-fn default_min_compression_ratio() -> f64 { 0.3 }
+fn default_keep_recent_messages() -> usize {
+    20
+}
+fn default_keep_recent_tokens() -> usize {
+    10000
+}
+fn default_keep_system() -> bool {
+    true
+}
+fn default_min_compression_ratio() -> f64 {
+    0.3
+}
 
 impl Default for CompressionOptions {
     fn default() -> Self {
@@ -117,9 +124,15 @@ pub struct CompressionTrigger {
     pub auto_compress: bool,
 }
 
-fn default_message_count() -> usize { 50 }
-fn default_token_count() -> usize { 100000 }
-fn default_auto_compress() -> bool { true }
+fn default_message_count() -> usize {
+    50
+}
+fn default_token_count() -> usize {
+    100000
+}
+fn default_auto_compress() -> bool {
+    true
+}
 
 impl Default for CompressionTrigger {
     fn default() -> Self {
@@ -132,8 +145,7 @@ impl Default for CompressionTrigger {
 }
 
 /// Full compression configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CompressionConfig {
     #[serde(default)]
     pub trigger: CompressionTrigger,
@@ -142,7 +154,6 @@ pub struct CompressionConfig {
     #[serde(default)]
     pub default_options: CompressionOptions,
 }
-
 
 /// Compression history entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -228,10 +239,8 @@ pub struct ShouldCompressResponse {
 }
 
 /// Token estimation result
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct TokenEstimation {
     pub count: usize,
     pub by_message: Vec<usize>,
 }
-

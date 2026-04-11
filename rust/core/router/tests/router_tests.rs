@@ -3,9 +3,8 @@
 //! Unit tests for the router module.
 
 use router::{
-    RouterImpl, HandleInputRequest, ParsedInput, RouterResponse,
-    CommandType, CommandInfo, UserCommand, CommandHandler,
-    CommandHandlerType, CommandVariable,
+    CommandHandler, CommandHandlerType, CommandInfo, CommandType, CommandVariable,
+    HandleInputRequest, ParsedInput, RouterImpl, RouterResponse, UserCommand,
 };
 
 #[tokio::test]
@@ -89,7 +88,9 @@ async fn test_list_commands() {
     assert!(!commands.is_empty());
 
     let builtin_only = router.list_commands(Some("builtin")).await;
-    assert!(builtin_only.iter().all(|c| c.command_type == CommandType::Builtin));
+    assert!(builtin_only
+        .iter()
+        .all(|c| c.command_type == CommandType::Builtin));
 }
 
 #[tokio::test]

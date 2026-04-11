@@ -57,9 +57,10 @@ impl TaskManagerImpl {
 
         // Check if workflow already exists
         if workflows.contains_key(&workflow_id) {
-            return Err(TaskManagerError::InvalidDefinition(
-                format!("Workflow {} already registered", workflow_id),
-            ));
+            return Err(TaskManagerError::InvalidDefinition(format!(
+                "Workflow {} already registered",
+                workflow_id
+            )));
         }
         drop(workflows);
 
@@ -94,9 +95,10 @@ impl TaskManagerImpl {
         // Check if workflow is running
         let active_workflows = self.active_workflows.read().await;
         if active_workflows.contains_key(workflow_id) {
-            return Err(TaskManagerError::WorkflowRunning(
-                format!("Workflow {} is still running", workflow_id),
-            ));
+            return Err(TaskManagerError::WorkflowRunning(format!(
+                "Workflow {} is still running",
+                workflow_id
+            )));
         }
 
         workflows
@@ -146,7 +148,10 @@ impl TaskManagerImpl {
             }
         }
 
-        info!("Started workflow: {} (execution: {})", workflow_id, execution_id);
+        info!(
+            "Started workflow: {} (execution: {})",
+            workflow_id, execution_id
+        );
         Ok(execution_id)
     }
 
@@ -239,7 +244,9 @@ impl TaskManagerImpl {
     pub async fn create_task(&self, task_def: TaskDefinition) -> TaskResult<Task> {
         // Validate task
         if task_def.name.is_empty() {
-            return Err(TaskManagerError::InvalidDefinition("Task name is required".to_string()));
+            return Err(TaskManagerError::InvalidDefinition(
+                "Task name is required".to_string(),
+            ));
         }
 
         let task = Task::from_definition(&task_def, None);
@@ -359,9 +366,10 @@ impl TaskManagerImpl {
 
         for task in &workflow.tasks {
             if !visited.contains(&task.id)
-                && self.detect_cycle(workflow, &task.id, &mut visited, &mut recursion_stack)? {
-                    return Ok(true);
-                }
+                && self.detect_cycle(workflow, &task.id, &mut visited, &mut recursion_stack)?
+            {
+                return Ok(true);
+            }
         }
 
         Ok(false)
@@ -427,7 +435,11 @@ impl TaskManagerImpl {
     }
 
     /// Process task completion and update dependent tasks
-    async fn process_task_completion(&self, workflow: &mut Workflow, completed_task_id: &str) -> TaskResult<()> {
+    async fn process_task_completion(
+        &self,
+        workflow: &mut Workflow,
+        completed_task_id: &str,
+    ) -> TaskResult<()> {
         // Build a map of task_id -> status for dependency checks
         let task_statuses: HashMap<String, TaskStatus> = workflow
             .tasks
@@ -467,19 +479,29 @@ impl TaskManagerImpl {
         }
 
         // Update workflow progress
-        let completed_count = workflow.tasks.iter()
+        let completed_count = workflow
+            .tasks
+            .iter()
             .filter(|t| t.status == TaskStatus::Completed)
             .count();
         let total_count = workflow.tasks.len();
         workflow.progress = (completed_count as f64 / total_count as f64) * 100.0;
 
         // Check if workflow is complete
-        let running_count = workflow.tasks.iter()
-            .filter(|t| t.status == TaskStatus::Running || t.status == TaskStatus::Ready || t.status == TaskStatus::Pending)
+        let running_count = workflow
+            .tasks
+            .iter()
+            .filter(|t| {
+                t.status == TaskStatus::Running
+                    || t.status == TaskStatus::Ready
+                    || t.status == TaskStatus::Pending
+            })
             .count();
 
         if running_count == 0 {
-            let failed_count = workflow.tasks.iter()
+            let failed_count = workflow
+                .tasks
+                .iter()
                 .filter(|t| t.status == TaskStatus::Failed)
                 .count();
 
@@ -489,7 +511,10 @@ impl TaskManagerImpl {
                 WorkflowStatus::Completed
             };
             workflow.completed_at = Some(chrono::Utc::now().to_rfc3339());
-            info!("Workflow {} completed with status {:?}", workflow.id, workflow.status);
+            info!(
+                "Workflow {} completed with status {:?}",
+                workflow.id, workflow.status
+            );
         }
 
         Ok(())
@@ -503,10 +528,26 @@ impl TaskManagerImpl {
 
         if let Some(workflow) = active_workflows.get(execution_id) {
             let total = workflow.tasks.len() as u64;
-            let pending = workflow.tasks.iter().filter(|t| t.status == TaskStatus::Pending).count() as u64;
-            let running = workflow.tasks.iter().filter(|t| t.status == TaskStatus::Running).count() as u64;
-            let completed = workflow.tasks.iter().filter(|t| t.status == TaskStatus::Completed).count() as u64;
-            let failed = workflow.tasks.iter().filter(|t| t.status == TaskStatus::Failed).count() as u64;
+            let pending = workflow
+                .tasks
+                .iter()
+                .filter(|t| t.status == TaskStatus::Pending)
+                .count() as u64;
+            let running = workflow
+                .tasks
+                .iter()
+                .filter(|t| t.status == TaskStatus::Running)
+                .count() as u64;
+            let completed = workflow
+                .tasks
+                .iter()
+                .filter(|t| t.status == TaskStatus::Completed)
+                .count() as u64;
+            let failed = workflow
+                .tasks
+                .iter()
+                .filter(|t| t.status == TaskStatus::Failed)
+                .count() as u64;
 
             Ok(TaskStatistics {
                 total_tasks: total,

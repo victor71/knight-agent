@@ -52,12 +52,12 @@
 //! }
 //! ```
 
-pub mod provider;
 pub mod llm_trait;
+pub mod provider;
 pub mod router;
 pub mod types;
 
+pub use llm_trait::{CompletionStream, LLMError, LLMProvider, LLMResult, TokenCount};
 pub use provider::{GenericLLMProvider, LLMProtocol, ProviderConfig};
-pub use llm_trait::{LLMProvider, LLMError, LLMResult, TokenCount, CompletionStream};
 pub use router::LLMRouter;
 pub use types::*;

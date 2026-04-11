@@ -3,10 +3,9 @@
 //! Unit tests for the workflows directory module.
 
 use workflows_directory::{
-    WorkflowDirectoryImpl, WorkflowDefinition, WorkflowMetadata,
-    WorkflowStep, WorkflowPrerequisites, WorkflowParameter,
-    WorkflowParser, parse_index, WorkflowIndexEntry, WorkflowCategory,
-    WorkflowDirectory,
+    parse_index, WorkflowCategory, WorkflowDefinition, WorkflowDirectory, WorkflowDirectoryImpl,
+    WorkflowIndexEntry, WorkflowMetadata, WorkflowParameter, WorkflowParser, WorkflowPrerequisites,
+    WorkflowStep,
 };
 
 #[tokio::test]
@@ -19,12 +18,7 @@ async fn test_workflow_directory_impl_new() {
 async fn test_register_workflow() {
     let dir = WorkflowDirectoryImpl::new(std::path::PathBuf::from("workflows"));
 
-    let metadata = WorkflowMetadata::new(
-        "test-workflow",
-        "testing",
-        "A test workflow",
-        "test.md",
-    );
+    let metadata = WorkflowMetadata::new("test-workflow", "testing", "A test workflow", "test.md");
     let workflow = WorkflowDefinition::new(metadata);
 
     let result = dir.register_workflow(workflow).await;
@@ -35,12 +29,7 @@ async fn test_register_workflow() {
 async fn test_get_workflow() {
     let dir = WorkflowDirectoryImpl::new(std::path::PathBuf::from("workflows"));
 
-    let metadata = WorkflowMetadata::new(
-        "test-workflow",
-        "testing",
-        "A test workflow",
-        "test.md",
-    );
+    let metadata = WorkflowMetadata::new("test-workflow", "testing", "A test workflow", "test.md");
     let workflow = WorkflowDefinition::new(metadata);
 
     dir.register_workflow(workflow).await.unwrap();
@@ -62,12 +51,8 @@ async fn test_get_nonexistent_workflow() {
 async fn test_list_workflows() {
     let dir = WorkflowDirectoryImpl::new(std::path::PathBuf::from("workflows"));
 
-    let wf1 = WorkflowDefinition::new(WorkflowMetadata::new(
-        "wf1", "cat1", "Desc1", "wf1.md",
-    ));
-    let wf2 = WorkflowDefinition::new(WorkflowMetadata::new(
-        "wf2", "cat2", "Desc2", "wf2.md",
-    ));
+    let wf1 = WorkflowDefinition::new(WorkflowMetadata::new("wf1", "cat1", "Desc1", "wf1.md"));
+    let wf2 = WorkflowDefinition::new(WorkflowMetadata::new("wf2", "cat2", "Desc2", "wf2.md"));
 
     dir.register_workflow(wf1).await.unwrap();
     dir.register_workflow(wf2).await.unwrap();
@@ -80,11 +65,12 @@ async fn test_list_workflows() {
 async fn test_list_by_category() {
     let dir = WorkflowDirectoryImpl::new(std::path::PathBuf::from("workflows"));
 
-    let wf1 = WorkflowDefinition::new(WorkflowMetadata::new(
-        "wf1", "testing", "Desc1", "wf1.md",
-    ));
+    let wf1 = WorkflowDefinition::new(WorkflowMetadata::new("wf1", "testing", "Desc1", "wf1.md"));
     let wf2 = WorkflowDefinition::new(WorkflowMetadata::new(
-        "wf2", "production", "Desc2", "wf2.md",
+        "wf2",
+        "production",
+        "Desc2",
+        "wf2.md",
     ));
 
     dir.register_workflow(wf1).await.unwrap();
@@ -103,14 +89,12 @@ async fn test_list_by_category() {
 async fn test_list_by_tag() {
     let dir = WorkflowDirectoryImpl::new(std::path::PathBuf::from("workflows"));
 
-    let mut wf1 = WorkflowDefinition::new(WorkflowMetadata::new(
-        "wf1", "testing", "Desc1", "wf1.md",
-    ));
+    let mut wf1 =
+        WorkflowDefinition::new(WorkflowMetadata::new("wf1", "testing", "Desc1", "wf1.md"));
     wf1.metadata.tags = vec!["api".to_string(), "v1".to_string()];
 
-    let mut wf2 = WorkflowDefinition::new(WorkflowMetadata::new(
-        "wf2", "testing", "Desc2", "wf2.md",
-    ));
+    let mut wf2 =
+        WorkflowDefinition::new(WorkflowMetadata::new("wf2", "testing", "Desc2", "wf2.md"));
     wf2.metadata.tags = vec!["web".to_string()];
 
     dir.register_workflow(wf1).await.unwrap();
@@ -126,10 +110,16 @@ async fn test_search() {
     let dir = WorkflowDirectoryImpl::new(std::path::PathBuf::from("workflows"));
 
     let wf1 = WorkflowDefinition::new(WorkflowMetadata::new(
-        "user-service", "backend", "User management service", "user.md",
+        "user-service",
+        "backend",
+        "User management service",
+        "user.md",
     ));
     let wf2 = WorkflowDefinition::new(WorkflowMetadata::new(
-        "order-service", "backend", "Order processing", "order.md",
+        "order-service",
+        "backend",
+        "Order processing",
+        "order.md",
     ));
 
     dir.register_workflow(wf1).await.unwrap();
@@ -147,9 +137,7 @@ async fn test_search() {
 async fn test_unregister_workflow() {
     let dir = WorkflowDirectoryImpl::new(std::path::PathBuf::from("workflows"));
 
-    let wf = WorkflowDefinition::new(WorkflowMetadata::new(
-        "wf1", "cat1", "Desc1", "wf1.md",
-    ));
+    let wf = WorkflowDefinition::new(WorkflowMetadata::new("wf1", "cat1", "Desc1", "wf1.md"));
     dir.register_workflow(wf).await.unwrap();
 
     assert!(dir.get_workflow("wf1").await.is_ok());
@@ -164,12 +152,8 @@ async fn test_unregister_workflow() {
 async fn test_duplicate_registration() {
     let dir = WorkflowDirectoryImpl::new(std::path::PathBuf::from("workflows"));
 
-    let wf1 = WorkflowDefinition::new(WorkflowMetadata::new(
-        "wf1", "cat1", "Desc1", "wf1.md",
-    ));
-    let wf2 = WorkflowDefinition::new(WorkflowMetadata::new(
-        "wf1", "cat2", "Desc2", "wf2.md",
-    ));
+    let wf1 = WorkflowDefinition::new(WorkflowMetadata::new("wf1", "cat1", "Desc1", "wf1.md"));
+    let wf2 = WorkflowDefinition::new(WorkflowMetadata::new("wf1", "cat2", "Desc2", "wf2.md"));
 
     dir.register_workflow(wf1).await.unwrap();
     let result = dir.register_workflow(wf2).await;
@@ -180,15 +164,14 @@ async fn test_duplicate_registration() {
 async fn test_get_categories() {
     let dir = WorkflowDirectoryImpl::new(std::path::PathBuf::from("workflows"));
 
-    let wf1 = WorkflowDefinition::new(WorkflowMetadata::new(
-        "wf1", "testing", "Desc1", "wf1.md",
-    ));
+    let wf1 = WorkflowDefinition::new(WorkflowMetadata::new("wf1", "testing", "Desc1", "wf1.md"));
     let wf2 = WorkflowDefinition::new(WorkflowMetadata::new(
-        "wf2", "production", "Desc2", "wf2.md",
+        "wf2",
+        "production",
+        "Desc2",
+        "wf2.md",
     ));
-    let wf3 = WorkflowDefinition::new(WorkflowMetadata::new(
-        "wf3", "testing", "Desc3", "wf3.md",
-    ));
+    let wf3 = WorkflowDefinition::new(WorkflowMetadata::new("wf3", "testing", "Desc3", "wf3.md"));
 
     dir.register_workflow(wf1).await.unwrap();
     dir.register_workflow(wf2).await.unwrap();
@@ -207,9 +190,7 @@ async fn test_workflow_count() {
     let dir = WorkflowDirectoryImpl::new(std::path::PathBuf::from("workflows"));
     assert_eq!(dir.workflow_count().await, 0);
 
-    let wf = WorkflowDefinition::new(WorkflowMetadata::new(
-        "wf1", "cat1", "Desc1", "wf1.md",
-    ));
+    let wf = WorkflowDefinition::new(WorkflowMetadata::new("wf1", "cat1", "Desc1", "wf1.md"));
     dir.register_workflow(wf).await.unwrap();
 
     assert_eq!(dir.workflow_count().await, 1);
@@ -219,9 +200,7 @@ async fn test_workflow_count() {
 async fn test_get_index() {
     let dir = WorkflowDirectoryImpl::new(std::path::PathBuf::from("workflows"));
 
-    let wf = WorkflowDefinition::new(WorkflowMetadata::new(
-        "wf1", "testing", "Desc1", "wf1.md",
-    ));
+    let wf = WorkflowDefinition::new(WorkflowMetadata::new("wf1", "testing", "Desc1", "wf1.md"));
     dir.register_workflow(wf).await.unwrap();
 
     let index = dir.get_index().await;
@@ -357,7 +336,10 @@ Build the project
     let result = WorkflowParser::parse_content(content, path).unwrap();
 
     assert_eq!(result.prerequisites.items.len(), 3);
-    assert!(result.prerequisites.items.contains(&"Docker must be installed".to_string()));
+    assert!(result
+        .prerequisites
+        .items
+        .contains(&"Docker must be installed".to_string()));
 }
 
 #[test]
@@ -494,15 +476,10 @@ fn test_parse_index() {
 
 #[test]
 fn test_workflow_metadata_builder() {
-    let meta = WorkflowMetadata::new(
-        "test",
-        "testing",
-        "Test workflow",
-        "test.md",
-    )
-    .with_tags(vec!["tag1".to_string(), "tag2".to_string()])
-    .with_author("Test Author")
-    .with_version("1.0.0");
+    let meta = WorkflowMetadata::new("test", "testing", "Test workflow", "test.md")
+        .with_tags(vec!["tag1".to_string(), "tag2".to_string()])
+        .with_author("Test Author")
+        .with_version("1.0.0");
 
     assert_eq!(meta.name, "test");
     assert_eq!(meta.category, "testing");
@@ -515,8 +492,13 @@ fn test_workflow_metadata_builder() {
 fn test_workflow_step_builder() {
     let step = WorkflowStep::new("step1", "Test Step", "developer", "Do something")
         .with_depends_on(vec!["step0".to_string()])
-        .with_inputs(vec![workflows_directory::StepInput::new("input1", "source1")])
-        .with_outputs(vec![workflows_directory::StepOutput::new("output1", "Result description")]);
+        .with_inputs(vec![workflows_directory::StepInput::new(
+            "input1", "source1",
+        )])
+        .with_outputs(vec![workflows_directory::StepOutput::new(
+            "output1",
+            "Result description",
+        )]);
 
     assert_eq!(step.step_id, "step1");
     assert_eq!(step.name, "Test Step");
@@ -533,9 +515,12 @@ fn test_workflow_definition_builder() {
 
     let def = WorkflowDefinition::new(meta)
         .with_steps(vec![step.clone()])
-        .with_parameters(vec![
-            WorkflowParameter::new("param1", "string", true, "A parameter"),
-        ])
+        .with_parameters(vec![WorkflowParameter::new(
+            "param1",
+            "string",
+            true,
+            "A parameter",
+        )])
         .with_prerequisites(WorkflowPrerequisites::new())
         .with_outputs(vec!["output1".to_string()])
         .with_notes(vec!["note1".to_string()]);

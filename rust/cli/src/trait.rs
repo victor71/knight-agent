@@ -1,8 +1,8 @@
 //! CLI trait definition
 
-use std::sync::Arc;
 use crate::error::CliResult;
 use crate::types::DaemonAction;
+use std::sync::Arc;
 use tui::{DaemonClient, SystemStatusSnapshot};
 
 /// CLI trait

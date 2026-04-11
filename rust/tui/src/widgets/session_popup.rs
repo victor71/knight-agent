@@ -29,11 +29,7 @@ pub fn render_session_popup(f: &mut Frame, area: ratatui::layout::Rect, app: &mu
             let is_current = session.id == app.session_info.id;
             let is_selected = i == app.popup_selected_index;
 
-            let prefix = if is_current {
-                "● "
-            } else {
-                "  "
-            };
+            let prefix = if is_current { "● " } else { "  " };
 
             let content = format!(
                 "{}{} | Messages: {} | {}",

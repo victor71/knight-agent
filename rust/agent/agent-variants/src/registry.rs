@@ -54,7 +54,9 @@ impl AgentVariantRegistryImpl {
         // Also register variants if present
         if !definition.variants.is_empty() {
             let mut variants = self.variants.write().await;
-            let variant_map = variants.entry(agent_id.clone()).or_insert_with(HashMap::new);
+            let variant_map = variants
+                .entry(agent_id.clone())
+                .or_insert_with(HashMap::new);
             for variant in definition.variants {
                 variant_map.insert(variant.name.clone(), variant);
             }
@@ -269,16 +271,14 @@ impl AgentVariantRegistryImpl {
     }
 
     /// Create a new variant for an agent
-    pub async fn create_variant(
-        &self,
-        agent_id: &str,
-        variant: AgentVariant,
-    ) -> VariantResult<()> {
+    pub async fn create_variant(&self, agent_id: &str, variant: AgentVariant) -> VariantResult<()> {
         // Verify agent exists
         let _ = self.get_agent(agent_id).await?;
 
         let mut variants = self.variants.write().await;
-        let variant_map = variants.entry(agent_id.to_string()).or_insert_with(HashMap::new);
+        let variant_map = variants
+            .entry(agent_id.to_string())
+            .or_insert_with(HashMap::new);
         variant_map.insert(variant.name.clone(), variant);
 
         info!("Created variant for agent: {}", agent_id);

@@ -2,9 +2,9 @@
 //!
 //! Tests for text input handling including ASCII and UTF-8 (Chinese) characters.
 
-use tui::{AppState, PopupType};
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
 use tokio::sync::mpsc;
+use tui::{AppState, PopupType};
 
 /// Helper to create a KeyEvent
 fn make_key(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
@@ -98,8 +98,14 @@ fn test_chinese_text_input() {
     let mut state = make_test_state();
 
     // Type "你好" (2 Chinese characters)
-    handle_key(&mut state, make_key(KeyCode::Char('你'), KeyModifiers::NONE));
-    handle_key(&mut state, make_key(KeyCode::Char('好'), KeyModifiers::NONE));
+    handle_key(
+        &mut state,
+        make_key(KeyCode::Char('你'), KeyModifiers::NONE),
+    );
+    handle_key(
+        &mut state,
+        make_key(KeyCode::Char('好'), KeyModifiers::NONE),
+    );
 
     assert_eq!(state.input_buffer, "你好");
     assert_eq!(state.cursor_position, 2); // 2 characters
@@ -115,8 +121,14 @@ fn test_mixed_chinese_and_ascii() {
     handle_key(&mut state, make_key(KeyCode::Char('l'), KeyModifiers::NONE));
     handle_key(&mut state, make_key(KeyCode::Char('l'), KeyModifiers::NONE));
     handle_key(&mut state, make_key(KeyCode::Char('o'), KeyModifiers::NONE));
-    handle_key(&mut state, make_key(KeyCode::Char('你'), KeyModifiers::NONE));
-    handle_key(&mut state, make_key(KeyCode::Char('好'), KeyModifiers::NONE));
+    handle_key(
+        &mut state,
+        make_key(KeyCode::Char('你'), KeyModifiers::NONE),
+    );
+    handle_key(
+        &mut state,
+        make_key(KeyCode::Char('好'), KeyModifiers::NONE),
+    );
 
     assert_eq!(state.input_buffer, "hello你好");
     assert_eq!(state.cursor_position, 7); // 5 ASCII + 2 Chinese = 7 chars
@@ -144,8 +156,14 @@ fn test_chinese_backspace() {
     let mut state = make_test_state();
 
     // Type "你好" then backspace once
-    handle_key(&mut state, make_key(KeyCode::Char('你'), KeyModifiers::NONE));
-    handle_key(&mut state, make_key(KeyCode::Char('好'), KeyModifiers::NONE));
+    handle_key(
+        &mut state,
+        make_key(KeyCode::Char('你'), KeyModifiers::NONE),
+    );
+    handle_key(
+        &mut state,
+        make_key(KeyCode::Char('好'), KeyModifiers::NONE),
+    );
     handle_key(&mut state, make_key(KeyCode::Backspace, KeyModifiers::NONE));
 
     assert_eq!(state.input_buffer, "你");
@@ -227,10 +245,22 @@ fn test_chinese_cursor_navigation() {
     let mut state = make_test_state();
 
     // Type "你好世界"
-    handle_key(&mut state, make_key(KeyCode::Char('你'), KeyModifiers::NONE));
-    handle_key(&mut state, make_key(KeyCode::Char('好'), KeyModifiers::NONE));
-    handle_key(&mut state, make_key(KeyCode::Char('世'), KeyModifiers::NONE));
-    handle_key(&mut state, make_key(KeyCode::Char('界'), KeyModifiers::NONE));
+    handle_key(
+        &mut state,
+        make_key(KeyCode::Char('你'), KeyModifiers::NONE),
+    );
+    handle_key(
+        &mut state,
+        make_key(KeyCode::Char('好'), KeyModifiers::NONE),
+    );
+    handle_key(
+        &mut state,
+        make_key(KeyCode::Char('世'), KeyModifiers::NONE),
+    );
+    handle_key(
+        &mut state,
+        make_key(KeyCode::Char('界'), KeyModifiers::NONE),
+    );
 
     assert_eq!(state.cursor_position, 4);
 
@@ -267,8 +297,8 @@ fn test_popup_toggle() {
 
 #[test]
 fn test_popup_navigation() {
-    use tui::SessionListItem;
     use chrono::Local;
+    use tui::SessionListItem;
 
     let mut state = make_test_state();
 
@@ -326,7 +356,10 @@ fn test_long_chinese_text() {
     // Type a long Chinese sentence
     let chinese_text = "锄禾日当午汗滴禾下土谁知盘中餐粒粒皆辛苦";
     for char in chinese_text.chars() {
-        handle_key(&mut state, make_key(KeyCode::Char(char), KeyModifiers::NONE));
+        handle_key(
+            &mut state,
+            make_key(KeyCode::Char(char), KeyModifiers::NONE),
+        );
     }
 
     assert_eq!(state.input_buffer, chinese_text);
@@ -372,8 +405,14 @@ fn test_zero_width_characters() {
 
     // Test combining characters (zero-width joiner examples)
     // Chinese punctuation that might cause issues
-    handle_key(&mut state, make_key(KeyCode::Char('，'), KeyModifiers::NONE)); // Chinese comma
-    handle_key(&mut state, make_key(KeyCode::Char('。'), KeyModifiers::NONE)); // Chinese period
+    handle_key(
+        &mut state,
+        make_key(KeyCode::Char('，'), KeyModifiers::NONE),
+    ); // Chinese comma
+    handle_key(
+        &mut state,
+        make_key(KeyCode::Char('。'), KeyModifiers::NONE),
+    ); // Chinese period
 
     assert_eq!(state.input_buffer, "，。");
     assert_eq!(state.cursor_position, 2);

@@ -65,7 +65,9 @@ impl SessionManagerImpl {
         let workspace = request.workspace;
 
         let metadata = SessionMetadata {
-            name: request.name.unwrap_or_else(|| format!("session-{}", &id[..8])),
+            name: request
+                .name
+                .unwrap_or_else(|| format!("session-{}", &id[..8])),
             workspace: workspace.clone(),
             project_type: request.project_type.unwrap_or(ProjectType::Auto),
             description: request.description.unwrap_or_default(),
@@ -218,7 +220,10 @@ impl SessionManagerImpl {
             session.last_active = Some(chrono::Utc::now().to_rfc3339());
             session.updated_at = chrono::Utc::now().to_rfc3339();
 
-            debug!("Added message to session {}: total messages = {}", session_id, session.stats.total_messages);
+            debug!(
+                "Added message to session {}: total messages = {}",
+                session_id, session.stats.total_messages
+            );
 
             // Return true if compression should be triggered (e.g., > 100 messages)
             let should_compress = session.stats.total_messages > 100;
@@ -229,7 +234,11 @@ impl SessionManagerImpl {
     }
 
     /// Get session context
-    pub async fn get_context(&self, session_id: &str, _include_compressed: bool) -> SessionResult<SessionContext> {
+    pub async fn get_context(
+        &self,
+        session_id: &str,
+        _include_compressed: bool,
+    ) -> SessionResult<SessionContext> {
         let sessions = self.sessions.read().await;
         if let Some(session) = sessions.get(session_id) {
             let ctx = session.context.clone();
@@ -263,7 +272,10 @@ impl SessionManagerImpl {
 
             session.context.add_compression_point(point.clone());
             session.stats.compression_count += 1;
-            session.stats.total_tokens = session.stats.total_tokens.saturating_sub(point.token_saved as u64);
+            session.stats.total_tokens = session
+                .stats
+                .total_tokens
+                .saturating_sub(point.token_saved as u64);
             session.updated_at = chrono::Utc::now().to_rfc3339();
 
             info!(
@@ -348,7 +360,9 @@ impl SessionManagerImpl {
                 .iter()
                 .find(|p| p.id == point_id)
                 .cloned()
-                .ok_or_else(|| SessionError::NotFound(format!("Compression point {} not found", point_id)))
+                .ok_or_else(|| {
+                    SessionError::NotFound(format!("Compression point {} not found", point_id))
+                })
         } else {
             Err(SessionError::NotFound(session_id.to_string()))
         }
@@ -416,19 +430,23 @@ impl SessionManagerImpl {
         let session = {
             let sessions = self.sessions.read().await;
             sessions.get(&session_id).cloned()
-        }.ok_or_else(|| SessionError::NotFound(session_id.clone()))?;
+        }
+        .ok_or_else(|| SessionError::NotFound(session_id.clone()))?;
 
         // Ensure storage directory exists
-        fs::create_dir_all(&self.storage_dir).await
-            .map_err(|e| SessionError::PersistenceError(format!("Failed to create storage dir: {}", e)))?;
+        fs::create_dir_all(&self.storage_dir).await.map_err(|e| {
+            SessionError::PersistenceError(format!("Failed to create storage dir: {}", e))
+        })?;
 
         // Save to file
         let file_path = self.storage_dir.join(format!("{}.json", session_id));
-        let json = serde_json::to_string_pretty(&session)
-            .map_err(|e| SessionError::PersistenceError(format!("Failed to serialize session: {}", e)))?;
+        let json = serde_json::to_string_pretty(&session).map_err(|e| {
+            SessionError::PersistenceError(format!("Failed to serialize session: {}", e))
+        })?;
 
-        fs::write(&file_path, json).await
-            .map_err(|e| SessionError::PersistenceError(format!("Failed to write session file: {}", e)))?;
+        fs::write(&file_path, json).await.map_err(|e| {
+            SessionError::PersistenceError(format!("Failed to write session file: {}", e))
+        })?;
 
         info!("Saved session {} to {}", session_id, file_path.display());
         Ok(file_path.to_string_lossy().to_string())
@@ -442,11 +460,13 @@ impl SessionManagerImpl {
             return Err(SessionError::NotFound(id.to_string()));
         }
 
-        let json = fs::read_to_string(&file_path).await
-            .map_err(|e| SessionError::PersistenceError(format!("Failed to read session file: {}", e)))?;
+        let json = fs::read_to_string(&file_path).await.map_err(|e| {
+            SessionError::PersistenceError(format!("Failed to read session file: {}", e))
+        })?;
 
-        let session: Session = serde_json::from_str(&json)
-            .map_err(|e| SessionError::PersistenceError(format!("Failed to deserialize session: {}", e)))?;
+        let session: Session = serde_json::from_str(&json).map_err(|e| {
+            SessionError::PersistenceError(format!("Failed to deserialize session: {}", e))
+        })?;
 
         info!("Loaded session {} from {}", id, file_path.display());
         Ok(session)
@@ -454,15 +474,20 @@ impl SessionManagerImpl {
 
     /// Load all sessions from storage
     pub async fn load_all_sessions(&self) -> SessionResult<Vec<Session>> {
-        fs::create_dir_all(&self.storage_dir).await
-            .map_err(|e| SessionError::PersistenceError(format!("Failed to create storage dir: {}", e)))?;
+        fs::create_dir_all(&self.storage_dir).await.map_err(|e| {
+            SessionError::PersistenceError(format!("Failed to create storage dir: {}", e))
+        })?;
 
         let mut sessions = Vec::new();
-        let mut entries = fs::read_dir(&self.storage_dir).await
-            .map_err(|e| SessionError::PersistenceError(format!("Failed to read storage dir: {}", e)))?;
+        let mut entries = fs::read_dir(&self.storage_dir).await.map_err(|e| {
+            SessionError::PersistenceError(format!("Failed to read storage dir: {}", e))
+        })?;
 
-        while let Some(entry) = entries.next_entry().await
-            .map_err(|e| SessionError::PersistenceError(format!("Failed to read entry: {}", e)))? {
+        while let Some(entry) = entries
+            .next_entry()
+            .await
+            .map_err(|e| SessionError::PersistenceError(format!("Failed to read entry: {}", e)))?
+        {
             let path = entry.path();
             if path.extension().and_then(|s| s.to_str()) == Some("json") {
                 if let Ok(json) = fs::read_to_string(&path).await {
@@ -548,8 +573,13 @@ impl SessionManagerImpl {
 
     /// Send message to session's agent
     /// This is the main entry point for UI layer to send messages
-    pub async fn send_message_to_session(&self, session_id: &str, content: String) -> SessionResult<String> {
-        self.send_message_to_session_streaming(session_id, content, None).await
+    pub async fn send_message_to_session(
+        &self,
+        session_id: &str,
+        content: String,
+    ) -> SessionResult<String> {
+        self.send_message_to_session_streaming(session_id, content, None)
+            .await
     }
 
     /// Send message to session's agent with streaming callback
@@ -559,8 +589,11 @@ impl SessionManagerImpl {
         content: String,
         stream_callback: Option<StreamCallback>,
     ) -> SessionResult<String> {
-        info!("[SESSION-MANAGER] send_message_to_session_streaming: session_id={}, has_callback={}",
-              session_id, stream_callback.is_some());
+        info!(
+            "[SESSION-MANAGER] send_message_to_session_streaming: session_id={}, has_callback={}",
+            session_id,
+            stream_callback.is_some()
+        );
 
         // Verify session exists
         {
@@ -572,34 +605,45 @@ impl SessionManagerImpl {
 
         // Get agent runtime
         let agent_runtime = self.agent_runtime.read().await;
-        let agent_runtime = agent_runtime.as_ref()
-            .ok_or_else(|| SessionError::NotInitialized)?;
+        let agent_runtime = agent_runtime.as_ref().ok_or(SessionError::NotInitialized)?;
 
         // Get or create agent for this session
-        let agent_id = agent_runtime.get_or_create_session_agent(session_id.to_string())
+        let agent_id = agent_runtime
+            .get_or_create_session_agent(session_id.to_string())
             .await
             .map_err(|e| SessionError::CompressionError(e.to_string()))?;
 
-        info!("[SESSION-MANAGER] Agent ID: {}, calling send_message_streaming", agent_id);
+        info!(
+            "[SESSION-MANAGER] Agent ID: {}, calling send_message_streaming",
+            agent_id
+        );
 
         // Send message to agent with streaming callback
-        let response = agent_runtime.send_message_streaming(&agent_id, content.clone(), stream_callback)
+        let response = agent_runtime
+            .send_message_streaming(&agent_id, content.clone(), stream_callback)
             .await
             .map_err(|e| SessionError::CompressionError(e.to_string()))?;
 
-        info!("[SESSION-MANAGER] send_message_streaming returned, response_len={}", response.len());
+        info!(
+            "[SESSION-MANAGER] send_message_streaming returned, response_len={}",
+            response.len()
+        );
 
         // Add user message to session context
-        let _ = self.add_message(session_id, Message::user(
-            generate_id(),
-            format!("user: {}", content)
-        )).await;
+        let _ = self
+            .add_message(
+                session_id,
+                Message::user(generate_id(), format!("user: {}", content)),
+            )
+            .await;
 
         // Add assistant response to session context
-        let _ = self.add_message(session_id, Message::assistant(
-            generate_id(),
-            response.clone()
-        )).await;
+        let _ = self
+            .add_message(
+                session_id,
+                Message::assistant(generate_id(), response.clone()),
+            )
+            .await;
 
         Ok(response)
     }

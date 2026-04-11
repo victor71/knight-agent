@@ -1,8 +1,8 @@
 //! IPC Contract tests
 
 use ipc_contract::{
-    ErrorCode, IPCConfig, IPCContract, IPCContractImpl, QueryContext, QueryDependencies,
-    QueryType, RequestMessage, RequestOptions, ResponseMessage, UserQueryMessage, UserResponseData,
+    ErrorCode, IPCConfig, IPCContract, IPCContractImpl, QueryContext, QueryDependencies, QueryType,
+    RequestMessage, RequestOptions, ResponseMessage, UserQueryMessage, UserResponseData,
 };
 
 #[tokio::test]
@@ -304,10 +304,8 @@ async fn test_serialize_deserialize() {
     assert_eq!(parsed.method, "test.method");
 
     // Test ResponseMessage
-    let response = ResponseMessage::success(
-        "req-1".to_string(),
-        serde_json::json!({"result": "ok"}),
-    );
+    let response =
+        ResponseMessage::success("req-1".to_string(), serde_json::json!({"result": "ok"}));
 
     let json = serde_json::to_string(&response).unwrap();
     let parsed: ResponseMessage = serde_json::from_str(&json).unwrap();

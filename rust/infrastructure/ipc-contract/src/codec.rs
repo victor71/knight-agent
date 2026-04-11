@@ -61,9 +61,9 @@ impl Decoder for FrameCodec {
         src.advance(4 + len);
 
         // Parse as UTF-8 string
-        String::from_utf8(frame_data).map_err(|e| {
-            IPCError::ParseError(format!("Invalid UTF-8 in frame: {}", e))
-        }).map(Some)
+        String::from_utf8(frame_data)
+            .map_err(|e| IPCError::ParseError(format!("Invalid UTF-8 in frame: {}", e)))
+            .map(Some)
     }
 }
 

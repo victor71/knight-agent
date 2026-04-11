@@ -3,9 +3,8 @@
 //! Unit tests for the external-agent module.
 
 use external_agent::{
-    ExternalAgentManager, ExternalAgentError, ExternalAgentConfig,
-    DiscoveredAgent, ExternalAgentStatus, ProcessState, InputMode,
-    AgentDefinition,
+    AgentDefinition, DiscoveredAgent, ExternalAgentConfig, ExternalAgentError,
+    ExternalAgentManager, ExternalAgentStatus, InputMode, ProcessState,
 };
 
 #[tokio::test]
@@ -84,13 +83,7 @@ async fn test_validate_input_too_large() {
 #[tokio::test]
 async fn test_validate_input_dangerous() {
     let manager = ExternalAgentManager::new();
-    let dangerous_inputs = vec![
-        "rm -rf /",
-        "rm -rf /*",
-        "format c:",
-        "mkfs",
-        ":(){:|:&};:",
-    ];
+    let dangerous_inputs = vec!["rm -rf /", "rm -rf /*", "format c:", "mkfs", ":(){:|:&};:"];
 
     for input in dangerous_inputs {
         let result = manager.validate_input(input);
@@ -109,8 +102,11 @@ fn test_discovered_agent_new() {
 
 #[test]
 fn test_discovered_agent_with_installed() {
-    let agent = DiscoveredAgent::new("claude-code", "Claude Code")
-        .with_installed(true, Some("/usr/bin/claude".to_string()), Some("1.2.3".to_string()));
+    let agent = DiscoveredAgent::new("claude-code", "Claude Code").with_installed(
+        true,
+        Some("/usr/bin/claude".to_string()),
+        Some("1.2.3".to_string()),
+    );
     assert!(agent.installed);
     assert!(agent.available);
     assert_eq!(agent.path, Some("/usr/bin/claude".to_string()));

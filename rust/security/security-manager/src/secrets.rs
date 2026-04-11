@@ -87,11 +87,7 @@ impl SecretManager {
     }
 
     /// Rotate a secret
-    pub async fn rotate_secret(
-        &self,
-        key: &str,
-        new_value: String,
-    ) -> Result<bool, SecretError> {
+    pub async fn rotate_secret(&self, key: &str, new_value: String) -> Result<bool, SecretError> {
         // Validate new secret
         self.validate_secret(&new_value)?;
 

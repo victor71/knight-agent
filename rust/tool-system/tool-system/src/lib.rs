@@ -10,8 +10,8 @@ mod registry;
 mod types;
 mod validator;
 
-pub use types::*;
 pub use registry::ToolRegistry;
+pub use types::*;
 pub use validator::ArgumentValidator;
 
 use async_trait::async_trait;
@@ -147,10 +147,7 @@ impl ToolSystemImpl {
             }
         };
 
-        debug!(
-            "Executing built-in tool: {} with args: {:?}",
-            name, args
-        );
+        debug!("Executing built-in tool: {} with args: {:?}", name, args);
 
         let result = tool.execute(args, context).await;
         let duration = start.elapsed().as_millis() as u64;
@@ -213,10 +210,7 @@ impl ToolSystemImpl {
                     .await
                     .map_err(|e| {
                         error!("Failed to execute command: {}", e);
-                        ToolSystemError::ExecutionFailed(format!(
-                            "Command execution failed: {}",
-                            e
-                        ))
+                        ToolSystemError::ExecutionFailed(format!("Command execution failed: {}", e))
                     })?;
 
                 let stdout = String::from_utf8_lossy(&output.stdout);
@@ -329,10 +323,7 @@ impl ToolSystemTrait for ToolSystemImpl {
         Ok(tools)
     }
 
-    async fn list_tools_by_category(
-        &self,
-        category: &str,
-    ) -> ToolResult<Vec<ToolInfo>> {
+    async fn list_tools_by_category(&self, category: &str) -> ToolResult<Vec<ToolInfo>> {
         if !self.is_initialized() {
             return Err(ToolSystemError::NotInitialized);
         }

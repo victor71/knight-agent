@@ -2,9 +2,7 @@
 //!
 //! Tests that the actual request format matches what's expected by the API.
 
-use llm_provider::{
-    ChatCompletionRequest, Content, Message, MessageRole,
-};
+use llm_provider::{ChatCompletionRequest, Content, Message, MessageRole};
 
 #[test]
 fn test_request_serialization() {

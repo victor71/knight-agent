@@ -7,7 +7,7 @@ use crate::state::*;
 use chrono::{DateTime, Local};
 use std::time::Duration;
 use tokio::sync::mpsc;
-use tracing::{info, debug};
+use tracing::{debug, info};
 
 use crate::event::AppEvent;
 
@@ -66,7 +66,10 @@ pub enum PopupType {
 
 impl AppState {
     /// Create a new application state
-    pub fn new(event_tx: mpsc::UnboundedSender<AppEvent>, event_rx: mpsc::UnboundedReceiver<AppEvent>) -> Self {
+    pub fn new(
+        event_tx: mpsc::UnboundedSender<AppEvent>,
+        event_rx: mpsc::UnboundedReceiver<AppEvent>,
+    ) -> Self {
         Self {
             terminal_size: (80, 24),
             input_buffer: String::new(),
@@ -112,8 +115,10 @@ impl AppState {
                 info!("[TUI-STATE] StreamChunk received: {} chars", chunk.len());
 
                 // Check if this chunk contains thinking content
-                let is_thinking = chunk.contains("Thinking:") || chunk.contains("Thought:") ||
-                                  chunk.contains("<thinking>") || chunk.contains("💭");
+                let is_thinking = chunk.contains("Thinking:")
+                    || chunk.contains("Thought:")
+                    || chunk.contains("<thinking>")
+                    || chunk.contains("💭");
 
                 // Determine the style based on content
                 let style = if is_thinking {
@@ -126,7 +131,10 @@ impl AppState {
                 if let Some(last) = self.output_lines.last_mut() {
                     if std::mem::discriminant(&last.style) == std::mem::discriminant(&style) {
                         last.content.push_str(chunk);
-                        debug!("[TUI-STATE] Appended chunk to last line, total: {} chars", last.content.len());
+                        debug!(
+                            "[TUI-STATE] Appended chunk to last line, total: {} chars",
+                            last.content.len()
+                        );
                         return;
                     }
                 }
@@ -247,7 +255,11 @@ impl AppState {
         // Rough estimate: each output line could produce multiple display lines
         // due to wrapping. We estimate ~1.5x for safety.
         let total_display_lines = self.output_lines.len()
-            + self.output_lines.iter().map(|l| l.content.len() / 100).sum::<usize>();
+            + self
+                .output_lines
+                .iter()
+                .map(|l| l.content.len() / 100)
+                .sum::<usize>();
         total_display_lines.saturating_sub(visible_height)
     }
 

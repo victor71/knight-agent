@@ -188,7 +188,12 @@ impl RouterImpl {
     }
 
     /// Execute a built-in command
-    async fn execute_builtin(&self, command: &BuiltinCommand, input: &ParsedInput, session_id: &str) -> HandleInputResult {
+    async fn execute_builtin(
+        &self,
+        command: &BuiltinCommand,
+        input: &ParsedInput,
+        session_id: &str,
+    ) -> HandleInputResult {
         match command.handler.name.as_str() {
             "help" => self.cmd_help(input).await,
             "clear" => self.cmd_clear().await,
@@ -199,7 +204,10 @@ impl RouterImpl {
             "history" => self.cmd_history().await,
             "command" => self.cmd_list_commands().await,
             _ => HandleInputResult {
-                response: RouterResponse::error(format!("Unknown builtin: {}", command.handler.name)),
+                response: RouterResponse::error(format!(
+                    "Unknown builtin: {}",
+                    command.handler.name
+                )),
                 to_agent: false,
                 should_exit: false,
             },
@@ -207,7 +215,11 @@ impl RouterImpl {
     }
 
     /// Execute a user command
-    async fn execute_user_command(&self, command: &UserCommand, _input: &ParsedInput) -> HandleInputResult {
+    async fn execute_user_command(
+        &self,
+        command: &UserCommand,
+        _input: &ParsedInput,
+    ) -> HandleInputResult {
         // In a real implementation, this would invoke the command module
         HandleInputResult {
             response: RouterResponse::success_with_data(
@@ -413,9 +425,18 @@ impl RouterImpl {
         let all = self.list_commands_internal().await;
 
         match filter {
-            Some("builtin") => all.into_iter().filter(|c| c.command_type == CommandType::Builtin).collect(),
-            Some("user") => all.into_iter().filter(|c| c.command_type == CommandType::User).collect(),
-            Some("workflow") => all.into_iter().filter(|c| c.command_type == CommandType::Workflow).collect(),
+            Some("builtin") => all
+                .into_iter()
+                .filter(|c| c.command_type == CommandType::Builtin)
+                .collect(),
+            Some("user") => all
+                .into_iter()
+                .filter(|c| c.command_type == CommandType::User)
+                .collect(),
+            Some("workflow") => all
+                .into_iter()
+                .filter(|c| c.command_type == CommandType::Workflow)
+                .collect(),
             _ => all,
         }
     }
@@ -439,9 +460,9 @@ impl RouterImpl {
     /// Get command info by name
     pub async fn get_command(&self, name: &str) -> Option<CommandInfo> {
         let builtins = self.builtin_commands.read().await;
-        builtins.get(name).map(|cmd| {
-            CommandInfo::builtin(&cmd.name, &cmd.description, cmd.aliases.clone())
-        })
+        builtins
+            .get(name)
+            .map(|cmd| CommandInfo::builtin(&cmd.name, &cmd.description, cmd.aliases.clone()))
     }
 
     /// Check if input is a command
@@ -472,11 +493,7 @@ impl Default for RouterImpl {
 #[async_trait::async_trait]
 impl crate::RouterHandle for RouterImpl {
     async fn handle_input(&self, input: String, session_id: String) -> HandleInputResult {
-        RouterImpl::handle_input(
-            self,
-            HandleInputRequest { input, session_id },
-        )
-        .await
+        RouterImpl::handle_input(self, HandleInputRequest { input, session_id }).await
     }
 
     fn is_initialized(&self) -> bool {

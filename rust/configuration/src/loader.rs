@@ -16,7 +16,10 @@ pub enum ConfigChangeEvent {
     /// Main config changed
     MainConfigChanged(KnightConfig),
     /// System config changed
-    SystemConfigChanged { name: String, config: SystemConfig },
+    SystemConfigChanged {
+        name: String,
+        config: Box<SystemConfig>,
+    },
 }
 
 /// System configuration variants (from config/*.yaml files)
@@ -76,7 +79,9 @@ impl ConfigLoader {
 
         // Load initial configurations
         let main_config = Arc::new(RwLock::new(Self::load_main_config(&config_dir).await?));
-        let system_configs = Arc::new(RwLock::new(Self::load_system_configs(&system_config_dir).await?));
+        let system_configs = Arc::new(RwLock::new(
+            Self::load_system_configs(&system_config_dir).await?,
+        ));
 
         // Setup file watcher
         let watcher = Self::setup_watcher(
@@ -165,14 +170,29 @@ impl ConfigLoader {
         let default_configs: &[(&str, SystemConfig)] = &[
             ("agent", SystemConfig::Agent(AgentConfig::default())),
             ("core", SystemConfig::Core(CoreConfig::default())),
-            ("services", SystemConfig::Services(ServicesConfig::default())),
+            (
+                "services",
+                SystemConfig::Services(ServicesConfig::default()),
+            ),
             ("tools", SystemConfig::Tools(ToolsConfig::default())),
-            ("infrastructure", SystemConfig::Infrastructure(InfrastructureConfig::default())),
+            (
+                "infrastructure",
+                SystemConfig::Infrastructure(InfrastructureConfig::default()),
+            ),
             ("logging", SystemConfig::Logging(LoggingConfig::default())),
-            ("monitoring", SystemConfig::Monitoring(MonitoringConfig::default())),
-            ("compressor", SystemConfig::Compressor(CompressorConfig::default())),
+            (
+                "monitoring",
+                SystemConfig::Monitoring(MonitoringConfig::default()),
+            ),
+            (
+                "compressor",
+                SystemConfig::Compressor(CompressorConfig::default()),
+            ),
             ("storage", SystemConfig::Storage(StorageConfig::default())),
-            ("security", SystemConfig::Security(SecurityConfig::default())),
+            (
+                "security",
+                SystemConfig::Security(SecurityConfig::default()),
+            ),
         ];
 
         for (name, loader) in system_files {
@@ -186,7 +206,11 @@ impl ConfigLoader {
                     }
                     Err(e) => {
                         warn!("Failed to parse {}.yaml: {}, using default", name, e);
-                        if let Some(default_config) = default_configs.iter().find(|(n, _)| n == name).map(|(_, c)| c.clone()) {
+                        if let Some(default_config) = default_configs
+                            .iter()
+                            .find(|(n, _)| n == name)
+                            .map(|(_, c)| c.clone())
+                        {
                             configs.insert(name.to_string(), default_config);
                         }
                     }
@@ -205,7 +229,11 @@ impl ConfigLoader {
     }
 
     /// Save system configuration as YAML
-    async fn save_system_config_yaml(config_dir: &Path, name: &str, config: &SystemConfig) -> ConfigResult<()> {
+    async fn save_system_config_yaml(
+        config_dir: &Path,
+        name: &str,
+        config: &SystemConfig,
+    ) -> ConfigResult<()> {
         let config_path = config_dir.join(format!("{}.yaml", name));
         let content = match config {
             SystemConfig::Agent(c) => serde_yaml::to_string(c)?,
@@ -238,7 +266,8 @@ impl ConfigLoader {
                 Ok(event) => {
                     if let EventKind::Modify(_) | EventKind::Create(_) = event.kind {
                         for path in &event.paths {
-                            let filename = path.file_name()
+                            let filename = path
+                                .file_name()
                                 .and_then(|n: &std::ffi::OsStr| n.to_str())
                                 .unwrap_or("");
 
@@ -246,9 +275,12 @@ impl ConfigLoader {
                             if filename == "knight.json" {
                                 info!("Detected change in knight.json");
                                 if let Ok(content) = std::fs::read_to_string(path) {
-                                    if let Ok(config) = serde_json::from_str::<KnightConfig>(&content) {
+                                    if let Ok(config) =
+                                        serde_json::from_str::<KnightConfig>(&content)
+                                    {
                                         *main_config.write() = config.clone();
-                                        let _ = change_tx.send(ConfigChangeEvent::MainConfigChanged(config));
+                                        let _ = change_tx
+                                            .send(ConfigChangeEvent::MainConfigChanged(config));
                                     }
                                 }
                             }
@@ -259,34 +291,62 @@ impl ConfigLoader {
                                 if let Ok(content) = std::fs::read_to_string(path) {
                                     let sys_config = match config_name {
                                         "agent" => serde_yaml::from_str::<AgentConfig>(&content)
-                                            .map(SystemConfig::Agent).ok(),
+                                            .map(SystemConfig::Agent)
+                                            .ok(),
                                         "core" => serde_yaml::from_str::<CoreConfig>(&content)
-                                            .map(SystemConfig::Core).ok(),
-                                        "services" => serde_yaml::from_str::<ServicesConfig>(&content)
-                                            .map(SystemConfig::Services).ok(),
+                                            .map(SystemConfig::Core)
+                                            .ok(),
+                                        "services" => {
+                                            serde_yaml::from_str::<ServicesConfig>(&content)
+                                                .map(SystemConfig::Services)
+                                                .ok()
+                                        }
                                         "tools" => serde_yaml::from_str::<ToolsConfig>(&content)
-                                            .map(SystemConfig::Tools).ok(),
-                                        "infrastructure" => serde_yaml::from_str::<InfrastructureConfig>(&content)
-                                            .map(SystemConfig::Infrastructure).ok(),
-                                        "logging" => serde_yaml::from_str::<LoggingConfig>(&content)
-                                            .map(SystemConfig::Logging).ok(),
-                                        "monitoring" => serde_yaml::from_str::<MonitoringConfig>(&content)
-                                            .map(SystemConfig::Monitoring).ok(),
-                                        "compressor" => serde_yaml::from_str::<CompressorConfig>(&content)
-                                            .map(SystemConfig::Compressor).ok(),
-                                        "storage" => serde_yaml::from_str::<StorageConfig>(&content)
-                                            .map(SystemConfig::Storage).ok(),
-                                        "security" => serde_yaml::from_str::<SecurityConfig>(&content)
-                                            .map(SystemConfig::Security).ok(),
+                                            .map(SystemConfig::Tools)
+                                            .ok(),
+                                        "infrastructure" => {
+                                            serde_yaml::from_str::<InfrastructureConfig>(&content)
+                                                .map(SystemConfig::Infrastructure)
+                                                .ok()
+                                        }
+                                        "logging" => {
+                                            serde_yaml::from_str::<LoggingConfig>(&content)
+                                                .map(SystemConfig::Logging)
+                                                .ok()
+                                        }
+                                        "monitoring" => {
+                                            serde_yaml::from_str::<MonitoringConfig>(&content)
+                                                .map(SystemConfig::Monitoring)
+                                                .ok()
+                                        }
+                                        "compressor" => {
+                                            serde_yaml::from_str::<CompressorConfig>(&content)
+                                                .map(SystemConfig::Compressor)
+                                                .ok()
+                                        }
+                                        "storage" => {
+                                            serde_yaml::from_str::<StorageConfig>(&content)
+                                                .map(SystemConfig::Storage)
+                                                .ok()
+                                        }
+                                        "security" => {
+                                            serde_yaml::from_str::<SecurityConfig>(&content)
+                                                .map(SystemConfig::Security)
+                                                .ok()
+                                        }
                                         _ => None,
                                     };
 
                                     if let Some(sc) = sys_config {
-                                        system_configs.write().insert(config_name.to_string(), sc.clone());
-                                        let _ = change_tx.send(ConfigChangeEvent::SystemConfigChanged {
-                                            name: config_name.to_string(),
-                                            config: sc,
-                                        });
+                                        system_configs
+                                            .write()
+                                            .insert(config_name.to_string(), sc.clone());
+                                        let _ = change_tx.send(
+                                            ConfigChangeEvent::SystemConfigChanged {
+                                                name: config_name.to_string(),
+                                                config: Box::new(sc),
+                                            },
+                                        );
                                     }
                                 }
                             }
@@ -300,7 +360,10 @@ impl ConfigLoader {
         })?;
 
         watcher.watch(&config_dir, RecursiveMode::Recursive)?;
-        info!("Started watching config directory: {}", config_dir.display());
+        info!(
+            "Started watching config directory: {}",
+            config_dir.display()
+        );
 
         Ok(watcher)
     }
@@ -409,7 +472,9 @@ impl ConfigLoader {
     pub async fn reload_main_config(&self) -> ConfigResult<()> {
         let config = Self::load_main_config(&self.config_dir).await?;
         *self.main_config.write() = config.clone();
-        let _ = self.change_tx.send(ConfigChangeEvent::MainConfigChanged(config));
+        let _ = self
+            .change_tx
+            .send(ConfigChangeEvent::MainConfigChanged(config));
         Ok(())
     }
 
@@ -427,7 +492,9 @@ mod tests {
     #[tokio::test]
     async fn test_create_default_config() {
         let temp_dir = TempDir::new().unwrap();
-        let loader = ConfigLoader::new(temp_dir.path().to_path_buf()).await.unwrap();
+        let loader = ConfigLoader::new(temp_dir.path().to_path_buf())
+            .await
+            .unwrap();
 
         // Check main config
         let main_config = loader.get_main_config();
@@ -473,7 +540,9 @@ mod tests {
         }"#;
         tokio::fs::write(&config_path, config_json).await.unwrap();
 
-        let loader = ConfigLoader::new(temp_dir.path().to_path_buf()).await.unwrap();
+        let loader = ConfigLoader::new(temp_dir.path().to_path_buf())
+            .await
+            .unwrap();
         let llm_config = loader.get_llm_config();
         assert!(llm_config.is_some());
 

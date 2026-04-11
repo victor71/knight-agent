@@ -3,8 +3,8 @@
 //! Thread-safe event queue with priority support.
 
 use crate::types::{Event, OverflowPolicy, QueueInfo};
-use std::collections::BinaryHeap;
 use std::cmp::Ordering;
+use std::collections::BinaryHeap;
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
@@ -18,8 +18,7 @@ struct PrioritizedEvent {
 impl PartialEq for PrioritizedEvent {
     fn eq(&self, other: &Self) -> bool {
         // Compare by priority first, then by enqueued time for FIFO within same priority
-        self.event.priority == other.event.priority
-            && self.enqueued_at == other.enqueued_at
+        self.event.priority == other.event.priority && self.enqueued_at == other.enqueued_at
     }
 }
 
@@ -204,7 +203,10 @@ mod tests {
         queue.push(create_event("2", 100)).unwrap();
 
         // Queue is full, should fail
-        assert!(matches!(queue.push(create_event("3", 100)), Err(QueueError::QueueFull)));
+        assert!(matches!(
+            queue.push(create_event("3", 100)),
+            Err(QueueError::QueueFull)
+        ));
     }
 
     #[test]
@@ -215,7 +217,10 @@ mod tests {
         queue.push(create_event("2", 100)).unwrap();
 
         // Should drop the new event
-        assert!(matches!(queue.push(create_event("3", 100)), Err(QueueError::Dropped)));
+        assert!(matches!(
+            queue.push(create_event("3", 100)),
+            Err(QueueError::Dropped)
+        ));
 
         assert_eq!(queue.len(), 2);
     }

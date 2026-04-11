@@ -15,10 +15,10 @@ use std::time::Duration;
 use tracing::{info, warn, Level};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::FmtSpan;
-use tui::{DaemonClient, DirectDaemonClient, SystemStatusSnapshot};
 use tui::event::SystemHealth;
+use tui::{DaemonClient, DirectDaemonClient, SystemStatusSnapshot};
 
-use crate::{get_home_dir, ensure_dir, AGENT_SUBDIRS, CONFIG_DIR};
+use crate::{ensure_dir, get_home_dir, AGENT_SUBDIRS, CONFIG_DIR};
 
 /// System state shared across the application
 pub(crate) struct AppState {
@@ -30,10 +30,12 @@ impl AppState {
     pub(crate) async fn new() -> Result<Self> {
         let config = bootstrap::BootstrapConfig::default();
         let system = KnightAgentSystem::with_config(config);
-        let cli = CliImpl::new()
-            .context("Failed to create CLI")?;
+        let cli = CliImpl::new().context("Failed to create CLI")?;
 
-        Ok(Self { system, cli: Arc::new(cli) })
+        Ok(Self {
+            system,
+            cli: Arc::new(cli),
+        })
     }
 }
 
@@ -127,7 +129,9 @@ impl SessionLogWriter {
             let mut new_path;
 
             loop {
-                new_path = self.log_dir.join(format!("{}_{}_{}.log", session_id, timestamp, index));
+                new_path = self
+                    .log_dir
+                    .join(format!("{}_{}_{}.log", session_id, timestamp, index));
                 if !new_path.exists() {
                     break;
                 }
@@ -178,9 +182,7 @@ impl SessionLogWriter {
     fn flush_data(&self) -> std::io::Result<()> {
         let current_file = self.current_file.lock().unwrap();
         if let Some(file_path) = current_file.as_ref() {
-            let mut file = std::fs::OpenOptions::new()
-                .append(true)
-                .open(file_path)?;
+            let mut file = std::fs::OpenOptions::new().append(true).open(file_path)?;
             IoWrite::flush(&mut file)
         } else {
             Ok(())
@@ -213,8 +215,7 @@ pub(crate) fn check_system_config() -> Result<PathBuf> {
     let config_dir = home_dir.join(CONFIG_DIR);
     if !config_dir.exists() {
         info!("Creating .knight-agent directory: {}", config_dir.display());
-        std::fs::create_dir_all(&config_dir)
-            .context("Failed to create .knight-agent directory")?;
+        std::fs::create_dir_all(&config_dir).context("Failed to create .knight-agent directory")?;
     }
     info!("Config directory ready: {}", config_dir.display());
 
@@ -231,8 +232,7 @@ pub(crate) fn check_system_config() -> Result<PathBuf> {
         let test_file = workspace_dir.join(".write_test");
         match std::fs::write(&test_file, "test") {
             Ok(_) => {
-                std::fs::remove_file(&test_file)
-                    .context("Failed to remove test file")?;
+                std::fs::remove_file(&test_file).context("Failed to remove test file")?;
                 info!("Workspace directory is writable");
             }
             Err(e) => {
@@ -299,14 +299,23 @@ fn display_banner(version: &str, config_dir: &Path) {
 }
 
 /// Initialize logging with session-based rotating log files
-pub(crate) fn init_logging(log_dir: &Path, config: &configuration::LoggingConfig) -> Result<(WorkerGuard, Arc<Mutex<SessionLogWriter>>)> {
+pub(crate) fn init_logging(
+    log_dir: &Path,
+    config: &configuration::LoggingConfig,
+) -> Result<(WorkerGuard, Arc<Mutex<SessionLogWriter>>)> {
     let max_file_size = config.max_file_size_mb * 1024 * 1024;
 
     // Create the session log writer with a default session
-    let log_writer = Arc::new(Mutex::new(SessionLogWriter::new(log_dir.to_path_buf(), max_file_size)));
+    let log_writer = Arc::new(Mutex::new(SessionLogWriter::new(
+        log_dir.to_path_buf(),
+        max_file_size,
+    )));
 
     // Set the default session
-    log_writer.lock().unwrap().set_session("inprocess".to_string())?;
+    log_writer
+        .lock()
+        .unwrap()
+        .set_session("inprocess".to_string())?;
 
     // Create a non-blocking writer from our session log writer wrapper
     let (file_writer, guard) = tracing_appender::non_blocking(LogWriter(log_writer.clone()));
@@ -329,7 +338,7 @@ pub(crate) fn init_logging(log_dir: &Path, config: &configuration::LoggingConfig
         .with_file(true)
         .with_line_number(true)
         .with_span_events(FmtSpan::CLOSE)
-        .with_ansi(false)  // Disable ANSI color codes in log files
+        .with_ansi(false) // Disable ANSI color codes in log files
         .with_writer(file_writer)
         .finish();
 
@@ -337,7 +346,6 @@ pub(crate) fn init_logging(log_dir: &Path, config: &configuration::LoggingConfig
 
     Ok((guard, log_writer))
 }
-
 
 /// Run the in-process mode
 pub(crate) async fn run_in_process() -> Result<()> {
@@ -359,8 +367,11 @@ pub(crate) async fn run_in_process() -> Result<()> {
     info!("Global configuration initialized");
 
     // Initialize config loader (will create default configs if needed)
-    let config_loader = Arc::new(ConfigLoader::new(config_dir.clone()).await
-        .context("Failed to initialize config loader")?);
+    let config_loader = Arc::new(
+        ConfigLoader::new(config_dir.clone())
+            .await
+            .context("Failed to initialize config loader")?,
+    );
 
     info!("Config loader initialized: {}", config_dir.display());
 
@@ -426,9 +437,12 @@ pub(crate) async fn run_in_process() -> Result<()> {
     info!("Session Manager initialized and connected to Agent Runtime");
 
     // Create default session for TUI and get the actual session ID
-    let default_session_request = session_manager::CreateSessionRequest::new(".")
-        .name("default".to_string());
-    let default_session_id = match session_manager.create_session(default_session_request).await {
+    let default_session_request =
+        session_manager::CreateSessionRequest::new(".").name("default".to_string());
+    let default_session_id = match session_manager
+        .create_session(default_session_request)
+        .await
+    {
         Ok(session) => {
             info!("Created default session with ID: {}", session.id);
             session.id
@@ -458,7 +472,11 @@ pub(crate) async fn run_in_process() -> Result<()> {
             .map(|s| s.name().to_string())
             .unwrap_or_else(|| "Unknown".to_string());
         let initial_status = SystemStatusSnapshot {
-            system_status: if status.ready { SystemHealth::Healthy } else { SystemHealth::Degraded },
+            system_status: if status.ready {
+                SystemHealth::Healthy
+            } else {
+                SystemHealth::Degraded
+            },
             stage: stage_name,
             module_count: status.module_count,
             initialized_count: status.initialized_count,
@@ -471,14 +489,17 @@ pub(crate) async fn run_in_process() -> Result<()> {
         let daemon_client: Arc<dyn DaemonClient> = Arc::new(
             DirectDaemonClient::new()
                 .with_router(router.clone())
-                .with_session_manager(session_manager.clone())
+                .with_session_manager(session_manager.clone()),
         );
 
-        state.cli.run_tui(
-            Some(initial_status),
-            Some(daemon_client),
-            Some(default_session_id.clone()),
-        ).await?;
+        state
+            .cli
+            .run_tui(
+                Some(initial_status),
+                Some(daemon_client),
+                Some(default_session_id.clone()),
+            )
+            .await?;
     } else {
         // Run CLI REPL (fallback)
         display_banner(&state.system.version().version, &config_dir);
@@ -488,9 +509,10 @@ pub(crate) async fn run_in_process() -> Result<()> {
         // Display current log file location
         if let Some(log_path) = log_writer.lock().unwrap().get_current_log_path() {
             println!("Logs are written to: {}", log_path.display());
-            println!("Log rotation: {} MB per file, max {} files",
-                logging_config.max_file_size_mb,
-                logging_config.max_files);
+            println!(
+                "Log rotation: {} MB per file, max {} files",
+                logging_config.max_file_size_mb, logging_config.max_files
+            );
             println!();
         }
 

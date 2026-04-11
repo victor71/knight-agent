@@ -3,8 +3,8 @@
 //! Unit tests for the session manager module.
 
 use session_manager::{
-    CreateSessionRequest, Message, CompressionMethod, PathAction,
-    ProjectType, SessionManagerImpl, SessionStatus,
+    CompressionMethod, CreateSessionRequest, Message, PathAction, ProjectType, SessionManagerImpl,
+    SessionStatus,
 };
 
 fn create_test_request() -> CreateSessionRequest {
@@ -137,7 +137,11 @@ async fn test_compress_context() {
 
     assert_eq!(point.original_count, 5);
     assert_eq!(
-        manager.get_stats(&session.id).await.unwrap().compression_count,
+        manager
+            .get_stats(&session.id)
+            .await
+            .unwrap()
+            .compression_count,
         1
     );
 }

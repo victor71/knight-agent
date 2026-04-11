@@ -39,7 +39,6 @@ pub enum SessionStatus {
     Archived,
 }
 
-
 /// Project type for auto-detection
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -55,7 +54,6 @@ pub enum ProjectType {
     #[default]
     Auto,
 }
-
 
 impl ProjectType {
     pub fn as_str(&self) -> &'static str {
@@ -193,7 +191,6 @@ pub enum CompressionMethod {
     Semantic,
     Hybrid,
 }
-
 
 /// Search result in session history
 #[derive(Debug, Clone, Serialize, Deserialize)]

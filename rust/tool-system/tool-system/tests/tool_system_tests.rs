@@ -2,9 +2,9 @@
 
 use std::collections::HashMap;
 use tool_system::{
-    ExecuteRequest, HandlerType, JsonSchema, JsonSchemaProperty, McpToolDefinition,
-    ToolContext, ToolDefinition, ToolExecutionResult, ToolHandler, ToolSystemImpl,
-    ToolSystemTrait, ValidationResult,
+    ExecuteRequest, HandlerType, JsonSchema, JsonSchemaProperty, McpToolDefinition, ToolContext,
+    ToolDefinition, ToolExecutionResult, ToolHandler, ToolSystemImpl, ToolSystemTrait,
+    ValidationResult,
 };
 
 fn create_test_context() -> ToolContext {
@@ -237,7 +237,10 @@ async fn test_register_mcp_tools() {
         },
     ];
 
-    let count = ts.register_mcp_tools("mcp_server", mcp_tools).await.unwrap();
+    let count = ts
+        .register_mcp_tools("mcp_server", mcp_tools)
+        .await
+        .unwrap();
     assert_eq!(count, 2);
 }
 
@@ -370,10 +373,7 @@ fn test_handler_type_serialization() {
         serde_json::to_string(&HandlerType::Skill).unwrap(),
         "\"skill\""
     );
-    assert_eq!(
-        serde_json::to_string(&HandlerType::Mcp).unwrap(),
-        "\"mcp\""
-    );
+    assert_eq!(serde_json::to_string(&HandlerType::Mcp).unwrap(), "\"mcp\"");
     assert_eq!(
         serde_json::to_string(&HandlerType::Wasm).unwrap(),
         "\"wasm\""

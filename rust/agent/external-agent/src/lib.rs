@@ -8,12 +8,12 @@
 //! - Input/output handling
 //! - Security validation
 
-pub mod types;
 pub mod manager;
+pub mod types;
 
 pub use types::{
-    ExternalAgentError, ExternalAgentResult, ProcessState, InputMode,
-    ExternalAgentConfig, DiscoveredAgent, ExternalAgentStatus, AgentDefinition,
+    AgentDefinition, DiscoveredAgent, ExternalAgentConfig, ExternalAgentError, ExternalAgentResult,
+    ExternalAgentStatus, InputMode, ProcessState,
 };
 
 pub use manager::ExternalAgentManager;

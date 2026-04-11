@@ -47,7 +47,9 @@ impl ReportSkillImpl {
             }
             ReportType::Weekly => {
                 let date = request.date.ok_or_else(|| {
-                    ReportSkillError::GenerationFailed("Date required for weekly report".to_string())
+                    ReportSkillError::GenerationFailed(
+                        "Date required for weekly report".to_string(),
+                    )
                 })?;
                 // Find the Monday of that week
                 let days_since_monday = date.weekday().num_days_from_monday();
@@ -59,7 +61,9 @@ impl ReportSkillImpl {
             }
             ReportType::Monthly => {
                 let date = request.date.ok_or_else(|| {
-                    ReportSkillError::GenerationFailed("Date required for monthly report".to_string())
+                    ReportSkillError::GenerationFailed(
+                        "Date required for monthly report".to_string(),
+                    )
                 })?;
                 let first_day = NaiveDate::from_ymd_opt(date.year(), date.month(), 1).unwrap();
                 let last_day = if date.month() == 12 {
@@ -73,10 +77,14 @@ impl ReportSkillImpl {
             }
             ReportType::Custom => {
                 let start_date = request.start_date.ok_or_else(|| {
-                    ReportSkillError::GenerationFailed("Start date required for custom report".to_string())
+                    ReportSkillError::GenerationFailed(
+                        "Start date required for custom report".to_string(),
+                    )
                 })?;
                 let end_date = request.end_date.ok_or_else(|| {
-                    ReportSkillError::GenerationFailed("End date required for custom report".to_string())
+                    ReportSkillError::GenerationFailed(
+                        "End date required for custom report".to_string(),
+                    )
                 })?;
                 let start = start_date.and_hms_opt(0, 0, 0).unwrap().and_utc();
                 let end = end_date.and_hms_opt(23, 59, 59).unwrap().and_utc();
@@ -221,25 +229,55 @@ impl ReportSkillImpl {
         let start_date = period.start.split('T').next().unwrap_or(&period.start);
         let end_date = period.end.split('T').next().unwrap_or(&period.end);
         md.push_str(&format!("**日期**: {} - {}\n", start_date, end_date));
-        md.push_str(&format!("**生成时间**: {}\n\n", report.metadata.generated_at));
+        md.push_str(&format!(
+            "**生成时间**: {}\n\n",
+            report.metadata.generated_at
+        ));
 
         // Summary
         md.push_str("## 摘要\n\n");
         md.push_str("| 指标 | 数值 |\n");
         md.push_str("|------|------|\n");
-        md.push_str(&format!("| 总会话数 | {} |\n", report.content.summary.total_sessions));
-        md.push_str(&format!("| 总消息数 | {} |\n", report.content.summary.total_messages));
-        md.push_str(&format!("| LLM 调用次数 | {} |\n", report.content.summary.total_llm_calls));
-        md.push_str(&format!("| 总 Token | {} |\n", report.content.summary.total_tokens));
-        md.push_str(&format!("| 预估成本 | ${:.2} |\n\n", report.content.summary.estimated_cost));
+        md.push_str(&format!(
+            "| 总会话数 | {} |\n",
+            report.content.summary.total_sessions
+        ));
+        md.push_str(&format!(
+            "| 总消息数 | {} |\n",
+            report.content.summary.total_messages
+        ));
+        md.push_str(&format!(
+            "| LLM 调用次数 | {} |\n",
+            report.content.summary.total_llm_calls
+        ));
+        md.push_str(&format!(
+            "| 总 Token | {} |\n",
+            report.content.summary.total_tokens
+        ));
+        md.push_str(&format!(
+            "| 预估成本 | ${:.2} |\n\n",
+            report.content.summary.estimated_cost
+        ));
 
         // Token usage
         md.push_str("## Token 使用\n\n");
         md.push_str("### 总体统计\n\n");
-        md.push_str(&format!("- **总 Token**: {}\n", report.content.tokens.total));
-        md.push_str(&format!("- **输入 Token**: {}\n", report.content.tokens.input));
-        md.push_str(&format!("- **输出 Token**: {}\n", report.content.tokens.output));
-        md.push_str(&format!("- **预估成本**: ${:.2}\n\n", report.content.tokens.cost_estimate));
+        md.push_str(&format!(
+            "- **总 Token**: {}\n",
+            report.content.tokens.total
+        ));
+        md.push_str(&format!(
+            "- **输入 Token**: {}\n",
+            report.content.tokens.input
+        ));
+        md.push_str(&format!(
+            "- **输出 Token**: {}\n",
+            report.content.tokens.output
+        ));
+        md.push_str(&format!(
+            "- **预估成本**: ${:.2}\n\n",
+            report.content.tokens.cost_estimate
+        ));
 
         // By model
         if !report.content.tokens.by_model.is_empty() {
@@ -256,23 +294,43 @@ impl ReportSkillImpl {
         }
 
         // Hourly trend (for daily reports)
-        if report.metadata.report_type == ReportType::Daily && !report.content.tokens.by_hour.is_empty() {
+        if report.metadata.report_type == ReportType::Daily
+            && !report.content.tokens.by_hour.is_empty()
+        {
             md.push_str("### 每小时趋势\n\n```\n");
             for hour_stat in &report.content.tokens.by_hour {
                 let bar_len = (hour_stat.total / 500) as usize;
                 let bar: String = "█".repeat(bar_len.min(20));
-                md.push_str(&format!("{:02}:00 {} {}\n", hour_stat.hour, bar, hour_stat.total));
+                md.push_str(&format!(
+                    "{:02}:00 {} {}\n",
+                    hour_stat.hour, bar, hour_stat.total
+                ));
             }
             md.push_str("```\n\n");
         }
 
         // Session stats
         md.push_str("## 会话统计\n\n");
-        md.push_str(&format!("- **新建会话**: {}\n", report.content.sessions.new_count));
-        md.push_str(&format!("- **活跃会话**: {}\n", report.content.sessions.active_count));
-        md.push_str(&format!("- **归档会话**: {}\n", report.content.sessions.archived_count));
-        md.push_str(&format!("- **总消息数**: {}\n", report.content.sessions.total_messages));
-        md.push_str(&format!("- **平均消息/会话**: {:.1}\n\n", report.content.sessions.avg_messages_per_session));
+        md.push_str(&format!(
+            "- **新建会话**: {}\n",
+            report.content.sessions.new_count
+        ));
+        md.push_str(&format!(
+            "- **活跃会话**: {}\n",
+            report.content.sessions.active_count
+        ));
+        md.push_str(&format!(
+            "- **归档会话**: {}\n",
+            report.content.sessions.archived_count
+        ));
+        md.push_str(&format!(
+            "- **总消息数**: {}\n",
+            report.content.sessions.total_messages
+        ));
+        md.push_str(&format!(
+            "- **平均消息/会话**: {:.1}\n\n",
+            report.content.sessions.avg_messages_per_session
+        ));
 
         // Top sessions
         if !report.content.sessions.top_sessions.is_empty() {
@@ -280,17 +338,32 @@ impl ReportSkillImpl {
             md.push_str("| 会话 | 消息数 | Token |\n");
             md.push_str("|------|--------|-------|\n");
             for session in &report.content.sessions.top_sessions {
-                md.push_str(&format!("| {} | {} | {} |\n", session.name, session.message_count, session.token_usage));
+                md.push_str(&format!(
+                    "| {} | {} | {} |\n",
+                    session.name, session.message_count, session.token_usage
+                ));
             }
             md.push('\n');
         }
 
         // Agent stats
         md.push_str("## Agent 统计\n\n");
-        md.push_str(&format!("- **LLM 调用次数**: {}\n", report.content.agents.total_llm_calls));
-        md.push_str(&format!("- **成功**: {}\n", report.content.agents.successful_calls));
-        md.push_str(&format!("- **失败**: {}\n", report.content.agents.failed_calls));
-        md.push_str(&format!("- **平均延迟**: {} ms\n\n", report.content.agents.avg_latency_ms));
+        md.push_str(&format!(
+            "- **LLM 调用次数**: {}\n",
+            report.content.agents.total_llm_calls
+        ));
+        md.push_str(&format!(
+            "- **成功**: {}\n",
+            report.content.agents.successful_calls
+        ));
+        md.push_str(&format!(
+            "- **失败**: {}\n",
+            report.content.agents.failed_calls
+        ));
+        md.push_str(&format!(
+            "- **平均延迟**: {} ms\n\n",
+            report.content.agents.avg_latency_ms
+        ));
 
         // By agent
         if !report.content.agents.by_agent.is_empty() {
@@ -298,7 +371,10 @@ impl ReportSkillImpl {
             md.push_str("| Agent | 调用次数 | Token |\n");
             md.push_str("|-------|----------|-------|\n");
             for agent in &report.content.agents.by_agent {
-                md.push_str(&format!("| {} | {} | {} |\n", agent.agent_name, agent.calls, agent.tokens));
+                md.push_str(&format!(
+                    "| {} | {} | {} |\n",
+                    agent.agent_name, agent.calls, agent.tokens
+                ));
             }
             md.push('\n');
         }
@@ -308,9 +384,18 @@ impl ReportSkillImpl {
         let hours = report.content.system.uptime_seconds / 3600;
         let mins = (report.content.system.uptime_seconds % 3600) / 60;
         md.push_str(&format!("- **运行时长**: {}h {}m\n", hours, mins));
-        md.push_str(&format!("- **平均内存**: {:.0} MB\n", report.content.system.avg_memory_mb));
-        md.push_str(&format!("- **峰值内存**: {} MB\n", report.content.system.peak_memory_mb));
-        md.push_str(&format!("- **平均 CPU**: {:.1}%\n", report.content.system.avg_cpu_percent));
+        md.push_str(&format!(
+            "- **平均内存**: {:.0} MB\n",
+            report.content.system.avg_memory_mb
+        ));
+        md.push_str(&format!(
+            "- **峰值内存**: {} MB\n",
+            report.content.system.peak_memory_mb
+        ));
+        md.push_str(&format!(
+            "- **平均 CPU**: {:.1}%\n",
+            report.content.system.avg_cpu_percent
+        ));
 
         md
     }
@@ -412,7 +497,10 @@ impl ReportSkill for ReportSkillImpl {
         };
 
         // Store the report
-        self.reports.write().await.insert(report.id.clone(), report.clone());
+        self.reports
+            .write()
+            .await
+            .insert(report.id.clone(), report.clone());
 
         tracing::info!("Generated report: {}", report.id);
         Ok(report)
@@ -431,7 +519,11 @@ impl ReportSkill for ReportSkillImpl {
         Ok(self.reports.read().await.values().cloned().collect())
     }
 
-    async fn schedule_report(&self, request: GenerateReportRequest, schedule: &str) -> ReportSkillResult<String> {
+    async fn schedule_report(
+        &self,
+        request: GenerateReportRequest,
+        schedule: &str,
+    ) -> ReportSkillResult<String> {
         if !*self.initialized.read().await {
             return Err(ReportSkillError::NotInitialized);
         }
@@ -445,13 +537,22 @@ impl ReportSkill for ReportSkillImpl {
             format: request.format,
             output_path: request.output_path,
         };
-        self.scheduled_reports.write().await.insert(task_id.clone(), scheduled);
+        self.scheduled_reports
+            .write()
+            .await
+            .insert(task_id.clone(), scheduled);
         tracing::info!("Scheduled report: {}", task_id);
         Ok(task_id)
     }
 
     async fn cancel_scheduled_report(&self, task_id: &str) -> ReportSkillResult<()> {
-        if self.scheduled_reports.write().await.remove(task_id).is_none() {
+        if self
+            .scheduled_reports
+            .write()
+            .await
+            .remove(task_id)
+            .is_none()
+        {
             return Err(ReportSkillError::NotFound(task_id.to_string()));
         }
         tracing::info!("Cancelled scheduled report: {}", task_id);
@@ -459,7 +560,10 @@ impl ReportSkill for ReportSkillImpl {
     }
 
     async fn register_template(&self, template: ReportTemplate) -> ReportSkillResult<()> {
-        self.templates.write().await.insert(template.name.clone(), template);
+        self.templates
+            .write()
+            .await
+            .insert(template.name.clone(), template);
         Ok(())
     }
 }

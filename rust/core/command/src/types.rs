@@ -39,7 +39,6 @@ pub enum CommandType {
     Workflow,
 }
 
-
 /// Command metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommandMetadata {
@@ -153,8 +152,7 @@ impl CommandUsage {
 }
 
 /// Workflow configuration for workflow-type commands
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WorkflowConfig {
     #[serde(default)]
     pub workflow_definition_path: Option<String>,
@@ -163,7 +161,6 @@ pub struct WorkflowConfig {
     #[serde(default)]
     pub parallel_execution: bool,
 }
-
 
 /// Command definition
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -9,8 +9,8 @@ pub mod parser;
 pub mod types;
 
 pub use manager::WorkflowDirectoryImpl;
+pub use parser::{parse_index, WorkflowParser};
 pub use types::*;
-pub use parser::{WorkflowParser, parse_index};
 
 // Re-export for backwards compatibility
 pub use types::WorkflowDirectory;

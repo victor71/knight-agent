@@ -4,9 +4,8 @@
 //! the individual source files to maintain clean separation of concerns.
 
 use sandbox::{
-    Sandbox, SandboxImpl, SandboxConfig, SandboxStatus, FileAction,
-    Violation, ViolationType, ViolationSeverity, PermissionChecker,
-    glob_match,
+    glob_match, FileAction, PermissionChecker, Sandbox, SandboxConfig, SandboxImpl, SandboxStatus,
+    Violation, ViolationSeverity, ViolationType,
 };
 
 use std::collections::HashMap;
@@ -53,7 +52,10 @@ async fn test_check_file_access() {
     let config = SandboxConfig::default();
 
     let id = sandbox.create_sandbox(config).await.unwrap();
-    let result = sandbox.check_file_access(&id, "/tmp/test.txt", FileAction::Read).await.unwrap();
+    let result = sandbox
+        .check_file_access(&id, "/tmp/test.txt", FileAction::Read)
+        .await
+        .unwrap();
     assert!(result.allowed);
 }
 
@@ -65,11 +67,17 @@ async fn test_check_command_access() {
     let id = sandbox.create_sandbox(config).await.unwrap();
 
     // Safe command should be allowed
-    let result = sandbox.check_command_access(&id, "git", &["status".to_string()]).await.unwrap();
+    let result = sandbox
+        .check_command_access(&id, "git", &["status".to_string()])
+        .await
+        .unwrap();
     assert!(result.allowed);
 
     // Dangerous command should be denied
-    let result = sandbox.check_command_access(&id, "rm -rf /", &[]).await.unwrap();
+    let result = sandbox
+        .check_command_access(&id, "rm -rf /", &[])
+        .await
+        .unwrap();
     assert!(!result.allowed);
 }
 
@@ -122,7 +130,10 @@ fn test_permission_checker_file() {
 #[test]
 fn test_permission_checker_denied_path() {
     let mut config = SandboxConfig::default();
-    config.filesystem.denied_patterns.push("**/.env".to_string());
+    config
+        .filesystem
+        .denied_patterns
+        .push("**/.env".to_string());
 
     let checker = PermissionChecker::new(&config);
     let result = checker.check_file_access("/project/.env", FileAction::Read);
@@ -132,7 +143,10 @@ fn test_permission_checker_denied_path() {
 #[test]
 fn test_permission_checker_readonly() {
     let mut config = SandboxConfig::default();
-    config.filesystem.read_only.push("/protected/**".to_string());
+    config
+        .filesystem
+        .read_only
+        .push("/protected/**".to_string());
 
     let checker = PermissionChecker::new(&config);
     let result = checker.check_file_access("/protected/file.txt", FileAction::Write);

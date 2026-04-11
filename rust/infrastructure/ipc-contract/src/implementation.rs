@@ -7,8 +7,8 @@ use crate::contract::IPCContract;
 use crate::error::{IPCError, IPCResult};
 use crate::registry::AwaitRegistry;
 use crate::types::{
-    NotificationMessage, PendingQuery, RequestMessage,
-    ResponseMessage, StreamChunkMessage, UserQueryMessage, UserResponseData,
+    NotificationMessage, PendingQuery, RequestMessage, ResponseMessage, StreamChunkMessage,
+    UserQueryMessage, UserResponseData,
 };
 
 /// Message envelope for internal queue
@@ -38,7 +38,7 @@ impl Default for IPCConfig {
             max_message_size: 10 * 1024 * 1024, // 10MB
             message_timeout: 300000,            // 5 minutes
             queue_size: 1000,
-            default_query_timeout: 300000,      // 5 minutes
+            default_query_timeout: 300000, // 5 minutes
             max_concurrent_queries: 10,
         }
     }
@@ -150,8 +150,9 @@ impl IPCContractImpl {
                 Ok(Envelope::Response(resp))
             }
             "notification" => {
-                let notif: NotificationMessage = serde_json::from_value(value)
-                    .map_err(|e| IPCError::ParseError(format!("Notification parse error: {}", e)))?;
+                let notif: NotificationMessage = serde_json::from_value(value).map_err(|e| {
+                    IPCError::ParseError(format!("Notification parse error: {}", e))
+                })?;
                 Ok(Envelope::Notification(notif))
             }
             "stream_chunk" => {
@@ -177,10 +178,15 @@ impl IPCContractImpl {
                         .ok_or_else(|| IPCError::ParseError("Missing response".to_string()))?
                         .clone(),
                 )
-                .map_err(|e| IPCError::ParseError(format!("UserResponseData parse error: {}", e)))?;
+                .map_err(|e| {
+                    IPCError::ParseError(format!("UserResponseData parse error: {}", e))
+                })?;
                 Ok(Envelope::UserResponse(await_id, response))
             }
-            _ => Err(IPCError::ParseError(format!("Unknown message type: {}", msg_type))),
+            _ => Err(IPCError::ParseError(format!(
+                "Unknown message type: {}",
+                msg_type
+            ))),
         }
     }
 }
@@ -322,7 +328,10 @@ impl IPCContract for IPCContractImpl {
         Ok(())
     }
 
-    async fn list_pending_queries(&self, session_id: Option<String>) -> IPCResult<Vec<PendingQuery>> {
+    async fn list_pending_queries(
+        &self,
+        session_id: Option<String>,
+    ) -> IPCResult<Vec<PendingQuery>> {
         let queries = match session_id {
             Some(session_id) => self.await_registry.list_by_session(&session_id).await,
             None => self.await_registry.list_all().await,

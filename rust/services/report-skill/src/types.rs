@@ -35,7 +35,6 @@ pub enum OutputFormat {
     Html,
 }
 
-
 /// Time period for a report (internal use)
 #[derive(Debug, Clone)]
 pub struct Period {

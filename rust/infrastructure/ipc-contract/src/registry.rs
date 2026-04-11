@@ -97,7 +97,10 @@ impl AwaitRegistry {
         let info = AwaitInfo::from(query);
 
         // Store entry
-        self.entries.write().await.insert(await_id.clone(), info.clone());
+        self.entries
+            .write()
+            .await
+            .insert(await_id.clone(), info.clone());
 
         // Update agent index
         self.by_agent

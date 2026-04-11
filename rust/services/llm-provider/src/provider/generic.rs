@@ -11,7 +11,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use tracing::{debug, info, warn, error};
+use tracing::{debug, error, info, warn};
 
 use crate::llm_trait::{CompletionStream, LLMError, LLMProvider, LLMResult, TokenCount};
 use crate::types::*;
@@ -98,7 +98,7 @@ pub struct ProviderConfig {
 }
 
 fn default_timeout() -> u64 {
-    600  // 10 minutes for streaming responses
+    600 // 10 minutes for streaming responses
 }
 
 impl ProviderConfig {
@@ -123,10 +123,12 @@ impl GenericLLMProvider {
         // Disable gzip and brotli decompression to avoid decoding issues
         let client = Client::builder()
             .timeout(Duration::from_secs(config.timeout_secs))
-            .no_gzip()  // Disable automatic gzip decompression
-            .no_brotli()  // Disable automatic brotli decompression
+            .no_gzip() // Disable automatic gzip decompression
+            .no_brotli() // Disable automatic brotli decompression
             .build()
-            .map_err(|e| LLMError::InferenceFailed(format!("failed to create HTTP client: {}", e)))?;
+            .map_err(|e| {
+                LLMError::InferenceFailed(format!("failed to create HTTP client: {}", e))
+            })?;
 
         Ok(Self { config, client })
     }
@@ -146,8 +148,7 @@ impl GenericLLMProvider {
         let base_url = std::env::var("LLM_BASE_URL")
             .unwrap_or_else(|_| "https://api.openai.com/v1".to_string());
 
-        let protocol = std::env::var("LLM_PROTOCOL")
-            .unwrap_or_else(|_| "openai".to_string());
+        let protocol = std::env::var("LLM_PROTOCOL").unwrap_or_else(|_| "openai".to_string());
 
         let protocol = match protocol.to_lowercase().as_str() {
             "anthropic" => LLMProtocol::Anthropic,
@@ -194,34 +195,40 @@ impl GenericLLMProvider {
             .iter()
             .map(|msg| {
                 let mut obj = serde_json::Map::new();
-                obj.insert("role".to_string(), serde_json::json!(match msg.role {
-                    MessageRole::System => "system",
-                    MessageRole::User => "user",
-                    MessageRole::Assistant => "assistant",
-                    MessageRole::Tool => "tool",
-                }));
+                obj.insert(
+                    "role".to_string(),
+                    serde_json::json!(match msg.role {
+                        MessageRole::System => "system",
+                        MessageRole::User => "user",
+                        MessageRole::Assistant => "assistant",
+                        MessageRole::Tool => "tool",
+                    }),
+                );
 
-                obj.insert("content".to_string(), match &msg.content {
-                    Some(Content::Text(text)) => serde_json::json!(text),
-                    Some(Content::Blocks(blocks)) => {
-                        let content: Vec<serde_json::Value> = blocks
-                            .iter()
-                            .map(|b| match b {
-                                ContentBlock::Text { text } => {
-                                    serde_json::json!({"type": "text", "text": text})
-                                }
-                                ContentBlock::Image { image_url } => {
-                                    serde_json::json!({
-                                        "type": "image_url",
-                                        "image_url": { "url": &image_url.url }
-                                    })
-                                }
-                            })
-                            .collect();
-                        serde_json::json!(content)
-                    }
-                    None => serde_json::json!(""),
-                });
+                obj.insert(
+                    "content".to_string(),
+                    match &msg.content {
+                        Some(Content::Text(text)) => serde_json::json!(text),
+                        Some(Content::Blocks(blocks)) => {
+                            let content: Vec<serde_json::Value> = blocks
+                                .iter()
+                                .map(|b| match b {
+                                    ContentBlock::Text { text } => {
+                                        serde_json::json!({"type": "text", "text": text})
+                                    }
+                                    ContentBlock::Image { image_url } => {
+                                        serde_json::json!({
+                                            "type": "image_url",
+                                            "image_url": { "url": &image_url.url }
+                                        })
+                                    }
+                                })
+                                .collect();
+                            serde_json::json!(content)
+                        }
+                        None => serde_json::json!(""),
+                    },
+                );
 
                 if let Some(ref tool_calls) = msg.tool_calls {
                     let tc: Vec<serde_json::Value> = tool_calls
@@ -258,10 +265,16 @@ impl GenericLLMProvider {
         body.insert("messages".to_string(), serde_json::json!(messages));
 
         if request.temperature != 0.7 {
-            body.insert("temperature".to_string(), serde_json::json!(request.temperature));
+            body.insert(
+                "temperature".to_string(),
+                serde_json::json!(request.temperature),
+            );
         }
         if request.max_tokens != 4096 {
-            body.insert("max_tokens".to_string(), serde_json::json!(request.max_tokens));
+            body.insert(
+                "max_tokens".to_string(),
+                serde_json::json!(request.max_tokens),
+            );
         }
         if request.top_p != 1.0 {
             body.insert("top_p".to_string(), serde_json::json!(request.top_p));
@@ -339,7 +352,13 @@ impl GenericLLMProvider {
             .iter()
             .filter(|m| m.role == MessageRole::System)
             .filter_map(|m| m.content.as_ref())
-            .filter_map(|c| if let Content::Text(t) = c { Some(t.clone()) } else { None })
+            .filter_map(|c| {
+                if let Content::Text(t) = c {
+                    Some(t.clone())
+                } else {
+                    None
+                }
+            })
             .collect::<Vec<_>>()
             .join("\n");
 
@@ -352,10 +371,16 @@ impl GenericLLMProvider {
         let mut body = serde_json::Map::new();
         body.insert("model".to_string(), serde_json::json!(model));
         body.insert("messages".to_string(), serde_json::json!(messages));
-        body.insert("max_tokens".to_string(), serde_json::json!(request.max_tokens));
+        body.insert(
+            "max_tokens".to_string(),
+            serde_json::json!(request.max_tokens),
+        );
 
         if request.temperature != 0.7 {
-            body.insert("temperature".to_string(), serde_json::json!(request.temperature));
+            body.insert(
+                "temperature".to_string(),
+                serde_json::json!(request.temperature),
+            );
         }
         if !system_prompt.is_empty() {
             body.insert("system".to_string(), serde_json::json!(system_prompt));
@@ -402,9 +427,20 @@ impl GenericLLMProvider {
     }
 
     /// Parse OpenAI response
-    fn parse_openai_response(&self, response: serde_json::Value) -> LLMResult<ChatCompletionResponse> {
-        let id = response.get("id").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
-        let model = response.get("model").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    fn parse_openai_response(
+        &self,
+        response: serde_json::Value,
+    ) -> LLMResult<ChatCompletionResponse> {
+        let id = response
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        let model = response
+            .get("model")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
 
         let choices: Vec<Choice> = response
             .get("choices")
@@ -423,13 +459,24 @@ impl GenericLLMProvider {
                             _ => return None,
                         };
 
-                        let content = message.get("content").and_then(|v| v.as_str()).map(|s| Content::Text(s.to_string()));
+                        let content = message
+                            .get("content")
+                            .and_then(|v| v.as_str())
+                            .map(|s| Content::Text(s.to_string()));
 
-                        let finish_reason = c.get("finish_reason").and_then(|v| v.as_str()).map(|s| s.to_string());
+                        let finish_reason = c
+                            .get("finish_reason")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
 
                         Some(Choice {
                             index,
-                            message: Message { role, content, tool_calls: None, tool_call_id: None },
+                            message: Message {
+                                role,
+                                content,
+                                tool_calls: None,
+                                tool_call_id: None,
+                            },
                             finish_reason,
                         })
                     })
@@ -437,13 +484,28 @@ impl GenericLLMProvider {
             })
             .unwrap_or_default();
 
-        let usage = response.get("usage").map(|u| Usage {
-            input_tokens: u.get("prompt_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
-            output_tokens: u.get("completion_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
-            total_tokens: u.get("total_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
-        }).unwrap_or_default();
+        let usage = response
+            .get("usage")
+            .map(|u| Usage {
+                input_tokens: u.get("prompt_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                output_tokens: u
+                    .get("completion_tokens")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0) as u32,
+                total_tokens: u.get("total_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+            })
+            .unwrap_or_default();
 
-        let content = choices.first().and_then(|c| c.message.content.clone()).and_then(|c| if let Content::Text(t) = c { Some(t) } else { None });
+        let content = choices
+            .first()
+            .and_then(|c| c.message.content.clone())
+            .and_then(|c| {
+                if let Content::Text(t) = c {
+                    Some(t)
+                } else {
+                    None
+                }
+            });
         let stop_reason = choices.first().and_then(|c| c.finish_reason.clone());
 
         Ok(ChatCompletionResponse {
@@ -459,9 +521,20 @@ impl GenericLLMProvider {
     }
 
     /// Parse Anthropic response
-    fn parse_anthropic_response(&self, response: serde_json::Value) -> LLMResult<ChatCompletionResponse> {
-        let id = response.get("id").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
-        let model = response.get("model").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    fn parse_anthropic_response(
+        &self,
+        response: serde_json::Value,
+    ) -> LLMResult<ChatCompletionResponse> {
+        let id = response
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        let model = response
+            .get("model")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
 
         // MiniMax returns content as array with potentially multiple blocks:
         // [{"type": "thinking", "thinking": "..."}, {"type": "text", "text": "..."}]
@@ -481,16 +554,25 @@ impl GenericLLMProvider {
             .and_then(|t| t.as_str())
             .map(|s| s.to_string());
 
-        let stop_reason = response.get("stop_reason").and_then(|v| v.as_str()).map(|s| s.to_string());
+        let stop_reason = response
+            .get("stop_reason")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
 
-        let usage = response.get("usage").map(|u| Usage {
-            input_tokens: u.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
-            output_tokens: u.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
-            total_tokens: u
-                .get("input_tokens")
-                .and_then(|i| u.get("output_tokens").map(|o| i.as_u64().unwrap_or(0) + o.as_u64().unwrap_or(0)))
-                .unwrap_or(0) as u32,
-        }).unwrap_or_default();
+        let usage = response
+            .get("usage")
+            .map(|u| Usage {
+                input_tokens: u.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                output_tokens: u.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                total_tokens: u
+                    .get("input_tokens")
+                    .and_then(|i| {
+                        u.get("output_tokens")
+                            .map(|o| i.as_u64().unwrap_or(0) + o.as_u64().unwrap_or(0))
+                    })
+                    .unwrap_or(0) as u32,
+            })
+            .unwrap_or_default();
 
         let choices = if content.is_some() {
             vec![Choice {
@@ -551,11 +633,18 @@ impl LLMProvider for GenericLLMProvider {
         // Log request messages
         for (i, msg) in request.messages.iter().enumerate() {
             let role = format!("{:?}", msg.role);
-            let content_str = msg.content.as_ref().map(|c| match c {
-                crate::types::Content::Text(s) => s.clone(),
-                crate::types::Content::Blocks(blocks) => format!("[blocks: {}]", blocks.len()),
-            }).unwrap_or_default();
-            debug!("LLM Request [{}] message[{}]: role={}, content=\"{}\"", model, i, role, content_str);
+            let content_str = msg
+                .content
+                .as_ref()
+                .map(|c| match c {
+                    crate::types::Content::Text(s) => s.clone(),
+                    crate::types::Content::Blocks(blocks) => format!("[blocks: {}]", blocks.len()),
+                })
+                .unwrap_or_default();
+            debug!(
+                "LLM Request [{}] message[{}]: role={}, content=\"{}\"",
+                model, i, role, content_str
+            );
         }
 
         let start = Instant::now();
@@ -573,20 +662,16 @@ impl LLMProvider for GenericLLMProvider {
 
         req_builder = req_builder.header(auth_header, &auth_value);
 
-        let response = req_builder
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| {
-                warn!("LLM API request failed: {}", e);
-                if e.is_timeout() {
-                    LLMError::Timeout
-                } else if e.is_connect() {
-                    LLMError::InferenceFailed(format!("connection failed: {}", e))
-                } else {
-                    LLMError::InferenceFailed(format!("request failed: {}", e))
-                }
-            })?;
+        let response = req_builder.json(&body).send().await.map_err(|e| {
+            warn!("LLM API request failed: {}", e);
+            if e.is_timeout() {
+                LLMError::Timeout
+            } else if e.is_connect() {
+                LLMError::InferenceFailed(format!("connection failed: {}", e))
+            } else {
+                LLMError::InferenceFailed(format!("request failed: {}", e))
+            }
+        })?;
 
         let latency_ms = start.elapsed().as_millis() as u64;
         info!("LLM API response in {}ms", latency_ms);
@@ -601,7 +686,11 @@ impl LLMProvider for GenericLLMProvider {
             return Err(LLMError::InvalidRequest(error_body));
         } else if !status.is_success() {
             let error_body = response.text().await.unwrap_or_default();
-            warn!("LLM API error response ({}): {}", status.as_u16(), error_body);
+            warn!(
+                "LLM API error response ({}): {}",
+                status.as_u16(),
+                error_body
+            );
             return Err(LLMError::InferenceFailed(format!(
                 "API returned error: {} - {}",
                 status.as_u16(),
@@ -609,9 +698,10 @@ impl LLMProvider for GenericLLMProvider {
             )));
         }
 
-        let data: serde_json::Value = response.json().await.map_err(|e| {
-            LLMError::InferenceFailed(format!("failed to parse response: {}", e))
-        })?;
+        let data: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| LLMError::InferenceFailed(format!("failed to parse response: {}", e)))?;
 
         let result = self.parse_response(data)?;
 
@@ -619,9 +709,18 @@ impl LLMProvider for GenericLLMProvider {
         if let Some(content) = &result.content {
             debug!("LLM Response [{}]: content=\"{}\"", model, content);
         } else {
-            warn!("LLM Response [{}]: content extraction failed, choices count: {}", model, result.choices.len());
+            warn!(
+                "LLM Response [{}]: content extraction failed, choices count: {}",
+                model,
+                result.choices.len()
+            );
             // Log the raw response structure for debugging
-            debug!("LLM Response raw: id={}, content={:?}, choices.len={}", result.id, result.content, result.choices.len());
+            debug!(
+                "LLM Response raw: id={}, content={:?}, choices.len={}",
+                result.id,
+                result.content,
+                result.choices.len()
+            );
         }
 
         Ok(result)
@@ -636,11 +735,18 @@ impl LLMProvider for GenericLLMProvider {
         // Log streaming request messages
         for (i, msg) in request.messages.iter().enumerate() {
             let role = format!("{:?}", msg.role);
-            let content_str = msg.content.as_ref().map(|c| match c {
-                crate::types::Content::Text(s) => s.clone(),
-                crate::types::Content::Blocks(blocks) => format!("[blocks: {}]", blocks.len()),
-            }).unwrap_or_default();
-            debug!("LLM Stream Request [{}] message[{}]: role={}, content=\"{}\"", model, i, role, content_str);
+            let content_str = msg
+                .content
+                .as_ref()
+                .map(|c| match c {
+                    crate::types::Content::Text(s) => s.clone(),
+                    crate::types::Content::Blocks(blocks) => format!("[blocks: {}]", blocks.len()),
+                })
+                .unwrap_or_default();
+            debug!(
+                "LLM Stream Request [{}] message[{}]: role={}, content=\"{}\"",
+                model, i, role, content_str
+            );
         }
 
         let url = self.completions_url();
@@ -654,7 +760,7 @@ impl LLMProvider for GenericLLMProvider {
         req_builder = req_builder
             .header("content-type", "application/json")
             .header("accept", "text/event-stream")
-            .header("accept-encoding", "identity");  // Disable compression to avoid decoding issues
+            .header("accept-encoding", "identity"); // Disable compression to avoid decoding issues
 
         match self.config.protocol {
             LLMProtocol::Anthropic => {
@@ -671,7 +777,10 @@ impl LLMProvider for GenericLLMProvider {
         })?;
 
         let request_latency_ms = stream_start.elapsed().as_millis() as u64;
-        info!("LLM streaming request sent: {}ms to first byte", request_latency_ms);
+        info!(
+            "LLM streaming request sent: {}ms to first byte",
+            request_latency_ms
+        );
 
         if response.status() == 401 {
             return Err(LLMError::ApiKeyInvalid);
@@ -959,7 +1068,10 @@ impl GenericLLMProvider {
     }
 
     /// Static version of parse_stream_chunk that can be used in async streams
-    fn parse_stream_chunk_static(protocol: &LLMProtocol, line: &str) -> Option<ChatCompletionChunk> {
+    fn parse_stream_chunk_static(
+        protocol: &LLMProtocol,
+        line: &str,
+    ) -> Option<ChatCompletionChunk> {
         if !line.starts_with("data: ") || line == "data: [DONE]" {
             return None;
         }
@@ -967,22 +1079,32 @@ impl GenericLLMProvider {
         let json_str = &line[6..];
         let data: serde_json::Value = serde_json::from_str(json_str).ok()?;
 
-        debug!("LLM stream chunk parsed: id={}", data.get("id").and_then(|v| v.as_str()).unwrap_or(""));
+        debug!(
+            "LLM stream chunk parsed: id={}",
+            data.get("id").and_then(|v| v.as_str()).unwrap_or("")
+        );
 
-        let id = data.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let model = data.get("model").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let id = data
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let model = data
+            .get("model")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
 
         // Handle both OpenAI and Anthropic streaming formats
         let content = match protocol {
-            LLMProtocol::OpenAI => {
-                data.get("choices")
-                    .and_then(|v| v.as_array())
-                    .and_then(|arr| arr.first())
-                    .and_then(|c| c.get("delta"))
-                    .and_then(|d| d.get("content"))
-                    .and_then(|c| c.as_str())
-                    .map(|s| s.to_string())
-            }
+            LLMProtocol::OpenAI => data
+                .get("choices")
+                .and_then(|v| v.as_array())
+                .and_then(|arr| arr.first())
+                .and_then(|c| c.get("delta"))
+                .and_then(|d| d.get("content"))
+                .and_then(|c| c.as_str())
+                .map(|s| s.to_string()),
             LLMProtocol::Anthropic => {
                 // MiniMax streaming format uses delta.type to indicate "text_delta" or "thinking_delta"
                 // Also handles non-streaming format where content is an array of blocks
@@ -990,38 +1112,43 @@ impl GenericLLMProvider {
                     .and_then(|d| {
                         let delta_type = d.get("type").and_then(|t| t.as_str()).unwrap_or("");
                         match delta_type {
-                            "text_delta" => d.get("text").and_then(|t| t.as_str()).map(|s| s.to_string()),
-                            "thinking_delta" => d.get("thinking").and_then(|t| t.as_str()).map(|s| s.to_string()),
+                            "text_delta" => d
+                                .get("text")
+                                .and_then(|t| t.as_str())
+                                .map(|s| s.to_string()),
+                            "thinking_delta" => d
+                                .get("thinking")
+                                .and_then(|t| t.as_str())
+                                .map(|s| s.to_string()),
                             _ => None,
                         }
                     })
-                // Also check for non-streaming format (content array with text blocks)
-                .or_else(|| {
-                    data.get("content")
-                        .and_then(|v| v.as_array())
-                        .and_then(|arr| {
-                            arr.iter().find(|c| {
-                                c.get("type")
-                                    .and_then(|t| t.as_str())
-                                    .map(|t| t == "text")
-                                    .unwrap_or(false)
+                    // Also check for non-streaming format (content array with text blocks)
+                    .or_else(|| {
+                        data.get("content")
+                            .and_then(|v| v.as_array())
+                            .and_then(|arr| {
+                                arr.iter().find(|c| {
+                                    c.get("type")
+                                        .and_then(|t| t.as_str())
+                                        .map(|t| t == "text")
+                                        .unwrap_or(false)
+                                })
                             })
-                        })
-                        .and_then(|c| c.get("text"))
-                        .and_then(|t| t.as_str())
-                        .map(|s| s.to_string())
-                })
+                            .and_then(|c| c.get("text"))
+                            .and_then(|t| t.as_str())
+                            .map(|s| s.to_string())
+                    })
             }
         };
 
         // Track if this chunk contains thinking content (for MiniMax Anthropic format)
         let is_thinking = match protocol {
-            LLMProtocol::Anthropic => {
-                data.get("delta")
-                    .and_then(|d| d.get("type"))
-                    .and_then(|t| t.as_str())
-                    .map(|t| t == "thinking_delta")
-            }
+            LLMProtocol::Anthropic => data
+                .get("delta")
+                .and_then(|d| d.get("type"))
+                .and_then(|t| t.as_str())
+                .map(|t| t == "thinking_delta"),
             _ => Some(false),
         };
 

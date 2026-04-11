@@ -50,9 +50,7 @@ pub fn render_task_popup(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
                 status_emoji,
                 truncate_string(&task.name, 18),
                 duration,
-                task.agent_id
-                    .as_deref()
-                    .unwrap_or("unassigned")
+                task.agent_id.as_deref().unwrap_or("unassigned")
             );
 
             let style = if is_selected {

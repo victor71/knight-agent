@@ -25,33 +25,69 @@ pub trait SecurityManager: Send + Sync {
 
     // Permission management
     async fn grant_permission(&self, grant: PermissionGrant) -> Result<bool, SecurityError>;
-    async fn revoke_permission(&self, principal: &str, resource: &str, action: &str) -> Result<bool, SecurityError>;
-    async fn check_permission(&self, principal: &str, resource: &str, action: &str, context: Option<SecurityContext>) -> Result<(bool, Option<String>), SecurityError>;
+    async fn revoke_permission(
+        &self,
+        principal: &str,
+        resource: &str,
+        action: &str,
+    ) -> Result<bool, SecurityError>;
+    async fn check_permission(
+        &self,
+        principal: &str,
+        resource: &str,
+        action: &str,
+        context: Option<SecurityContext>,
+    ) -> Result<(bool, Option<String>), SecurityError>;
     async fn list_permissions(&self, principal: &str) -> Result<Vec<Permission>, SecurityError>;
 
     // Policy management
     async fn create_policy(&self, policy: SecurityPolicy) -> Result<String, SecurityError>;
-    async fn update_policy(&self, policy_id: &str, policy: SecurityPolicy) -> Result<bool, SecurityError>;
+    async fn update_policy(
+        &self,
+        policy_id: &str,
+        policy: SecurityPolicy,
+    ) -> Result<bool, SecurityError>;
     async fn delete_policy(&self, policy_id: &str) -> Result<bool, SecurityError>;
     async fn get_policy(&self, policy_id: &str) -> Result<Option<SecurityPolicy>, SecurityError>;
-    async fn list_policies(&self, policy_type: Option<PolicyType>) -> Result<Vec<SecurityPolicy>, SecurityError>;
-    async fn evaluate_policy(&self, policy_id: &str, context: SecurityContext) -> Result<PolicyEvaluationResult, SecurityError>;
+    async fn list_policies(
+        &self,
+        policy_type: Option<PolicyType>,
+    ) -> Result<Vec<SecurityPolicy>, SecurityError>;
+    async fn evaluate_policy(
+        &self,
+        policy_id: &str,
+        context: SecurityContext,
+    ) -> Result<PolicyEvaluationResult, SecurityError>;
 
     // Audit logging
     async fn log_event(&self, event: SecurityEvent) -> Result<String, SecurityError>;
     async fn query_logs(&self, query: LogQuery) -> Result<Vec<SecurityEvent>, SecurityError>;
-    async fn get_log_summary(&self, time_range: Option<TimeRange>) -> Result<LogSummary, SecurityError>;
+    async fn get_log_summary(
+        &self,
+        time_range: Option<TimeRange>,
+    ) -> Result<LogSummary, SecurityError>;
 
     // Secret management
-    async fn store_secret(&self, key: &str, value: &str, metadata: Option<HashMap<String, serde_json::Value>>) -> Result<bool, SecurityError>;
+    async fn store_secret(
+        &self,
+        key: &str,
+        value: &str,
+        metadata: Option<HashMap<String, serde_json::Value>>,
+    ) -> Result<bool, SecurityError>;
     async fn get_secret(&self, key: &str) -> Result<Option<String>, SecurityError>;
     async fn delete_secret(&self, key: &str) -> Result<bool, SecurityError>;
     async fn list_secrets(&self) -> Result<Vec<SecretInfo>, SecurityError>;
     async fn rotate_secret(&self, key: &str, new_value: &str) -> Result<bool, SecurityError>;
 
     // Threat detection
-    async fn analyze_threats(&self, time_range: Option<TimeRange>) -> Result<Vec<ThreatInfo>, SecurityError>;
-    async fn is_suspicious(&self, activity: Activity) -> Result<(bool, f32, Vec<String>), SecurityError>;
+    async fn analyze_threats(
+        &self,
+        time_range: Option<TimeRange>,
+    ) -> Result<Vec<ThreatInfo>, SecurityError>;
+    async fn is_suspicious(
+        &self,
+        activity: Activity,
+    ) -> Result<(bool, f32, Vec<String>), SecurityError>;
 
     // Configuration
     async fn get_security_config(&self) -> Result<SecurityConfig, SecurityError>;
@@ -102,7 +138,15 @@ impl SecurityManagerImpl {
     }
 
     /// Log a security event
-    pub async fn log_security_event(&self, event_type: SecurityEventType, principal: Principal, resource: Option<String>, action: Option<String>, result: EventResult, reason: Option<String>) {
+    pub async fn log_security_event(
+        &self,
+        event_type: SecurityEventType,
+        principal: Principal,
+        resource: Option<String>,
+        action: Option<String>,
+        result: EventResult,
+        reason: Option<String>,
+    ) {
         let event = SecurityEvent {
             id: uuid::Uuid::new_v4().to_string(),
             timestamp: std::time::SystemTime::now(),
@@ -155,12 +199,18 @@ impl SecurityManager for SecurityManagerImpl {
             None,
             EventResult::Allowed,
             None,
-        ).await;
+        )
+        .await;
 
         Ok(true)
     }
 
-    async fn revoke_permission(&self, principal: &str, resource: &str, _action: &str) -> Result<bool, SecurityError> {
+    async fn revoke_permission(
+        &self,
+        principal: &str,
+        resource: &str,
+        _action: &str,
+    ) -> Result<bool, SecurityError> {
         let key = format!("{}:{}", principal, resource);
         let mut permissions = self.permissions.write().await;
         let removed = permissions.remove(&key).is_some();
@@ -181,13 +231,20 @@ impl SecurityManager for SecurityManagerImpl {
                 None,
                 EventResult::Allowed,
                 None,
-            ).await;
+            )
+            .await;
         }
 
         Ok(removed)
     }
 
-    async fn check_permission(&self, principal: &str, resource: &str, action: &str, context: Option<SecurityContext>) -> Result<(bool, Option<String>), SecurityError> {
+    async fn check_permission(
+        &self,
+        principal: &str,
+        resource: &str,
+        action: &str,
+        context: Option<SecurityContext>,
+    ) -> Result<(bool, Option<String>), SecurityError> {
         // Build principal enum
         let principal = if principal.starts_with("user:") {
             Principal::User(principal.trim_start_matches("user:").to_string())
@@ -232,7 +289,9 @@ impl SecurityManager for SecurityManagerImpl {
             }
 
             // Check if action is allowed
-            if permission.actions.contains(&action.to_string()) || permission.actions.contains(&"*".to_string()) {
+            if permission.actions.contains(&action.to_string())
+                || permission.actions.contains(&"*".to_string())
+            {
                 self.log_security_event(
                     SecurityEventType::AccessRequest,
                     principal.clone(),
@@ -240,7 +299,8 @@ impl SecurityManager for SecurityManagerImpl {
                     Some(action.to_string()),
                     EventResult::Allowed,
                     Some("permission_granted".to_string()),
-                ).await;
+                )
+                .await;
 
                 return Ok((true, Some("permission_granted".to_string())));
             }
@@ -259,9 +319,14 @@ impl SecurityManager for SecurityManagerImpl {
                     principal.clone(),
                     Some(resource.to_string()),
                     Some(action.to_string()),
-                    if result.allowed { EventResult::Allowed } else { EventResult::Denied },
+                    if result.allowed {
+                        EventResult::Allowed
+                    } else {
+                        EventResult::Denied
+                    },
                     Some(result.reason.clone()),
-                ).await;
+                )
+                .await;
 
                 return Ok((result.allowed, Some(result.reason)));
             }
@@ -275,7 +340,8 @@ impl SecurityManager for SecurityManagerImpl {
             Some(action.to_string()),
             EventResult::Denied,
             Some("default_deny".to_string()),
-        ).await;
+        )
+        .await;
 
         Ok((false, Some("default_deny".to_string())))
     }
@@ -296,7 +362,11 @@ impl SecurityManager for SecurityManagerImpl {
         Ok(policy_id)
     }
 
-    async fn update_policy(&self, policy_id: &str, policy: SecurityPolicy) -> Result<bool, SecurityError> {
+    async fn update_policy(
+        &self,
+        policy_id: &str,
+        policy: SecurityPolicy,
+    ) -> Result<bool, SecurityError> {
         let existing = self.policy_engine.get_policy(policy_id).await;
         if existing.is_none() {
             return Ok(false);
@@ -314,11 +384,18 @@ impl SecurityManager for SecurityManagerImpl {
         Ok(self.policy_engine.get_policy(policy_id).await)
     }
 
-    async fn list_policies(&self, policy_type: Option<PolicyType>) -> Result<Vec<SecurityPolicy>, SecurityError> {
+    async fn list_policies(
+        &self,
+        policy_type: Option<PolicyType>,
+    ) -> Result<Vec<SecurityPolicy>, SecurityError> {
         Ok(self.policy_engine.list_policies(policy_type).await)
     }
 
-    async fn evaluate_policy(&self, policy_id: &str, context: SecurityContext) -> Result<PolicyEvaluationResult, SecurityError> {
+    async fn evaluate_policy(
+        &self,
+        policy_id: &str,
+        context: SecurityContext,
+    ) -> Result<PolicyEvaluationResult, SecurityError> {
         match self.policy_engine.evaluate(policy_id, &context).await {
             Some(result) => Ok(result),
             None => Err(SecurityError::PolicyNotFound(policy_id.to_string())),
@@ -333,11 +410,19 @@ impl SecurityManager for SecurityManagerImpl {
         Ok(self.audit_logger.query(query).await)
     }
 
-    async fn get_log_summary(&self, time_range: Option<TimeRange>) -> Result<LogSummary, SecurityError> {
+    async fn get_log_summary(
+        &self,
+        time_range: Option<TimeRange>,
+    ) -> Result<LogSummary, SecurityError> {
         Ok(self.audit_logger.get_summary(time_range).await)
     }
 
-    async fn store_secret(&self, key: &str, value: &str, metadata: Option<HashMap<String, serde_json::Value>>) -> Result<bool, SecurityError> {
+    async fn store_secret(
+        &self,
+        key: &str,
+        value: &str,
+        metadata: Option<HashMap<String, serde_json::Value>>,
+    ) -> Result<bool, SecurityError> {
         self.secret_manager
             .store_secret(key.to_string(), value.to_string(), metadata)
             .await
@@ -369,12 +454,18 @@ impl SecurityManager for SecurityManagerImpl {
             .map_err(|e| SecurityError::SecretError(e.to_string()))
     }
 
-    async fn analyze_threats(&self, _time_range: Option<TimeRange>) -> Result<Vec<ThreatInfo>, SecurityError> {
+    async fn analyze_threats(
+        &self,
+        _time_range: Option<TimeRange>,
+    ) -> Result<Vec<ThreatInfo>, SecurityError> {
         let history = self.threat_history.read().await;
         Ok(history.clone())
     }
 
-    async fn is_suspicious(&self, activity: Activity) -> Result<(bool, f32, Vec<String>), SecurityError> {
+    async fn is_suspicious(
+        &self,
+        activity: Activity,
+    ) -> Result<(bool, f32, Vec<String>), SecurityError> {
         let mut reasons = Vec::new();
         let mut confidence = 0.0;
 
@@ -384,7 +475,10 @@ impl SecurityManager for SecurityManagerImpl {
         // Check for repeated denied accesses
         let denied_count = history
             .iter()
-            .filter(|t| t.affected_principals.contains(&activity.principal.to_string()))
+            .filter(|t| {
+                t.affected_principals
+                    .contains(&activity.principal.to_string())
+            })
             .count();
 
         if denied_count > 5 {

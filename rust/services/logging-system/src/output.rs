@@ -7,9 +7,7 @@ use std::path::PathBuf;
 /// Log output destination
 pub enum LogOutput {
     /// Console output with optional colored formatting
-    Console {
-        colored: bool,
-    },
+    Console { colored: bool },
     /// File output with rotation support
     File {
         path: PathBuf,

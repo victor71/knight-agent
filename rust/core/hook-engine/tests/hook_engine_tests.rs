@@ -2,11 +2,10 @@
 //!
 //! Unit tests for the hook engine module.
 
-use std::collections::HashMap;
 use hook_engine::{
-    HookRegistry, HookExecutor, HookContext, HookPhase, HookHandler,
-    HookDefinition,
+    HookContext, HookDefinition, HookExecutor, HookHandler, HookPhase, HookRegistry,
 };
+use std::collections::HashMap;
 
 fn create_test_hook(id: &str, event: &str, phase: HookPhase) -> HookDefinition {
     HookDefinition::new(
@@ -47,7 +46,9 @@ async fn test_registry_register_duplicate() {
     let hook = create_test_hook("h1", "tool_call", HookPhase::Before);
 
     registry.register(hook).await.unwrap();
-    let result = registry.register(create_test_hook("h1", "tool_call", HookPhase::After)).await;
+    let result = registry
+        .register(create_test_hook("h1", "tool_call", HookPhase::After))
+        .await;
     assert!(result.is_err());
 }
 
@@ -148,7 +149,9 @@ async fn test_executor_trigger_no_hooks() {
     let executor = HookExecutor::new(std::sync::Arc::clone(&registry));
     let context = HookContext::new("nonexistent".to_string(), HookPhase::Before);
 
-    let result = executor.trigger("nonexistent", HookPhase::Before, context).await;
+    let result = executor
+        .trigger("nonexistent", HookPhase::Before, context)
+        .await;
 
     assert!(!result.blocked);
     assert_eq!(result.hooks_executed, 0);
@@ -163,7 +166,9 @@ async fn test_executor_trigger_with_hooks() {
     let executor = HookExecutor::new(std::sync::Arc::clone(&registry));
     let context = HookContext::new("test_event".to_string(), HookPhase::Before);
 
-    let result = executor.trigger("test_event", HookPhase::Before, context).await;
+    let result = executor
+        .trigger("test_event", HookPhase::Before, context)
+        .await;
 
     assert_eq!(result.hooks_executed, 1);
 }
@@ -177,7 +182,9 @@ async fn test_executor_records_execution() {
     let executor = HookExecutor::new(std::sync::Arc::clone(&registry));
     let context = HookContext::new("test_event".to_string(), HookPhase::Before);
 
-    executor.trigger("test_event", HookPhase::Before, context).await;
+    executor
+        .trigger("test_event", HookPhase::Before, context)
+        .await;
 
     // Check that execution was recorded
     let hook_info = registry.list(None).await;
@@ -224,7 +231,8 @@ async fn test_hook_execution_result_success() {
 
 #[tokio::test]
 async fn test_hook_execution_result_blocked() {
-    let result = hook_engine::HookExecutionResult::blocked("h1".to_string(), "Access denied".to_string());
+    let result =
+        hook_engine::HookExecutionResult::blocked("h1".to_string(), "Access denied".to_string());
     assert!(!result.success);
     assert!(result.blocked);
     assert_eq!(result.block_reason, Some("Access denied".to_string()));

@@ -13,11 +13,8 @@ use crate::error::{IPCError, IPCResult};
 use crate::server::StreamingContext;
 
 /// Method handler function signature
-pub type MethodHandler = Arc<
-    dyn (Fn(Value) -> Pin<Box<dyn Future<Output = IPCResult<Value>> + Send>>)
-        + Send
-        + Sync,
->;
+pub type MethodHandler =
+    Arc<dyn (Fn(Value) -> Pin<Box<dyn Future<Output = IPCResult<Value>> + Send>>) + Send + Sync>;
 
 /// Streaming method handler function signature
 pub type StreamingMethodHandler = Arc<
@@ -115,7 +112,12 @@ impl MethodDispatcher {
     }
 
     /// Dispatch a streaming request to the appropriate handler
-    pub async fn dispatch_streaming(&self, method: &str, params: Value, ctx: StreamingContext) -> IPCResult<Value> {
+    pub async fn dispatch_streaming(
+        &self,
+        method: &str,
+        params: Value,
+        ctx: StreamingContext,
+    ) -> IPCResult<Value> {
         let handler = self
             .streaming_handlers
             .get(method)
@@ -150,9 +152,7 @@ mod tests {
         let mut dispatcher = MethodDispatcher::new();
 
         dispatcher
-            .register("echo", |params| async move {
-                Ok(params)
-            })
+            .register("echo", |params| async move { Ok(params) })
             .unwrap();
 
         let result = dispatcher
@@ -167,7 +167,9 @@ mod tests {
     async fn test_method_not_found() {
         let dispatcher = MethodDispatcher::new();
 
-        let result = dispatcher.dispatch("unknown", serde_json::json!(null)).await;
+        let result = dispatcher
+            .dispatch("unknown", serde_json::json!(null))
+            .await;
 
         assert!(matches!(result, Err(IPCError::MethodNotFound(_))));
     }
@@ -214,10 +216,7 @@ mod tests {
                 let arr = params
                     .as_array()
                     .ok_or_else(|| IPCError::InvalidRequest("expected array".to_string()))?;
-                let strings: Vec<&str> = arr
-                    .iter()
-                    .filter_map(|v| v.as_str())
-                    .collect();
+                let strings: Vec<&str> = arr.iter().filter_map(|v| v.as_str()).collect();
                 Ok(serde_json::json!(strings.join("")))
             })
             .unwrap();
@@ -270,8 +269,8 @@ mod tests {
             .register("dup", |_params| async move { Ok(serde_json::json!(null)) })
             .unwrap();
 
-        let result = dispatcher
-            .register("dup", |_params| async move { Ok(serde_json::json!(null)) });
+        let result =
+            dispatcher.register("dup", |_params| async move { Ok(serde_json::json!(null)) });
 
         assert!(matches!(result, Err(IPCError::MethodNotFound(_))));
     }

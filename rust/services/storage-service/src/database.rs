@@ -2,10 +2,10 @@
 //!
 //! SQLite database operations with async wrapper.
 
+use rusqlite::{params, Connection};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
-use rusqlite::{params, Connection};
 
 use crate::types::*;
 
@@ -33,7 +33,10 @@ impl Database {
 
     /// Initialize database schema
     fn initialize(&self) -> StorageResult<()> {
-        let conn = self.conn.lock().map_err(|e| StorageError::Database(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| StorageError::Database(e.to_string()))?;
 
         conn.execute_batch(
             r#"
@@ -189,7 +192,10 @@ impl Database {
     where
         F: FnOnce(&Connection) -> StorageResult<T>,
     {
-        let conn = self.conn.lock().map_err(|e| StorageError::Database(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| StorageError::Database(e.to_string()))?;
         f(&conn)
     }
 
@@ -458,7 +464,11 @@ impl Database {
         })
     }
 
-    pub fn delete_messages_before(&self, session_id: &str, before_timestamp: &str) -> StorageResult<i64> {
+    pub fn delete_messages_before(
+        &self,
+        session_id: &str,
+        before_timestamp: &str,
+    ) -> StorageResult<i64> {
         self.execute(|conn| {
             // First get the timestamp threshold
             let threshold: Option<i64> = conn
@@ -639,7 +649,11 @@ impl Database {
         })
     }
 
-    pub fn list_tasks(&self, filter: &TaskFilter, limit: Option<usize>) -> StorageResult<Vec<Task>> {
+    pub fn list_tasks(
+        &self,
+        filter: &TaskFilter,
+        limit: Option<usize>,
+    ) -> StorageResult<Vec<Task>> {
         self.execute(|conn| {
             let mut sql = String::from("SELECT id, workflow_id, name, type, status, agent_id, inputs, outputs, error, created_at, started_at, completed_at FROM tasks WHERE 1=1");
             let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
@@ -923,7 +937,10 @@ impl Database {
     pub fn delete_compression_point(&self, point_id: &str) -> StorageResult<bool> {
         self.execute(|conn| {
             let count = conn
-                .execute("DELETE FROM compression_points WHERE id = ?1", params![point_id])
+                .execute(
+                    "DELETE FROM compression_points WHERE id = ?1",
+                    params![point_id],
+                )
                 .map_err(|e| StorageError::WriteFailed(e.to_string()))?;
             Ok(count > 0)
         })

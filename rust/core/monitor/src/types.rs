@@ -33,7 +33,6 @@ pub enum StatScope {
     Agent,
 }
 
-
 /// Token usage statistics
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TokenUsage {
@@ -129,7 +128,6 @@ pub enum StatusScope {
     Session,
     Agent,
 }
-
 
 /// Status update for watching
 #[derive(Debug, Clone, Serialize, Deserialize)]

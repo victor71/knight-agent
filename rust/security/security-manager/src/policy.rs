@@ -109,14 +109,25 @@ impl PolicyEngine {
 
         // Check resource match
         if let Some(ref pattern) = rule.resource {
-            if !self.match_pattern(pattern, context.metadata.get("resource").and_then(|v| v.as_str()).unwrap_or("")) {
+            if !self.match_pattern(
+                pattern,
+                context
+                    .metadata
+                    .get("resource")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(""),
+            ) {
                 return None;
             }
         }
 
         // Check action match
         if let Some(ref pattern) = rule.action {
-            let action = context.metadata.get("action").and_then(|v| v.as_str()).unwrap_or("");
+            let action = context
+                .metadata
+                .get("action")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             if !self.match_pattern(pattern, action) {
                 return None;
             }
@@ -145,10 +156,14 @@ impl PolicyEngine {
                 pattern == "*" || pattern == "user:*" || pattern == format!("user:{}", id).as_str()
             }
             Principal::Agent(ref id) => {
-                pattern == "*" || pattern == "agent:*" || pattern == format!("agent:{}", id).as_str()
+                pattern == "*"
+                    || pattern == "agent:*"
+                    || pattern == format!("agent:{}", id).as_str()
             }
             Principal::Session(ref id) => {
-                pattern == "*" || pattern == "session:*" || pattern == format!("session:{}", id).as_str()
+                pattern == "*"
+                    || pattern == "session:*"
+                    || pattern == format!("session:{}", id).as_str()
             }
         }
     }
@@ -214,11 +229,23 @@ impl PolicyEngine {
             }
             ConditionType::Custom => {
                 // Custom conditions are evaluated by checking metadata
-                let key = condition.value.get("key").and_then(|v| v.as_str()).unwrap_or("");
-                let expected = condition.value.get("value").and_then(|v| v.as_str()).unwrap_or("");
+                let key = condition
+                    .value
+                    .get("key")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let expected = condition
+                    .value
+                    .get("value")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
 
                 if let Some(actual) = context.metadata.get(key).and_then(|v| v.as_str()) {
-                    self.evaluate_operator(&condition.operator, &serde_json::json!(expected), actual)
+                    self.evaluate_operator(
+                        &condition.operator,
+                        &serde_json::json!(expected),
+                        actual,
+                    )
                 } else {
                     false
                 }
@@ -227,7 +254,12 @@ impl PolicyEngine {
     }
 
     /// Evaluate a condition operator
-    fn evaluate_operator(&self, op: &ConditionOperator, expected: &serde_json::Value, actual: &str) -> bool {
+    fn evaluate_operator(
+        &self,
+        op: &ConditionOperator,
+        expected: &serde_json::Value,
+        actual: &str,
+    ) -> bool {
         match op {
             ConditionOperator::Equals => {
                 if let Some(exp_str) = expected.as_str() {

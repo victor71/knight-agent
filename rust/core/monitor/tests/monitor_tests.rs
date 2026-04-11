@@ -2,9 +2,7 @@
 //!
 //! Unit tests for the monitor module.
 
-use monitor::{
-    MonitorImpl, TokenUsage, SystemStats,
-};
+use monitor::{MonitorImpl, SystemStats, TokenUsage};
 
 #[tokio::test]
 async fn test_monitor_initialization() {

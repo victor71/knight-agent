@@ -4,11 +4,11 @@
 //!
 //! Design Reference: docs/03-module-design/core/router.md
 
-pub mod types;
 pub mod router;
+pub mod types;
 
-pub use types::*;
 pub use router::RouterImpl;
+pub use types::*;
 
 /// RouterHandle trait for external consumers (TUI, CLI)
 #[async_trait::async_trait]

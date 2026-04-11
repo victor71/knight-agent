@@ -2,9 +2,7 @@
 //!
 //! Verify that the request format matches API expectations.
 
-use llm_provider::{
-    ChatCompletionRequest, Content, Message, MessageRole,
-};
+use llm_provider::{ChatCompletionRequest, Content, Message, MessageRole};
 
 #[test]
 fn verify_anthropic_api_format() {
@@ -12,14 +10,12 @@ fn verify_anthropic_api_format() {
     // https://docs.anthropic.com/en/api/messages
     let request = ChatCompletionRequest {
         model: "claude-sonnet-4-6".to_string(),
-        messages: vec![
-            Message {
-                role: MessageRole::User,
-                content: Some(Content::Text("Hello".to_string())),
-                tool_calls: None,
-                tool_call_id: None,
-            }
-        ],
+        messages: vec![Message {
+            role: MessageRole::User,
+            content: Some(Content::Text("Hello".to_string())),
+            tool_calls: None,
+            tool_call_id: None,
+        }],
         temperature: 0.7,
         max_tokens: 2000,
         ..Default::default()

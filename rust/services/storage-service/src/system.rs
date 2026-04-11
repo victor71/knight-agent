@@ -46,18 +46,28 @@ pub trait StorageService: Send + Sync {
 
     // Compression point operations
     async fn save_compression_point(&self, point: CompressionPoint) -> Result<bool, StorageError>;
-    async fn get_compression_points(&self, session_id: &str) -> Result<Vec<CompressionPoint>, StorageError>;
+    async fn get_compression_points(
+        &self,
+        session_id: &str,
+    ) -> Result<Vec<CompressionPoint>, StorageError>;
     async fn delete_compression_point(&self, point_id: &str) -> Result<bool, StorageError>;
 
     // Task operations
     async fn save_task(&self, task: Task) -> Result<bool, StorageError>;
     async fn load_task(&self, task_id: &str) -> Result<Option<Task>, StorageError>;
     async fn update_task(&self, task_id: &str, updates: TaskUpdate) -> Result<bool, StorageError>;
-    async fn list_tasks(&self, filter: TaskFilter, limit: Option<usize>) -> Result<Vec<Task>, StorageError>;
+    async fn list_tasks(
+        &self,
+        filter: TaskFilter,
+        limit: Option<usize>,
+    ) -> Result<Vec<Task>, StorageError>;
 
     // Workflow operations
     async fn save_workflow(&self, workflow: WorkflowDefinition) -> Result<bool, StorageError>;
-    async fn load_workflow(&self, workflow_id: &str) -> Result<Option<WorkflowDefinition>, StorageError>;
+    async fn load_workflow(
+        &self,
+        workflow_id: &str,
+    ) -> Result<Option<WorkflowDefinition>, StorageError>;
     async fn list_workflows(&self) -> Result<Vec<WorkflowDefinition>, StorageError>;
 
     // Config operations
@@ -113,8 +123,9 @@ impl StorageServiceImpl {
 
         // Ensure parent directory exists
         if let Some(parent) = db_path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| StorageError::InvalidData(format!("failed to create directory: {}", e)))?;
+            std::fs::create_dir_all(parent).map_err(|e| {
+                StorageError::InvalidData(format!("failed to create directory: {}", e))
+            })?;
         }
 
         let db = Database::open(&db_path)?;
@@ -218,9 +229,11 @@ impl StorageService for StorageServiceImpl {
         let db = Arc::clone(&self.db);
         let session_id = session_id.to_string();
         let after = after.map(|s| s.to_string());
-        tokio::task::spawn_blocking(move || db.get_messages(&session_id, limit, offset, after.as_deref()))
-            .await
-            .map_err(|e| StorageError::Database(format!("task error: {}", e)))?
+        tokio::task::spawn_blocking(move || {
+            db.get_messages(&session_id, limit, offset, after.as_deref())
+        })
+        .await
+        .map_err(|e| StorageError::Database(format!("task error: {}", e)))?
     }
 
     async fn delete_messages(&self, session_id: &str, before: &str) -> Result<i64, StorageError> {
@@ -246,7 +259,10 @@ impl StorageService for StorageServiceImpl {
         .map_err(|e| StorageError::Database(format!("task error: {}", e)))?
     }
 
-    async fn get_compression_points(&self, session_id: &str) -> Result<Vec<CompressionPoint>, StorageError> {
+    async fn get_compression_points(
+        &self,
+        session_id: &str,
+    ) -> Result<Vec<CompressionPoint>, StorageError> {
         let db = Arc::clone(&self.db);
         let session_id = session_id.to_string();
         tokio::task::spawn_blocking(move || db.get_compression_points(&session_id))
@@ -292,7 +308,11 @@ impl StorageService for StorageServiceImpl {
             .map_err(|e| StorageError::Database(format!("task error: {}", e)))?
     }
 
-    async fn list_tasks(&self, filter: TaskFilter, limit: Option<usize>) -> Result<Vec<Task>, StorageError> {
+    async fn list_tasks(
+        &self,
+        filter: TaskFilter,
+        limit: Option<usize>,
+    ) -> Result<Vec<Task>, StorageError> {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.list_tasks(&filter, limit))
             .await
@@ -313,7 +333,10 @@ impl StorageService for StorageServiceImpl {
         .map_err(|e| StorageError::Database(format!("task error: {}", e)))?
     }
 
-    async fn load_workflow(&self, workflow_id: &str) -> Result<Option<WorkflowDefinition>, StorageError> {
+    async fn load_workflow(
+        &self,
+        workflow_id: &str,
+    ) -> Result<Option<WorkflowDefinition>, StorageError> {
         let db = Arc::clone(&self.db);
         let workflow_id = workflow_id.to_string();
         tokio::task::spawn_blocking(move || db.load_workflow(&workflow_id))
@@ -335,8 +358,8 @@ impl StorageService for StorageServiceImpl {
     async fn save_config(&self, key: &str, value: serde_json::Value) -> Result<bool, StorageError> {
         let db = Arc::clone(&self.db);
         let key = key.to_string();
-        let value_str = serde_json::to_string(&value)
-            .map_err(|e| StorageError::InvalidData(e.to_string()))?;
+        let value_str =
+            serde_json::to_string(&value).map_err(|e| StorageError::InvalidData(e.to_string()))?;
         tokio::task::spawn_blocking(move || {
             db.save_config(&key, &value_str)?;
             Ok::<_, StorageError>(true)
@@ -452,8 +475,9 @@ impl StorageService for StorageServiceImpl {
         let dest = std::path::PathBuf::from(path);
 
         if let Some(parent) = dest.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| StorageError::WriteFailed(format!("failed to create backup dir: {}", e)))?;
+            std::fs::create_dir_all(parent).map_err(|e| {
+                StorageError::WriteFailed(format!("failed to create backup dir: {}", e))
+            })?;
         }
 
         std::fs::copy(&source, &dest)
@@ -476,7 +500,9 @@ impl StorageService for StorageServiceImpl {
     }
 
     async fn export_data(&self, format: &str, output_path: &str) -> Result<bool, StorageError> {
-        let sessions = self.list_sessions(SessionFilter::default(), None, None).await?;
+        let sessions = self
+            .list_sessions(SessionFilter::default(), None, None)
+            .await?;
         let data = serde_json::to_string_pretty(&sessions)
             .map_err(|e| StorageError::InvalidData(e.to_string()))?;
 

@@ -61,14 +61,12 @@ impl BaseMessage {
 }
 
 /// Request options
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RequestOptions {
     pub timeout: Option<u64>,
     pub stream: Option<bool>,
     pub priority: Option<i32>,
 }
-
 
 /// Request message
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -219,8 +217,7 @@ impl QueryType {
 }
 
 /// User query dependencies (for cross-agent dependency detection)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct QueryDependencies {
     /// Agents this query depends on
     pub depends_on_agents: Option<Vec<String>>,
@@ -230,16 +227,13 @@ pub struct QueryDependencies {
     pub waiting_for_agent: Option<String>,
 }
 
-
 /// User query context
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct QueryContext {
     pub resource: Option<String>,
     pub action: Option<String>,
     pub reason: Option<String>,
 }
-
 
 /// User query message
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -259,12 +253,7 @@ pub struct UserQueryMessage {
 
 impl UserQueryMessage {
     /// Create new user query
-    pub fn new(
-        agent_id: String,
-        query_type: QueryType,
-        message: String,
-        timeout: u64,
-    ) -> Self {
+    pub fn new(agent_id: String, query_type: QueryType, message: String, timeout: u64) -> Self {
         let now = Utc::now().timestamp_millis();
         Self {
             base: BaseMessage::new(MessageType::UserQuery),

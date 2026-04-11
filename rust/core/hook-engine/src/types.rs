@@ -37,7 +37,6 @@ pub enum HookPhase {
     Replace,
 }
 
-
 /// Hook handler type
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -65,10 +64,7 @@ pub enum HookHandler {
         timeout_secs: u64,
     },
     /// WASM handler
-    Wasm {
-        module: String,
-        function: String,
-    },
+    Wasm { module: String, function: String },
     /// Callback handler (internal use)
     Callback {
         #[serde(default)]
@@ -448,7 +444,12 @@ mod tests {
             skill_id: "test_skill".to_string(),
             args: HashMap::new(),
         };
-        let hook = HookDefinition::new("h1".to_string(), "tool_call".to_string(), HookPhase::Before, handler);
+        let hook = HookDefinition::new(
+            "h1".to_string(),
+            "tool_call".to_string(),
+            HookPhase::Before,
+            handler,
+        );
 
         assert_eq!(hook.id, "h1");
         assert_eq!(hook.event, "tool_call");

@@ -7,7 +7,10 @@ use bootstrap::*;
 #[tokio::test]
 async fn test_bootstrap_stage_enum() {
     assert_eq!(BootstrapStage::Stage1Infrastructure.as_u8(), 1);
-    assert_eq!(BootstrapStage::Stage1Infrastructure.name(), "Infrastructure");
+    assert_eq!(
+        BootstrapStage::Stage1Infrastructure.name(),
+        "Infrastructure"
+    );
     assert_eq!(
         BootstrapStage::Stage1Infrastructure.to_string(),
         "Stage 1: Infrastructure"
@@ -110,7 +113,10 @@ async fn test_bootstrap_config_default() {
 
 #[tokio::test]
 async fn test_module_status() {
-    let status = ModuleStatus::new("test-module".to_string(), BootstrapStage::Stage1Infrastructure);
+    let status = ModuleStatus::new(
+        "test-module".to_string(),
+        BootstrapStage::Stage1Infrastructure,
+    );
     assert!(!status.initialized);
     assert!(!status.healthy);
     assert_eq!(status.stage, 1);

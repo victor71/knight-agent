@@ -3,9 +3,8 @@
 //! Unit tests for the agent-runtime module.
 
 use agent_runtime::{
-    AgentRuntimeImpl, AgentStatus, AgentState, AgentStatistics,
-    ErrorInfo, AwaitInfo, Message, ToolResult, UserResponse,
-    AgentRuntimeError, RuntimeConfig,
+    AgentRuntimeError, AgentRuntimeImpl, AgentState, AgentStatistics, AgentStatus, AwaitInfo,
+    ErrorInfo, Message, RuntimeConfig, ToolResult, UserResponse,
 };
 
 #[tokio::test]
@@ -219,7 +218,10 @@ async fn test_update_variables() {
     runtime.update_variables(&agent.id, vars).await.unwrap();
 
     let context = runtime.get_context(&agent.id).await.unwrap();
-    assert_eq!(context.get_variable("name"), Some(&serde_json::json!("test")));
+    assert_eq!(
+        context.get_variable("name"),
+        Some(&serde_json::json!("test"))
+    );
     assert_eq!(context.get_variable("count"), Some(&serde_json::json!(42)));
 }
 
@@ -308,7 +310,10 @@ async fn test_handle_user_response() {
         .unwrap();
 
     let response = UserResponse::new(&await_id, serde_json::json!("yes"), true);
-    let resumed_state = runtime.handle_user_response(&agent.id, response).await.unwrap();
+    let resumed_state = runtime
+        .handle_user_response(&agent.id, response)
+        .await
+        .unwrap();
 
     assert_eq!(resumed_state, "thinking");
 
@@ -326,10 +331,7 @@ async fn test_record_llm_call() {
         .await
         .unwrap();
 
-    runtime
-        .record_llm_call(&agent.id, 100)
-        .await
-        .unwrap();
+    runtime.record_llm_call(&agent.id, 100).await.unwrap();
 
     let state = runtime.get_agent_state(&agent.id).await.unwrap();
     assert_eq!(state.statistics.llm_calls, 1);

@@ -78,7 +78,10 @@ impl ReadTool {
         debug!("Reading file: {}", file_path);
 
         let offset = args.get("offset").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-        let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(u64::MAX) as usize;
+        let limit = args
+            .get("limit")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(u64::MAX) as usize;
 
         match tokio::fs::read_to_string(file_path).await {
             Ok(content) => {
@@ -94,8 +97,11 @@ impl ReadTool {
             }
             Err(e) => {
                 error!("Failed to read file {}: {}", file_path, e);
-                ToolExecutionResult::error("EXECUTION_FAILED", &format!("Failed to read file: {}", e))
-                    .with_duration(start.elapsed().as_millis() as u64)
+                ToolExecutionResult::error(
+                    "EXECUTION_FAILED",
+                    &format!("Failed to read file: {}", e),
+                )
+                .with_duration(start.elapsed().as_millis() as u64)
             }
         }
     }
@@ -154,8 +160,11 @@ impl WriteTool {
             }
             Err(e) => {
                 error!("Failed to write file {}: {}", file_path, e);
-                ToolExecutionResult::error("EXECUTION_FAILED", &format!("Failed to write file: {}", e))
-                    .with_duration(start.elapsed().as_millis() as u64)
+                ToolExecutionResult::error(
+                    "EXECUTION_FAILED",
+                    &format!("Failed to write file: {}", e),
+                )
+                .with_duration(start.elapsed().as_millis() as u64)
             }
         }
     }
@@ -193,10 +202,7 @@ impl EditTool {
             }
         };
 
-        debug!(
-            "Editing file: {} (replacing '{}')",
-            file_path, old_string
-        );
+        debug!("Editing file: {} (replacing '{}')", file_path, old_string);
 
         // Read file content
         let content = match tokio::fs::read_to_string(file_path).await {
@@ -233,8 +239,11 @@ impl EditTool {
             }
             Err(e) => {
                 error!("Failed to write file {}: {}", file_path, e);
-                ToolExecutionResult::error("EXECUTION_FAILED", &format!("Failed to write file: {}", e))
-                    .with_duration(start.elapsed().as_millis() as u64)
+                ToolExecutionResult::error(
+                    "EXECUTION_FAILED",
+                    &format!("Failed to write file: {}", e),
+                )
+                .with_duration(start.elapsed().as_millis() as u64)
             }
         }
     }
@@ -293,8 +302,11 @@ impl GrepTool {
         let stderr = String::from_utf8_lossy(&output.stderr);
 
         if !output.status.success() && !stderr.is_empty() {
-            return ToolExecutionResult::error("EXECUTION_FAILED", &format!("grep error: {}", stderr))
-                .with_duration(start.elapsed().as_millis() as u64);
+            return ToolExecutionResult::error(
+                "EXECUTION_FAILED",
+                &format!("grep error: {}", stderr),
+            )
+            .with_duration(start.elapsed().as_millis() as u64);
         }
 
         let matches: Vec<&str> = stdout.lines().collect();
@@ -358,8 +370,11 @@ impl GlobTool {
             }
             Err(e) => {
                 error!("Failed to execute glob: {}", e);
-                ToolExecutionResult::error("EXECUTION_FAILED", &format!("Failed to execute glob: {}", e))
-                    .with_duration(start.elapsed().as_millis() as u64)
+                ToolExecutionResult::error(
+                    "EXECUTION_FAILED",
+                    &format!("Failed to execute glob: {}", e),
+                )
+                .with_duration(start.elapsed().as_millis() as u64)
             }
         }
     }
@@ -383,10 +398,7 @@ impl BashTool {
             }
         };
 
-        let _timeout_secs = args
-            .get("timeout")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(30);
+        let _timeout_secs = args.get("timeout").and_then(|v| v.as_u64()).unwrap_or(30);
 
         debug!("Bash: {} (timeout={}s)", command, _timeout_secs);
 
@@ -413,8 +425,11 @@ impl BashTool {
             }
             Err(e) => {
                 error!("Failed to execute bash: {}", e);
-                ToolExecutionResult::error("EXECUTION_FAILED", &format!("Failed to execute bash: {}", e))
-                    .with_duration(start.elapsed().as_millis() as u64)
+                ToolExecutionResult::error(
+                    "EXECUTION_FAILED",
+                    &format!("Failed to execute bash: {}", e),
+                )
+                .with_duration(start.elapsed().as_millis() as u64)
             }
         }
     }

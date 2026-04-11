@@ -3,9 +3,8 @@
 //! Unit tests for the task manager module.
 
 use task_manager::{
-    TaskManagerImpl, TaskDefinition, WorkflowDefinition, Dependency,
-    TaskType, TaskStatus, WorkflowStatus, DependencyCondition,
-    RetryConfig, RetryBackoff, TaskUpdate, TaskFilter,
+    Dependency, DependencyCondition, RetryBackoff, RetryConfig, TaskDefinition, TaskFilter,
+    TaskManagerImpl, TaskStatus, TaskType, TaskUpdate, WorkflowDefinition, WorkflowStatus,
 };
 
 #[tokio::test]
@@ -22,8 +21,7 @@ async fn test_register_workflow() {
 async fn test_register_workflow_with_tasks() {
     let tm = TaskManagerImpl::new();
 
-    let task1 = TaskDefinition::new("task-1", "Task 1", "First task")
-        .with_agent("agent-1");
+    let task1 = TaskDefinition::new("task-1", "Task 1", "First task").with_agent("agent-1");
 
     let task2 = TaskDefinition::new("task-2", "Task 2", "Second task")
         .with_agent("agent-2")
@@ -97,8 +95,7 @@ async fn test_unregister_workflow() {
 async fn test_start_workflow() {
     let tm = TaskManagerImpl::new();
 
-    let task1 = TaskDefinition::new("task-1", "Task 1", "First task")
-        .with_agent("agent-1");
+    let task1 = TaskDefinition::new("task-1", "Task 1", "First task").with_agent("agent-1");
 
     let task2 = TaskDefinition::new("task-2", "Task 2", "Second task")
         .with_agent("agent-2")
@@ -121,11 +118,9 @@ async fn test_start_workflow() {
 async fn test_start_workflow_no_dependencies() {
     let tm = TaskManagerImpl::new();
 
-    let task1 = TaskDefinition::new("task-1", "Task 1", "First task")
-        .with_agent("agent-1");
+    let task1 = TaskDefinition::new("task-1", "Task 1", "First task").with_agent("agent-1");
 
-    let task2 = TaskDefinition::new("task-2", "Task 2", "Second task")
-        .with_agent("agent-2");
+    let task2 = TaskDefinition::new("task-2", "Task 2", "Second task").with_agent("agent-2");
 
     let workflow = WorkflowDefinition::new("wf-1", "Test Workflow", "A test workflow")
         .with_tasks(vec![task1, task2]);
@@ -136,7 +131,9 @@ async fn test_start_workflow_no_dependencies() {
     let status = tm.get_workflow_status(&execution_id).await.unwrap();
 
     // Both tasks should be ready since there are no dependencies
-    let ready_count = status.tasks.iter()
+    let ready_count = status
+        .tasks
+        .iter()
         .filter(|t| t.status == TaskStatus::Ready)
         .count();
     assert_eq!(ready_count, 2);
@@ -146,11 +143,10 @@ async fn test_start_workflow_no_dependencies() {
 async fn test_cancel_workflow() {
     let tm = TaskManagerImpl::new();
 
-    let task = TaskDefinition::new("task-1", "Task 1", "First task")
-        .with_agent("agent-1");
+    let task = TaskDefinition::new("task-1", "Task 1", "First task").with_agent("agent-1");
 
-    let workflow = WorkflowDefinition::new("wf-1", "Test Workflow", "A test workflow")
-        .with_tasks(vec![task]);
+    let workflow =
+        WorkflowDefinition::new("wf-1", "Test Workflow", "A test workflow").with_tasks(vec![task]);
 
     tm.register_workflow(workflow).await.unwrap();
 
@@ -167,11 +163,10 @@ async fn test_cancel_workflow() {
 async fn test_pause_and_resume_workflow() {
     let tm = TaskManagerImpl::new();
 
-    let task = TaskDefinition::new("task-1", "Task 1", "First task")
-        .with_agent("agent-1");
+    let task = TaskDefinition::new("task-1", "Task 1", "First task").with_agent("agent-1");
 
-    let workflow = WorkflowDefinition::new("wf-1", "Test Workflow", "A test workflow")
-        .with_tasks(vec![task]);
+    let workflow =
+        WorkflowDefinition::new("wf-1", "Test Workflow", "A test workflow").with_tasks(vec![task]);
 
     tm.register_workflow(workflow).await.unwrap();
 
@@ -196,11 +191,10 @@ async fn test_pause_and_resume_workflow() {
 async fn test_update_task_status() {
     let tm = TaskManagerImpl::new();
 
-    let task = TaskDefinition::new("task-1", "Task 1", "First task")
-        .with_agent("agent-1");
+    let task = TaskDefinition::new("task-1", "Task 1", "First task").with_agent("agent-1");
 
-    let workflow = WorkflowDefinition::new("wf-1", "Test Workflow", "A test workflow")
-        .with_tasks(vec![task]);
+    let workflow =
+        WorkflowDefinition::new("wf-1", "Test Workflow", "A test workflow").with_tasks(vec![task]);
 
     tm.register_workflow(workflow).await.unwrap();
 
@@ -226,11 +220,9 @@ async fn test_update_task_status() {
 async fn test_get_statistics() {
     let tm = TaskManagerImpl::new();
 
-    let task1 = TaskDefinition::new("task-1", "Task 1", "First task")
-        .with_agent("agent-1");
+    let task1 = TaskDefinition::new("task-1", "Task 1", "First task").with_agent("agent-1");
 
-    let task2 = TaskDefinition::new("task-2", "Task 2", "Second task")
-        .with_agent("agent-2");
+    let task2 = TaskDefinition::new("task-2", "Task 2", "Second task").with_agent("agent-2");
 
     let workflow = WorkflowDefinition::new("wf-1", "Test Workflow", "A test workflow")
         .with_tasks(vec![task1, task2]);
@@ -251,11 +243,10 @@ async fn test_active_workflow_count() {
     let tm = TaskManagerImpl::new();
     assert_eq!(tm.active_workflow_count().await, 0);
 
-    let task = TaskDefinition::new("task-1", "Task 1", "First task")
-        .with_agent("agent-1");
+    let task = TaskDefinition::new("task-1", "Task 1", "First task").with_agent("agent-1");
 
-    let workflow = WorkflowDefinition::new("wf-1", "Test Workflow", "A test workflow")
-        .with_tasks(vec![task]);
+    let workflow =
+        WorkflowDefinition::new("wf-1", "Test Workflow", "A test workflow").with_tasks(vec![task]);
 
     tm.register_workflow(workflow).await.unwrap();
     tm.start_workflow("wf-1").await.unwrap();
@@ -275,24 +266,21 @@ fn test_task_definition_new() {
 
 #[test]
 fn test_task_definition_with_agent() {
-    let task = TaskDefinition::new("task-1", "Test Task", "A test task")
-        .with_agent("agent-1");
+    let task = TaskDefinition::new("task-1", "Test Task", "A test task").with_agent("agent-1");
     assert_eq!(task.agent, Some("agent-1".to_string()));
     assert_eq!(task.task_type, TaskType::Agent);
 }
 
 #[test]
 fn test_task_definition_with_skill() {
-    let task = TaskDefinition::new("task-1", "Test Task", "A test task")
-        .with_skill("code-review");
+    let task = TaskDefinition::new("task-1", "Test Task", "A test task").with_skill("code-review");
     assert_eq!(task.skill, Some("code-review".to_string()));
     assert_eq!(task.task_type, TaskType::Skill);
 }
 
 #[test]
 fn test_task_definition_with_tool() {
-    let task = TaskDefinition::new("task-1", "Test Task", "A test task")
-        .with_tool("read_file");
+    let task = TaskDefinition::new("task-1", "Test Task", "A test task").with_tool("read_file");
     assert_eq!(task.tool, Some("read_file".to_string()));
     assert_eq!(task.task_type, TaskType::Tool);
 }
@@ -305,16 +293,14 @@ fn test_task_definition_with_retry() {
         backoff: RetryBackoff::Exponential,
         retry_on: vec!["error".to_string()],
     };
-    let task = TaskDefinition::new("task-1", "Test Task", "A test task")
-        .with_retry(retry);
+    let task = TaskDefinition::new("task-1", "Test Task", "A test task").with_retry(retry);
     assert!(task.retry.is_some());
     assert_eq!(task.retry.as_ref().unwrap().max_attempts, 5);
 }
 
 #[test]
 fn test_task_definition_with_timeout() {
-    let task = TaskDefinition::new("task-1", "Test Task", "A test task")
-        .with_timeout(3600);
+    let task = TaskDefinition::new("task-1", "Test Task", "A test task").with_timeout(3600);
     assert_eq!(task.timeout, Some(3600));
 }
 
@@ -327,8 +313,7 @@ fn test_dependency_new() {
 
 #[test]
 fn test_dependency_with_condition() {
-    let dep = Dependency::new("task-1")
-        .with_condition(DependencyCondition::Failed);
+    let dep = Dependency::new("task-1").with_condition(DependencyCondition::Failed);
     assert_eq!(dep.condition, DependencyCondition::Failed);
 }
 

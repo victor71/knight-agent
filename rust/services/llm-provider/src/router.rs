@@ -3,18 +3,17 @@
 //! Routes requests to the appropriate LLM provider based on model name.
 //! Supports hot-reload via `reload_config()` method.
 
+use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
-use parking_lot::RwLock;
 use tracing::info;
 
-use crate::types::{
-    ChatCompletionRequest, ChatCompletionResponse, CostEstimate,
-    ModelInfo, ProviderStatus, Usage,
-};
-use crate::{CompletionStream, TokenCount};
 use crate::llm_trait::{LLMError, LLMProvider, LLMResult};
 use crate::provider::{GenericLLMProvider, LLMProtocol, ProviderConfig};
+use crate::types::{
+    ChatCompletionRequest, ChatCompletionResponse, CostEstimate, ModelInfo, ProviderStatus, Usage,
+};
+use crate::{CompletionStream, TokenCount};
 
 /// Resolve environment variable reference in config values
 /// Supports ${ENV_VAR} syntax
@@ -89,7 +88,9 @@ impl LLMRouter {
                     inner.model_to_provider.insert(model.clone(), name.clone());
                 }
 
-                inner.provider_default_models.insert(name.clone(), default_model);
+                inner
+                    .provider_default_models
+                    .insert(name.clone(), default_model);
                 inner.providers.insert(name.clone(), Arc::new(provider));
                 inner.default_provider = Some(name);
 
@@ -130,7 +131,8 @@ impl LLMRouter {
             };
 
             // Extract model IDs from LlmModelConfig list
-            let models: Vec<String> = provider_config.models
+            let models: Vec<String> = provider_config
+                .models
                 .iter()
                 .map(|m| m.id.clone())
                 .collect();
@@ -153,7 +155,9 @@ impl LLMRouter {
                 inner.model_to_provider.insert(model.clone(), name.clone());
             }
 
-            inner.provider_default_models.insert(name.clone(), default_model);
+            inner
+                .provider_default_models
+                .insert(name.clone(), default_model);
             inner.providers.insert(name.clone(), Arc::new(provider));
         }
 
@@ -161,16 +165,25 @@ impl LLMRouter {
         if let Some(ref default_name) = default_provider {
             if inner.providers.contains_key(default_name) {
                 inner.default_provider = Some(default_name.clone());
-                info!("LLM Router initialized with default provider: {}", default_name);
+                info!(
+                    "LLM Router initialized with default provider: {}",
+                    default_name
+                );
             } else {
-                info!("Configured default provider '{}' not found in providers", default_name);
+                info!(
+                    "Configured default provider '{}' not found in providers",
+                    default_name
+                );
                 inner.default_provider = inner.providers.keys().next().cloned();
             }
         } else {
             inner.default_provider = inner.providers.keys().next().cloned();
         }
 
-        info!("LLM Router initialized from config with {} providers", inner.providers.len());
+        info!(
+            "LLM Router initialized from config with {} providers",
+            inner.providers.len()
+        );
         Ok(())
     }
 
@@ -192,7 +205,9 @@ impl LLMRouter {
             inner.model_to_provider.insert(model.clone(), name.clone());
         }
 
-        inner.provider_default_models.insert(name.clone(), default_model);
+        inner
+            .provider_default_models
+            .insert(name.clone(), default_model);
         inner.providers.insert(name.clone(), Arc::new(provider));
 
         if inner.default_provider.is_none() {
@@ -242,7 +257,12 @@ impl LLMRouter {
 
     /// Get list of all configured models
     pub fn models(&self) -> Vec<String> {
-        self.inner.read().model_to_provider.keys().cloned().collect()
+        self.inner
+            .read()
+            .model_to_provider
+            .keys()
+            .cloned()
+            .collect()
     }
 
     /// Get list of all provider names
@@ -295,7 +315,8 @@ impl LLMProvider for LLMRouter {
             request.model.clone()
         };
 
-        let provider = self.get_provider_for_model(&model)
+        let provider = self
+            .get_provider_for_model(&model)
             .ok_or_else(|| LLMError::ModelNotFound(model.clone()))?;
 
         let model_request = ChatCompletionRequest {
@@ -303,7 +324,11 @@ impl LLMProvider for LLMRouter {
             ..request
         };
 
-        info!("Routing LLM request for model '{}' to provider: {}", model, provider.name());
+        info!(
+            "Routing LLM request for model '{}' to provider: {}",
+            model,
+            provider.name()
+        );
         provider.chat_completion(model_request).await
     }
 
@@ -326,7 +351,8 @@ impl LLMProvider for LLMRouter {
             request.model.clone()
         };
 
-        let provider = self.get_provider_for_model(&model)
+        let provider = self
+            .get_provider_for_model(&model)
             .ok_or_else(|| LLMError::ModelNotFound(model.clone()))?;
 
         let model_request = ChatCompletionRequest {
@@ -334,7 +360,11 @@ impl LLMProvider for LLMRouter {
             ..request
         };
 
-        info!("Routing LLM streaming request for model '{}' to provider: {}", model, provider.name());
+        info!(
+            "Routing LLM streaming request for model '{}' to provider: {}",
+            model,
+            provider.name()
+        );
         provider.stream_completion(model_request).await
     }
 

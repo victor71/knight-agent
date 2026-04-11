@@ -13,22 +13,25 @@ pub mod widgets;
 pub mod test_harness;
 
 pub use app::{AppState, PopupType};
-pub use client::{DaemonClient, DirectDaemonClient, DaemonClientError, DaemonClientResult};
 pub use client::ipc::IpcDaemonClient;
-pub use router::HandleInputResult;
+pub use client::{DaemonClient, DaemonClientError, DaemonClientResult, DirectDaemonClient};
 pub use event::{AppEvent, SystemStatusSnapshot};
 pub use renderer::AppTerminal;
+pub use router::HandleInputResult;
 pub use state::{
-    CompressionWarningLevel, ContextCompressionStatus, OutputLine, OutputStyle,
-    ProjectInfo, SessionListItem, SessionTokenUsage, TaskInfo, TaskStatus,
+    CompressionWarningLevel, ContextCompressionStatus, OutputLine, OutputStyle, ProjectInfo,
+    SessionListItem, SessionTokenUsage, TaskInfo, TaskStatus,
 };
 
 use anyhow::Result;
-use crossterm::event::{self as crossterm_event, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEvent, MouseEventKind};
+use crossterm::event::{
+    self as crossterm_event, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEvent,
+    MouseEventKind,
+};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
-use tracing::{info, warn, debug, error};
+use tracing::{debug, error, info, warn};
 use widgets::*;
 
 /// Main TUI application
@@ -171,7 +174,10 @@ impl TuiApp {
                     }
                     break;
                 }
-                if matches!(event, AppEvent::SessionSwitch(_) | AppEvent::TaskComplete(_)) {
+                if matches!(
+                    event,
+                    AppEvent::SessionSwitch(_) | AppEvent::TaskComplete(_)
+                ) {
                     // Could trigger refresh here
                 }
             }
@@ -205,7 +211,9 @@ impl TuiApp {
         match (key.code, key.modifiers) {
             // Alt+N: Create new session
             (KeyCode::Char('n'), KeyModifiers::ALT) => {
-                self.state.event_tx.send(AppEvent::SessionListUpdate(vec![]))?;
+                self.state
+                    .event_tx
+                    .send(AppEvent::SessionListUpdate(vec![]))?;
             }
             // Alt+S: Open session switcher
             (KeyCode::Char('s'), KeyModifiers::ALT) => {
@@ -254,7 +262,8 @@ impl TuiApp {
             // Page Down: Scroll output down by page
             (KeyCode::PageDown, _) => {
                 let visible = self.get_output_visible_height();
-                self.state.scroll_down(visible.saturating_sub(2).max(3), visible);
+                self.state
+                    .scroll_down(visible.saturating_sub(2).max(3), visible);
             }
             // Home: Scroll to top
             (KeyCode::Home, _) => {
@@ -270,8 +279,12 @@ impl TuiApp {
                 if let Some(popup) = self.state.active_popup {
                     match popup {
                         PopupType::SessionList => {
-                            if let Some(session) = self.state.sessions.get(self.state.popup_selected_index) {
-                                self.state.event_tx.send(AppEvent::SessionSwitch(session.id.clone()))?;
+                            if let Some(session) =
+                                self.state.sessions.get(self.state.popup_selected_index)
+                            {
+                                self.state
+                                    .event_tx
+                                    .send(AppEvent::SessionSwitch(session.id.clone()))?;
                             }
                         }
                         PopupType::TaskList => {
@@ -296,7 +309,10 @@ impl TuiApp {
 
                         if self.state.processing_state.is_processing {
                             // Already processing - queue the input
-                            info!("TUI: Currently processing, queueing input. Queue size: {}", self.state.processing_state.input_queue.len() + 1);
+                            info!(
+                                "TUI: Currently processing, queueing input. Queue size: {}",
+                                self.state.processing_state.input_queue.len() + 1
+                            );
                             self.state.processing_state.input_queue.push(input);
                         } else {
                             // Start processing - add to queue and start processing
@@ -409,27 +425,31 @@ impl TuiApp {
         event_tx: mpsc::UnboundedSender<AppEvent>,
     ) {
         if let Some(ref client) = daemon_client {
-            info!("[DEBUG] route_to_agent_bg: session_id={}, input={}", session_id, input);
+            info!(
+                "[DEBUG] route_to_agent_bg: session_id={}, input={}",
+                session_id, input
+            );
 
             // Wrap handle_input in error handler
             let handle_result = match client.handle_input(input.clone(), session_id.clone()).await {
                 Ok(r) => r,
                 Err(e) => {
                     warn!("Daemon client handle_input error: {:?}", e);
-                    let _ = event_tx.send(AppEvent::OutputLine(
-                        crate::state::OutputLine {
-                            content: format!("Communication error: {}", e),
-                            style: crate::state::OutputStyle::Error,
-                            timestamp: chrono::Local::now(),
-                            ..Default::default()
-                        },
-                    ));
+                    let _ = event_tx.send(AppEvent::OutputLine(crate::state::OutputLine {
+                        content: format!("Communication error: {}", e),
+                        style: crate::state::OutputStyle::Error,
+                        timestamp: chrono::Local::now(),
+                        ..Default::default()
+                    }));
                     let _ = event_tx.send(AppEvent::StopProcessing);
                     return;
                 }
             };
 
-            info!("Daemon client result: to_agent={}, should_exit={}", handle_result.to_agent, handle_result.should_exit);
+            info!(
+                "Daemon client result: to_agent={}, should_exit={}",
+                handle_result.to_agent, handle_result.should_exit
+            );
 
             // Check if command signals exit (e.g., /quit)
             if handle_result.should_exit {
@@ -441,56 +461,57 @@ impl TuiApp {
             if handle_result.to_agent {
                 // Create streaming callback that sends StreamChunk events
                 let event_tx_clone = event_tx.clone();
-                let stream_callback: Box<dyn Fn(String) -> bool + Send + Sync> = Box::new(move |chunk: String| -> bool {
-                    info!("[TUI] Stream callback called: {} chars", chunk.len());
-                    // Send stream chunk to TUI - ignore send errors (channel may be closed)
-                    let _ = event_tx_clone.send(AppEvent::StreamChunk(chunk));
-                    true  // Continue streaming
-                });
+                let stream_callback: Box<dyn Fn(String) -> bool + Send + Sync> =
+                    Box::new(move |chunk: String| -> bool {
+                        info!("[TUI] Stream callback called: {} chars", chunk.len());
+                        // Send stream chunk to TUI - ignore send errors (channel may be closed)
+                        let _ = event_tx_clone.send(AppEvent::StreamChunk(chunk));
+                        true // Continue streaming
+                    });
 
                 info!("[TUI] Starting send_message_streaming");
                 // Forward to agent - use daemon client's send_message_streaming
-                match client.send_message_streaming(&session_id, input, Some(stream_callback)).await {
+                match client
+                    .send_message_streaming(&session_id, input, Some(stream_callback))
+                    .await
+                {
                     Ok(response) => {
                         info!("[TUI] Agent response received, length: {}", response.len());
                         // Note: Don't send OutputLine here since streaming already displayed chunks
-                        debug!("[TUI] Streaming completed, final response length: {}", response.len());
+                        debug!(
+                            "[TUI] Streaming completed, final response length: {}",
+                            response.len()
+                        );
                     }
                     Err(e) => {
                         warn!("[TUI] Daemon client send_message error: {:?}", e);
-                        let _ = event_tx.send(AppEvent::OutputLine(
-                            crate::state::OutputLine {
-                                content: format!("Agent error: {}", e),
-                                style: crate::state::OutputStyle::Error,
-                                timestamp: chrono::Local::now(),
-                                ..Default::default()
-                            },
-                        ));
+                        let _ = event_tx.send(AppEvent::OutputLine(crate::state::OutputLine {
+                            content: format!("Agent error: {}", e),
+                            style: crate::state::OutputStyle::Error,
+                            timestamp: chrono::Local::now(),
+                            ..Default::default()
+                        }));
                     }
                 }
             } else {
                 // Daemon handled it, show response if any
                 if !handle_result.response.message.is_empty() {
-                    let _ = event_tx.send(AppEvent::OutputLine(
-                        crate::state::OutputLine {
-                            content: handle_result.response.message,
-                            style: crate::state::OutputStyle::SystemInfo,
-                            timestamp: chrono::Local::now(),
-                            ..Default::default()
-                        },
-                    ));
+                    let _ = event_tx.send(AppEvent::OutputLine(crate::state::OutputLine {
+                        content: handle_result.response.message,
+                        style: crate::state::OutputStyle::SystemInfo,
+                        timestamp: chrono::Local::now(),
+                        ..Default::default()
+                    }));
                 }
             }
         } else {
             warn!("No daemon client configured");
-            let _ = event_tx.send(AppEvent::OutputLine(
-                crate::state::OutputLine {
-                    content: "No daemon connection available".to_string(),
-                    style: crate::state::OutputStyle::Error,
-                    timestamp: chrono::Local::now(),
-                    ..Default::default()
-                },
-            ));
+            let _ = event_tx.send(AppEvent::OutputLine(crate::state::OutputLine {
+                content: "No daemon connection available".to_string(),
+                style: crate::state::OutputStyle::Error,
+                timestamp: chrono::Local::now(),
+                ..Default::default()
+            }));
         }
 
         // Always send StopProcessing to allow next input
@@ -501,39 +522,43 @@ impl TuiApp {
     fn handle_command(&self, command: &str) {
         match command {
             "/help" | "/h" => {
-                let _ = self.state.event_tx.send(AppEvent::OutputLine(
-                    crate::state::OutputLine {
+                let _ = self
+                    .state
+                    .event_tx
+                    .send(AppEvent::OutputLine(crate::state::OutputLine {
                         content: "Available commands: /help, /sessions, /tasks, /quit".to_string(),
                         style: crate::state::OutputStyle::SystemInfo,
                         timestamp: chrono::Local::now(),
-                                    ..Default::default()
-                    },
-                ));
+                        ..Default::default()
+                    }));
             }
             "/sessions" => {
                 // Refresh session list
-                let _ = self.state.event_tx.send(AppEvent::SessionListUpdate(
-                    self.state.sessions.clone(),
-                ));
+                let _ = self
+                    .state
+                    .event_tx
+                    .send(AppEvent::SessionListUpdate(self.state.sessions.clone()));
             }
             "/tasks" => {
                 // Refresh task list
-                let _ = self.state.event_tx.send(AppEvent::TaskListUpdate(
-                    self.state.tasks.clone(),
-                ));
+                let _ = self
+                    .state
+                    .event_tx
+                    .send(AppEvent::TaskListUpdate(self.state.tasks.clone()));
             }
             "/quit" | "/exit" => {
-                // Will be handled in main loop
+                let _ = self.state.event_tx.send(AppEvent::Exit);
             }
             _ => {
-                let _ = self.state.event_tx.send(AppEvent::OutputLine(
-                    crate::state::OutputLine {
+                let _ = self
+                    .state
+                    .event_tx
+                    .send(AppEvent::OutputLine(crate::state::OutputLine {
                         content: format!("Unknown command: {}", command),
                         style: crate::state::OutputStyle::Error,
                         timestamp: chrono::Local::now(),
-                                    ..Default::default()
-                    },
-                ));
+                        ..Default::default()
+                    }));
             }
         }
     }
@@ -560,7 +585,10 @@ pub async fn run_tui(
 
     // Send initial system status if provided
     if let Some(status) = initial_status {
-        let _ = app.state.event_tx.send(AppEvent::SystemStatusUpdate(status));
+        let _ = app
+            .state
+            .event_tx
+            .send(AppEvent::SystemStatusUpdate(status));
     }
 
     app.run().await?;

@@ -4,16 +4,15 @@
 //!
 //! Design Reference: docs/03-module-design/core/command.md
 
-pub mod types;
-pub mod parser;
 pub mod manager;
+pub mod parser;
+pub mod types;
 
 pub use types::{
-    CommandError, CommandResult, CommandType, CommandMetadata, CommandArg,
-    CommandUsage, WorkflowConfig, CommandDefinition, ParsedArgs,
-    CommandExecutionContext, CommandExecutionResult, CommandInfo, CommandEntry,
-    BuiltinFunction,
+    BuiltinFunction, CommandArg, CommandDefinition, CommandEntry, CommandError,
+    CommandExecutionContext, CommandExecutionResult, CommandInfo, CommandMetadata, CommandResult,
+    CommandType, CommandUsage, ParsedArgs, WorkflowConfig,
 };
 
-pub use parser::{CommandParser, ArgBinder, VariableResolver};
-pub use manager::{CommandManagerImpl, CommandConfig};
+pub use manager::{CommandConfig, CommandManagerImpl};
+pub use parser::{ArgBinder, CommandParser, VariableResolver};

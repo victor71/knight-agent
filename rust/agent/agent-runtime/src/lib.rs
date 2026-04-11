@@ -8,13 +8,13 @@
 //! - State machine for agent status transitions
 //! - Tool call proxy interface
 
-pub mod types;
 pub mod runtime;
+pub mod types;
 
 pub use types::{
-    AgentRuntimeError, AgentStatus, AgentState, AgentStatistics, Agent, AgentContext,
-    ErrorInfo, AwaitInfo, Message, MessageRole, ContentBlock, ContentBlockType,
-    ToolResult, MemoryItem, UserResponse, RuntimeResult,
+    Agent, AgentContext, AgentRuntimeError, AgentState, AgentStatistics, AgentStatus, AwaitInfo,
+    ContentBlock, ContentBlockType, ErrorInfo, MemoryItem, Message, MessageRole, RuntimeResult,
+    ToolResult, UserResponse,
 };
 
 pub use runtime::AgentRuntimeImpl;
@@ -46,10 +46,7 @@ pub trait AgentHandle: Send + Sync {
 
     /// Get or create a session agent
     /// Returns the agent ID for the session, creating a new one if needed
-    async fn get_or_create_session_agent(
-        &self,
-        session_id: String,
-    ) -> RuntimeResult<String>;
+    async fn get_or_create_session_agent(&self, session_id: String) -> RuntimeResult<String>;
 
     /// Check if the runtime is initialized
     fn is_initialized(&self) -> bool;
@@ -93,7 +90,7 @@ impl ProxyTrait for AgentRuntimeImpl {
             self,
             agent_id,
             message,
-            true,  // stream parameter
+            true, // stream parameter
             stream_callback,
         )
         .await
