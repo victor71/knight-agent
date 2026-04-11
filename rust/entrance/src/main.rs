@@ -33,7 +33,7 @@ pub(crate) struct TuiLogWriter {
 }
 
 impl TuiLogWriter {
-    pub(crate) fn new(log_dir: &PathBuf, max_file_size_mb: u64) -> Result<Self> {
+    pub(crate) fn new(log_dir: &Path, max_file_size_mb: u64) -> Result<Self> {
         let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
         let filename = format!("tui_{}.log", timestamp);
         let log_path = log_dir.join(filename);
@@ -47,7 +47,7 @@ impl TuiLogWriter {
     }
 
     fn write_data(&self, buf: &[u8]) -> std::io::Result<usize> {
-        let mut size = self.current_size.lock().unwrap();
+        let size = self.current_size.lock().unwrap();
 
         // Check rotation
         if *size >= self.max_file_size {
@@ -94,7 +94,7 @@ impl std::io::Write for LogWriter {
 
 /// Initialize logging for TUI process
 fn init_tui_logging(
-    log_dir: &PathBuf,
+    log_dir: &Path,
     max_file_size_mb: u64,
 ) -> Result<(WorkerGuard, Arc<Mutex<TuiLogWriter>>)> {
     let log_writer = Arc::new(Mutex::new(TuiLogWriter::new(log_dir, max_file_size_mb)?));

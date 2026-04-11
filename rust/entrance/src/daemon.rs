@@ -30,7 +30,7 @@ pub(crate) struct SessionLogWriter {
 }
 
 /// Helper to lock mutex with poisoning recovery
-fn lock_mutex<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<T> {
+fn lock_mutex<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|e| {
         // Recover from poisoned mutex - the data may be partially invalid
         // but for logging purposes, this is acceptable
@@ -263,7 +263,7 @@ impl DaemonState {
 
         // handle_input handler - relay to session process
         let registry_for_input = session_registry.clone();
-        server.register("handle_input", move |params: serde_json::Value| {
+        let _ = server.register("handle_input", move |params: serde_json::Value| {
             let session_registry = registry_for_input.clone();
             Box::pin(async move {
                 let input = params.get("input").and_then(|v| v.as_str()).unwrap_or("").to_string();
@@ -301,7 +301,7 @@ impl DaemonState {
                     let response = session_client.request("handle_input".to_string(), relay_params).await
                         .map_err(|e| ipc_contract::IPCError::InternalError(format!("handle_input relay failed: {}", e)))?;
 
-                    session_client.disconnect().await;
+                    let _ = session_client.disconnect().await;
                     Ok(response)
                 } else {
                     // No session process found - return error
@@ -321,7 +321,7 @@ impl DaemonState {
 
         // send_message streaming handler - relay to session process
         let registry_for_send = session_registry.clone();
-        server.register_streaming("send_message", move |params: serde_json::Value, stream_ctx: ipc_contract::StreamingContext| {
+        let _ = server.register_streaming("send_message", move |params: serde_json::Value, stream_ctx: ipc_contract::StreamingContext| {
             let session_registry = registry_for_send.clone();
             Box::pin(async move {
                 let session_id = params.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
@@ -388,7 +388,7 @@ impl DaemonState {
                             let _ = chunk_task.await;
                             info!("[DAEMON] send_message: chunk task completed");
 
-                            session_client.disconnect().await;
+                            let _ = session_client.disconnect().await;
 
                             match response_result {
                                 Ok(response) => {
@@ -407,7 +407,7 @@ impl DaemonState {
                             }
                         }
                         Err(e) => {
-                            session_client.disconnect().await;
+                            let _ = session_client.disconnect().await;
                             Ok(serde_json::json!({
                                 "response": format!("Failed to relay to session: {}", e),
                                 "error": true
@@ -425,7 +425,7 @@ impl DaemonState {
 
         // list_sessions handler - query all registered sessions
         let registry_for_list = session_registry.clone();
-        server
+        let _ = server
             .register("list_sessions", move |_params: serde_json::Value| {
                 let session_registry = registry_for_list.clone();
                 Box::pin(async move {
@@ -452,16 +452,16 @@ impl DaemonState {
 
         // create_session handler - spawns a dedicated session process
         let registry_for_create = session_registry.clone();
-        server
+        let _ = server
             .register("create_session", move |params: serde_json::Value| {
                 let session_registry = registry_for_create.clone();
                 let daemon_addr = daemon_addr_clone.clone();
                 Box::pin(async move {
-                    let name = params
+                    let _name = params
                         .get("name")
                         .and_then(|v| v.as_str())
                         .map(|s| s.to_string());
-                    let workspace = params
+                    let _workspace = params
                         .get("workspace")
                         .and_then(|v| v.as_str())
                         .unwrap_or(".")
@@ -520,7 +520,7 @@ impl DaemonState {
             .await;
 
         // switch_session handler - just acknowledge (session selection is client-side)
-        server
+        let _ = server
             .register("switch_session", move |params: serde_json::Value| {
                 Box::pin(async move {
                     let session_id = params
@@ -535,7 +535,7 @@ impl DaemonState {
 
         // get_system_status handler
         let system = system.clone();
-        server
+        let _ = server
             .register("get_system_status", move |_params: serde_json::Value| {
                 let system = system.clone();
                 Box::pin(async move {
@@ -554,7 +554,7 @@ impl DaemonState {
 
         // register_session handler (for session processes) - update registry with port
         let registry_for_register = session_registry.clone();
-        server
+        let _ = server
             .register("register_session", move |params: serde_json::Value| {
                 let session_registry = registry_for_register.clone();
                 Box::pin(async move {
@@ -587,7 +587,7 @@ impl DaemonState {
             .await;
 
         // heartbeat handler (for session processes)
-        server
+        let _ = server
             .register("heartbeat", move |params: serde_json::Value| {
                 Box::pin(async move {
                     let session_id = params
@@ -605,7 +605,7 @@ impl DaemonState {
 
         // shutdown handler - signal shutdown
         let shutdown_tx = shutdown_tx.clone();
-        server
+        let _ = server
             .register("shutdown", move |_params: serde_json::Value| {
                 let shutdown_tx = shutdown_tx.clone();
                 Box::pin(async move {

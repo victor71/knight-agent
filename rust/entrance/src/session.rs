@@ -7,7 +7,7 @@
 use anyhow::{Context, Result};
 use bootstrap::{BootstrapConfig, BootstrapMode, KnightAgentSystem};
 use session_manager::{CreateSessionRequest, StreamCallback};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::broadcast;
@@ -28,7 +28,7 @@ pub(crate) struct SessionLogWriter {
 }
 
 /// Helper to lock mutex with poisoning recovery
-fn lock_mutex<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<T> {
+fn lock_mutex<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|e| {
         // Recover from poisoned mutex - the data may be partially invalid
         // but for logging purposes, this is acceptable
@@ -77,7 +77,7 @@ impl SessionLogWriter {
 
     fn check_rotation(&self) -> Result<()> {
         let current_session = lock_mutex(&self.current_session_id);
-        let session_id = match current_session.as_ref() {
+        let _session_id = match current_session.as_ref() {
             Some(id) => id,
             None => return Ok(()),
         };
@@ -173,12 +173,12 @@ impl std::io::Write for LogWriter {
 /// Initialize logging for session process
 fn init_logging(
     session_id: &str,
-    log_dir: &PathBuf,
+    log_dir: &Path,
     max_file_size_mb: u64,
 ) -> Result<(WorkerGuard, Arc<Mutex<SessionLogWriter>>)> {
     let max_file_size = max_file_size_mb * 1024 * 1024;
     let log_writer = Arc::new(Mutex::new(SessionLogWriter::new(
-        log_dir.clone(),
+        log_dir.to_path_buf(),
         max_file_size,
     )));
     lock_mutex(&log_writer).set_session(session_id.to_string())?;
@@ -410,7 +410,7 @@ async fn register_session_handlers(
 
     // send_message handler - process LLM message in this session's context
     let session_id_for_send = session_id.clone();
-    server.register_streaming("send_message", move |params: serde_json::Value, stream_ctx: ipc_contract::StreamingContext| {
+    let _ = server.register_streaming("send_message", move |params: serde_json::Value, stream_ctx: ipc_contract::StreamingContext| {
         let session_manager = session_manager.clone();
         let session_id = session_id_for_send.clone();
         Box::pin(async move {
@@ -443,7 +443,7 @@ async fn register_session_handlers(
             let stream_callback: StreamCallback = Box::new({
                 let chunk_tx = chunk_tx.clone();
                 move |chunk: String| -> bool {
-                    let _ = chunk_tx.send(chunk);
+                    std::mem::drop(chunk_tx.send(chunk));
                     true
                 }
             });
@@ -475,7 +475,7 @@ async fn register_session_handlers(
 
     // handle_input handler - route input through router
     let session_id_for_input = session_id.clone();
-    server
+    let _ = server
         .register("handle_input", move |params: serde_json::Value| {
             let router = router.clone();
             let session_id = session_id_for_input.clone();
@@ -506,7 +506,7 @@ async fn register_session_handlers(
 
     // shutdown handler
     let shutdown_tx_clone = shutdown_tx.clone();
-    server
+    let _ = server
         .register("shutdown", move |_params: serde_json::Value| {
             let shutdown_tx = shutdown_tx_clone.clone();
             Box::pin(async move {
